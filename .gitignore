@@ -1,0 +1,10 @@
+# auto generated
+dist
+node_modules
+.turbo
+
+# system specific
+.DS_Store
+
+# sensitive stuff
+.env

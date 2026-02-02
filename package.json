@@ -1,0 +1,26 @@
+{
+  "private": true,
+  "scripts": {
+    "build": "turbo build",
+    "test": "turbo test",
+    "lint": "turbo lint",
+    "fix": "turbo fix",
+    "prepare": "npm run build",
+    "changeset": "changeset",
+    "versions": "changeset version",
+    "release": "npm login && pnpm -r publish && pnpm tags",
+    "tags": "pnpm -r exec -- bash -c 'pkg=$(jq -r .name package.json); ver=$(jq -r .version package.json); tag=\"$pkg@$ver\"; if ! git rev-parse \"$tag\" >/dev/null 2>&1; then git tag \"$tag\" && echo \"Tagged $tag\"; fi' && git push --tags"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.3.10",
+    "@changesets/cli": "^2.29.8",
+    "turbo": "^2.6.3"
+  },
+  "packageManager": "pnpm@10.27.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "esbuild"
+    ]
+  }
+}
