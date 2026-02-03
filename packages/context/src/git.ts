@@ -388,7 +388,7 @@ function findMarkdownFiles(
 
 export interface ReadLocalDocsOptions {
   /** Path to docs folder within the repository */
-  docsPath?: string;
+  path?: string;
   /** Language filter: "all" includes everything, specific code (e.g., "en") includes only that locale */
   lang?: string;
 }
@@ -403,7 +403,7 @@ export function readLocalDocsFiles(
   basePath: string,
   options: ReadLocalDocsOptions = {},
 ): Array<{ path: string; content: string }> {
-  const { docsPath, lang } = options;
+  const { path: docsPath, lang } = options;
   const searchPath = docsPath ? join(basePath, docsPath) : basePath;
 
   if (!existsSync(searchPath)) {
