@@ -10,10 +10,15 @@ import {
   statSync,
   unlinkSync,
 } from "node:fs";
+import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { Command } from "commander";
+
+const require = createRequire(import.meta.url);
+const { version } = require("../package.json") as { version: string };
+
 import {
   cloneRepository,
   detectLocalDocsFolder,
@@ -181,7 +186,7 @@ function loadPackages(store: PackageStore): void {
 const program = new Command()
   .name("context")
   .description("Local-first documentation for AI agents")
-  .version("0.1.0");
+  .version(version);
 
 /** Install a package from a local file path. */
 function addFromFile(source: string, options: { save?: string }): void {
