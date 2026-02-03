@@ -148,4 +148,88 @@ Run the install command.
 
     expect(result.path).toBe(testDbPath);
   });
+
+  it("deduplicates sections with identical title and content from different files", () => {
+    // Simulate the vercel/ai repo scenario where multiple README.md files
+    // have the same "Skill for Coding Agents" section
+    const sharedSection = `## Skill for Coding Agents
+
+If you use coding agents such as Claude Code or Cursor, we highly recommend adding the AI SDK skill to your repository.`;
+
+    const files = [
+      {
+        path: "packages/deepseek/README.md",
+        content: `# DeepSeek Provider\n\n## Overview\n\nDeepSeek provider for the AI SDK.\n\n${sharedSection}`,
+      },
+      {
+        path: "packages/elevenlabs/README.md",
+        content: `# ElevenLabs Provider\n\n## Overview\n\nElevenLabs provider for the AI SDK.\n\n${sharedSection}`,
+      },
+      {
+        path: "packages/fal/README.md",
+        content: `# Fal Provider\n\n## Overview\n\nFal provider for the AI SDK.\n\n${sharedSection}`,
+      },
+    ];
+
+    const result = buildPackage(testDbPath, files, {
+      name: "test-dedup",
+      version: "1.0.0",
+    });
+
+    // Verify that the shared section is only stored once
+    const db = new Database(testDbPath, { readonly: true });
+    try {
+      const sharedSections = db
+        .prepare(
+          "SELECT doc_path, section_title FROM chunks WHERE section_title = ?",
+        )
+        .all("Skill for Coding Agents") as { doc_path: string }[];
+
+      // Should only have 1 entry, not 3
+      expect(sharedSections.length).toBe(1);
+      // First occurrence wins (deepseek)
+      expect(sharedSections[0].doc_path).toBe("packages/deepseek/README.md");
+
+      // Overview sections should all be kept since content differs
+      const overviewSections = db
+        .prepare("SELECT doc_path FROM chunks WHERE section_title = ?")
+        .all("Overview") as { doc_path: string }[];
+      expect(overviewSections.length).toBe(3);
+    } finally {
+      db.close();
+    }
+
+    // 3 unique Overview sections + 1 shared "Skill for Coding Agents" = 4 sections
+    expect(result.sectionCount).toBe(4);
+  });
+
+  it("keeps sections with same title but different content", () => {
+    const files = [
+      {
+        path: "packages/a/README.md",
+        content: `# Package A\n\n## Installation\n\nInstall package A with npm install a.`,
+      },
+      {
+        path: "packages/b/README.md",
+        content: `# Package B\n\n## Installation\n\nInstall package B with npm install b.`,
+      },
+    ];
+
+    buildPackage(testDbPath, files, {
+      name: "test-same-title",
+      version: "1.0.0",
+    });
+
+    const db = new Database(testDbPath, { readonly: true });
+    try {
+      const sections = db
+        .prepare("SELECT doc_path FROM chunks WHERE section_title = ?")
+        .all("Installation") as { doc_path: string }[];
+
+      // Both should be kept since content differs
+      expect(sections.length).toBe(2);
+    } finally {
+      db.close();
+    }
+  });
 });
