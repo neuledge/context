@@ -449,20 +449,129 @@ export function extractVersion(ref?: string): string {
 }
 
 /**
+ * Parsed semantic version for comparison.
+ */
+interface ParsedVersion {
+  major: number;
+  minor: number;
+  patch: number;
+  prerelease: string | null;
+  original: string;
+}
+
+/**
+ * Parse a version string into components.
+ * Returns null if the string is not a valid semver-like version.
+ */
+function parseVersion(tag: string): ParsedVersion | null {
+  // Remove 'v' prefix if present
+  const version = tag.startsWith("v") ? tag.slice(1) : tag;
+
+  // Match semver pattern: major.minor.patch[-prerelease]
+  const match = version.match(/^(\d+)\.(\d+)\.(\d+)(?:-(.+))?$/);
+  if (!match) return null;
+
+  // Groups 1-3 are guaranteed to exist when regex matches (required groups)
+  // Group 4 (prerelease) is optional
+  return {
+    major: Number.parseInt(match[1] as string, 10),
+    minor: Number.parseInt(match[2] as string, 10),
+    patch: Number.parseInt(match[3] as string, 10),
+    prerelease: match[4] ?? null,
+    original: tag,
+  };
+}
+
+/**
+ * Check if a version is a prerelease.
+ * Detects common prerelease patterns: canary, alpha, beta, rc, next, dev, etc.
+ */
+function isPrerelease(version: ParsedVersion): boolean {
+  return version.prerelease !== null;
+}
+
+/**
+ * Compare two parsed versions.
+ * Returns positive if a > b, negative if a < b, 0 if equal.
+ */
+function compareVersions(a: ParsedVersion, b: ParsedVersion): number {
+  if (a.major !== b.major) return a.major - b.major;
+  if (a.minor !== b.minor) return a.minor - b.minor;
+  return a.patch - b.patch;
+}
+
+/**
+ * Find the latest stable version from a list of git tags.
+ * Filters out prereleases and returns the highest semver version.
+ */
+function findLatestStableVersion(tags: string[]): string | null {
+  const versions = tags
+    .map(parseVersion)
+    .filter((v): v is ParsedVersion => v !== null)
+    .filter((v) => !isPrerelease(v));
+
+  if (versions.length === 0) return null;
+
+  // Sort descending by version
+  versions.sort((a, b) => compareVersions(b, a));
+
+  const latest = versions[0];
+  return latest ? latest.original : null;
+}
+
+/**
  * Detect version from a directory by checking:
- * 1. Latest git tag (universal across all languages)
+ * 1. All git tags - finds highest stable (non-prerelease) version by semver
  * 2. Falls back to 'latest'
+ *
+ * When a stable version is found, checks out to that tag so the code matches.
+ * Handles shallow clones by fetching tags and the specific tag's commit.
  */
 export function detectVersion(dirPath: string): string {
-  // Try git tag (works for any language/framework)
   try {
-    const tag = execSync("git describe --tags --abbrev=0 2>/dev/null", {
+    // Fetch all tags (needed for shallow clones)
+    execSync("git fetch --tags --quiet 2>/dev/null", {
+      cwd: dirPath,
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+
+    // List all tags
+    const tagsOutput = execSync("git tag -l 2>/dev/null", {
       cwd: dirPath,
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "pipe"],
     }).trim();
-    if (tag) {
-      return tag.startsWith("v") ? tag.slice(1) : tag;
+
+    if (tagsOutput) {
+      const tags = tagsOutput.split("\n").filter(Boolean);
+      const latestStable = findLatestStableVersion(tags);
+      if (latestStable) {
+        // Fetch and checkout to the detected tag so code matches the version
+        try {
+          // Fetch the specific tag (for shallow clones that don't have the commit)
+          execSync(
+            `git fetch --depth=1 origin tag ${latestStable} --no-tags 2>/dev/null`,
+            {
+              cwd: dirPath,
+              encoding: "utf-8",
+              stdio: ["pipe", "pipe", "pipe"],
+            },
+          );
+          // Checkout to the tag
+          execSync(`git checkout ${latestStable} 2>/dev/null`, {
+            cwd: dirPath,
+            encoding: "utf-8",
+            stdio: ["pipe", "pipe", "pipe"],
+          });
+        } catch {
+          // Checkout failed, continue with current HEAD
+        }
+
+        return latestStable.startsWith("v")
+          ? latestStable.slice(1)
+          : latestStable;
+      }
     }
   } catch {
     // Not a git repo or no tags
