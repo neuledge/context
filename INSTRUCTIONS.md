@@ -26,6 +26,7 @@
 - Document "why", not "what" (code shows what)
 - Keep docs near the code
 - Update docs when code changes
+- Update README when adding/changing user-facing features, CLI commands, or configuration options
 
 ### DX First
 When modifying interfaces or their usage:
@@ -34,6 +35,19 @@ When modifying interfaces or their usage:
 3. Then implement the changes
 
 Why: Writing docs first forces you to think through the API from the user's perspective before coding.
+
+### Changesets
+
+When modifying packages that are published (check for `"private": true` in package.json):
+- Create a changeset for user-facing changes: `pnpm changeset`
+- Select affected packages and appropriate bump type:
+  - `patch`: Bug fixes, internal changes
+  - `minor`: New features, non-breaking additions
+  - `major`: Breaking changes
+- Write a concise summary describing the change from a user's perspective
+- Skip changesets for: docs-only changes, test-only changes, internal tooling
+
+Why: Changesets automate versioning and changelog generation, ensuring users know what changed between releases.
 
 ## Plans
 
@@ -98,3 +112,7 @@ pnpm lint    # Run 'pnpm fix' to auto-fix
 pnpm build
 pnpm test
 ```
+
+### Checklist
+- [ ] README updated (if user-facing changes)
+- [ ] Changeset added (if modifying published packages)
