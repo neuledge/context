@@ -16,7 +16,7 @@
 
 ## The Problem
 
-You're building with Next.js 15, and your AI assistant confidently suggests code using the old Pages Router because that's what it learned from training data. You paste the docs. It hallucinates anyway. You paste more docs. The context window fills up. Repeat.
+You're building with Next.js 16, and your AI assistant confidently suggests code using the old Pages Router because that's what it learned from training data. You paste the docs. It hallucinates anyway. You paste more docs. The context window fills up. Repeat.
 
 **AI assistants are powerful, but they're stuck in the past.** Their training data is months or years old, and they don't know the specifics of the libraries you're using today.
 
@@ -27,10 +27,10 @@ You're building with Next.js 15, and your AI assistant confidently suggests code
 Context connects your AI assistant directly to up-to-date documentation—locally, instantly, and privately.
 
 ```
-You: "How do I create middleware in Next.js 15?"
+You: "How do I create middleware in Next.js 16?"
 
 AI:  [automatically queries local docs]
-     "In Next.js 15, create a middleware.ts file in your project root..."
+     "In Next.js 16, create a middleware.ts file in your project root..."
      [accurate, version-specific answer]
 ```
 
@@ -288,7 +288,7 @@ context add https://gitlab.com/org/repo
 context add https://bitbucket.org/org/repo
 
 # Specific tag or branch
-context add https://github.com/vercel/next.js/tree/v15.0.0
+context add https://github.com/vercel/next.js/tree/v16.0.0
 
 # SSH URLs
 context add git@github.com:user/repo.git
@@ -372,7 +372,7 @@ $ context list
 
 Installed packages:
 
-  nextjs@15.0              4.2 MB    847 sections
+  nextjs@16.0              4.2 MB    847 sections
   react@18                 2.1 MB    423 sections
 
 Total: 2 packages (6.3 MB)
@@ -400,7 +400,7 @@ Query documentation directly from the command line. Useful for testing and debug
 
 ```bash
 # Query a package (use name@version format from 'context list')
-context query 'nextjs@15.0' 'middleware authentication'
+context query 'nextjs@16.0' 'middleware authentication'
 
 # Returns the same JSON format as the MCP get_docs tool
 ```
@@ -448,7 +448,7 @@ Packages are SQLite databases (`.db` files) containing pre-indexed documentation
 
 ```
 ~/.context/packages/
-├── nextjs@15.0.db
+├── nextjs@16.0.db
 ├── react@18.db
 └── typescript@5.5.db
 ```
