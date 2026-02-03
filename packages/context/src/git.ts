@@ -460,12 +460,46 @@ interface ParsedVersion {
 }
 
 /**
+ * Parse a monorepo-style tag into package name and version.
+ * Handles formats:
+ * - "package@1.2.3" -> { packageName: "package", version: "1.2.3" }
+ * - "@scope/package@1.2.3" -> { packageName: "@scope/package", version: "1.2.3" }
+ * - "v1.2.3" or "1.2.3" -> { packageName: null, version: "1.2.3" }
+ */
+export function parseMonorepoTag(tag: string): {
+  packageName: string | null;
+  version: string;
+} {
+  // Handle scoped packages: @scope/package@version
+  const scopedMatch = tag.match(/^(@[^@]+\/[^@]+)@(.+)$/);
+  if (scopedMatch) {
+    return {
+      packageName: scopedMatch[1] as string,
+      version: scopedMatch[2] as string,
+    };
+  }
+
+  // Handle unscoped packages: package@version (but not @scope/... which is handled above)
+  const unscopedMatch = tag.match(/^([^@]+)@(.+)$/);
+  if (unscopedMatch) {
+    return {
+      packageName: unscopedMatch[1] as string,
+      version: unscopedMatch[2] as string,
+    };
+  }
+
+  // Plain version tag (v1.2.3 or 1.2.3)
+  const version = tag.startsWith("v") ? tag.slice(1) : tag;
+  return { packageName: null, version };
+}
+
+/**
  * Parse a version string into components.
  * Returns null if the string is not a valid semver-like version.
  */
 function parseVersion(tag: string): ParsedVersion | null {
-  // Remove 'v' prefix if present
-  const version = tag.startsWith("v") ? tag.slice(1) : tag;
+  // Extract version from monorepo-style tags (e.g., "ai@6.0.68" -> "6.0.68")
+  const { version } = parseMonorepoTag(tag);
 
   // Match semver pattern: major.minor.patch[-prerelease]
   const match = version.match(/^(\d+)\.(\d+)\.(\d+)(?:-(.+))?$/);
@@ -501,11 +535,48 @@ function compareVersions(a: ParsedVersion, b: ParsedVersion): number {
 }
 
 /**
+ * Filter tags by package name for monorepo support.
+ * - If packageName is provided, only return tags matching that package
+ * - If no package-specific tags found, fall back to plain version tags
+ * - If packageName is not provided, return all tags
+ */
+function filterTagsByPackage(tags: string[], packageName?: string): string[] {
+  if (!packageName) {
+    return tags;
+  }
+
+  // Normalize package name for comparison (handle both "ai" and "@ai-sdk/gateway" styles)
+  const normalizedName = packageName.toLowerCase();
+
+  // Filter tags that match the package name
+  const matchingTags = tags.filter((tag) => {
+    const parsed = parseMonorepoTag(tag);
+    if (parsed.packageName === null) {
+      return false; // Plain version tags don't match specific packages
+    }
+    return parsed.packageName.toLowerCase() === normalizedName;
+  });
+
+  // If we found package-specific tags, use those
+  if (matchingTags.length > 0) {
+    return matchingTags;
+  }
+
+  // Fall back to plain version tags (for non-monorepo repos)
+  return tags.filter((tag) => parseMonorepoTag(tag).packageName === null);
+}
+
+/**
  * Find the latest stable version from a list of git tags.
  * Filters out prereleases and returns the highest semver version.
+ * If packageName is provided, filters tags to only those matching the package.
  */
-function findLatestStableVersion(tags: string[]): string | null {
-  const versions = tags
+export function findLatestStableVersion(
+  tags: string[],
+  packageName?: string,
+): string | null {
+  const filteredTags = filterTagsByPackage(tags, packageName);
+  const versions = filteredTags
     .map(parseVersion)
     .filter((v): v is ParsedVersion => v !== null)
     .filter((v) => !isPrerelease(v));
@@ -526,8 +597,11 @@ function findLatestStableVersion(tags: string[]): string | null {
  *
  * When a stable version is found, checks out to that tag so the code matches.
  * Handles shallow clones by fetching tags and the specific tag's commit.
+ *
+ * @param dirPath - Path to the git repository
+ * @param packageName - Optional package name for monorepo support (e.g., "ai" or "@ai-sdk/gateway")
  */
-export function detectVersion(dirPath: string): string {
+export function detectVersion(dirPath: string, packageName?: string): string {
   try {
     // Fetch all tags (needed for shallow clones)
     execSync("git fetch --tags --quiet 2>/dev/null", {
@@ -545,7 +619,7 @@ export function detectVersion(dirPath: string): string {
 
     if (tagsOutput) {
       const tags = tagsOutput.split("\n").filter(Boolean);
-      const latestStable = findLatestStableVersion(tags);
+      const latestStable = findLatestStableVersion(tags, packageName);
       if (latestStable) {
         // Fetch and checkout to the detected tag so code matches the version
         try {
@@ -568,9 +642,9 @@ export function detectVersion(dirPath: string): string {
           // Checkout failed, continue with current HEAD
         }
 
-        return latestStable.startsWith("v")
-          ? latestStable.slice(1)
-          : latestStable;
+        // Extract version from monorepo-style tags (e.g., "ai@6.0.68" -> "6.0.68")
+        const { version } = parseMonorepoTag(latestStable);
+        return version;
       }
     }
   } catch {
@@ -578,4 +652,159 @@ export function detectVersion(dirPath: string): string {
   }
 
   return "latest";
+}
+
+/**
+ * Tag information with metadata for sorting and display.
+ */
+export interface TagInfo {
+  /** The full tag name (e.g., "ai@6.0.68" or "v1.2.3") */
+  name: string;
+  /** Parsed package name from tag, or null for plain version tags */
+  packageName: string | null;
+  /** Parsed version string */
+  version: string;
+  /** Whether this is a prerelease version */
+  isPrerelease: boolean;
+  /** Tag creation timestamp (Unix seconds) */
+  timestamp: number;
+}
+
+/**
+ * Get the default branch name (main or master).
+ */
+export function getDefaultBranch(dirPath: string): string {
+  try {
+    // Try to get the default branch from remote HEAD
+    const result = execSync(
+      "git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null",
+      {
+        cwd: dirPath,
+        encoding: "utf-8",
+        stdio: ["pipe", "pipe", "pipe"],
+      },
+    ).trim();
+    // Extract branch name from "refs/remotes/origin/main"
+    const match = result.match(/refs\/remotes\/origin\/(.+)$/);
+    if (match?.[1]) {
+      return match[1];
+    }
+  } catch {
+    // Fallback: check if main or master exists
+  }
+
+  try {
+    execSync("git show-ref --verify --quiet refs/heads/main", {
+      cwd: dirPath,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    return "main";
+  } catch {
+    // main doesn't exist
+  }
+
+  return "master";
+}
+
+/**
+ * Fetch git tags with metadata (creation date, prerelease status).
+ * Returns up to `limit` tags sorted by creation date (most recent first).
+ */
+export function fetchTagsWithMetadata(dirPath: string, limit = 100): TagInfo[] {
+  try {
+    // Fetch all tags (needed for shallow clones)
+    execSync("git fetch --tags --quiet 2>/dev/null", {
+      cwd: dirPath,
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+
+    // Get tags with creation date, sorted by date descending
+    // Format: timestamp<tab>tagname
+    const output = execSync(
+      `git tag -l --sort=-creatordate --format='%(creatordate:unix)\t%(refname:short)' 2>/dev/null | head -n ${limit}`,
+      {
+        cwd: dirPath,
+        encoding: "utf-8",
+        stdio: ["pipe", "pipe", "pipe"],
+      },
+    ).trim();
+
+    if (!output) {
+      return [];
+    }
+
+    const tags: TagInfo[] = [];
+
+    for (const line of output.split("\n")) {
+      const [timestampStr, tagName] = line.split("\t");
+      if (!tagName || !timestampStr) continue;
+
+      const timestamp = Number.parseInt(timestampStr, 10);
+      const { packageName, version } = parseMonorepoTag(tagName);
+
+      // Check if it's a prerelease by parsing and checking
+      const parsed = parseVersion(tagName);
+      const isPre = parsed ? isPrerelease(parsed) : false;
+
+      tags.push({
+        name: tagName,
+        packageName,
+        version,
+        isPrerelease: isPre,
+        timestamp,
+      });
+    }
+
+    return tags;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Sort tags for interactive selection:
+ * 1. Stable versions first, sorted by timestamp (most recent first)
+ * 2. Prereleases after, sorted by timestamp (most recent first)
+ */
+export function sortTagsForSelection(tags: TagInfo[]): TagInfo[] {
+  const stable = tags.filter((t) => !t.isPrerelease);
+  const prerelease = tags.filter((t) => t.isPrerelease);
+
+  // Both are already sorted by timestamp from git, but let's ensure it
+  stable.sort((a, b) => b.timestamp - a.timestamp);
+  prerelease.sort((a, b) => b.timestamp - a.timestamp);
+
+  return [...stable, ...prerelease];
+}
+
+/**
+ * Checkout a specific git ref (tag or branch).
+ */
+export function checkoutRef(dirPath: string, ref: string): void {
+  try {
+    // Fetch the specific ref (for shallow clones)
+    execSync(`git fetch --depth=1 origin tag ${ref} --no-tags 2>/dev/null`, {
+      cwd: dirPath,
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+  } catch {
+    // Tag fetch failed, try as branch
+    try {
+      execSync(`git fetch --depth=1 origin ${ref} 2>/dev/null`, {
+        cwd: dirPath,
+        encoding: "utf-8",
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+    } catch {
+      // Fetch failed, continue anyway
+    }
+  }
+
+  execSync(`git checkout ${ref} 2>/dev/null`, {
+    cwd: dirPath,
+    encoding: "utf-8",
+    stdio: ["pipe", "pipe", "pipe"],
+  });
 }
