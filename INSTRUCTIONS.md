@@ -26,7 +26,6 @@
 - Document "why", not "what" (code shows what)
 - Keep docs near the code
 - Update docs when code changes
-- Update README when adding/changing user-facing features, CLI commands, or configuration options
 
 ### DX First
 When modifying interfaces or their usage:
@@ -114,5 +113,8 @@ pnpm test
 ```
 
 ### Checklist
+- [ ] Lint passes
+- [ ] Build succeeds
+- [ ] Tests pass
 - [ ] README updated (if user-facing changes)
 - [ ] Changeset added (if modifying published packages)
