@@ -460,12 +460,46 @@ interface ParsedVersion {
 }
 
 /**
+ * Parse a monorepo-style tag into package name and version.
+ * Handles formats:
+ * - "package@1.2.3" -> { packageName: "package", version: "1.2.3" }
+ * - "@scope/package@1.2.3" -> { packageName: "@scope/package", version: "1.2.3" }
+ * - "v1.2.3" or "1.2.3" -> { packageName: null, version: "1.2.3" }
+ */
+export function parseMonorepoTag(tag: string): {
+  packageName: string | null;
+  version: string;
+} {
+  // Handle scoped packages: @scope/package@version
+  const scopedMatch = tag.match(/^(@[^@]+\/[^@]+)@(.+)$/);
+  if (scopedMatch) {
+    return {
+      packageName: scopedMatch[1] as string,
+      version: scopedMatch[2] as string,
+    };
+  }
+
+  // Handle unscoped packages: package@version (but not @scope/... which is handled above)
+  const unscopedMatch = tag.match(/^([^@]+)@(.+)$/);
+  if (unscopedMatch) {
+    return {
+      packageName: unscopedMatch[1] as string,
+      version: unscopedMatch[2] as string,
+    };
+  }
+
+  // Plain version tag (v1.2.3 or 1.2.3)
+  const version = tag.startsWith("v") ? tag.slice(1) : tag;
+  return { packageName: null, version };
+}
+
+/**
  * Parse a version string into components.
  * Returns null if the string is not a valid semver-like version.
  */
 function parseVersion(tag: string): ParsedVersion | null {
-  // Remove 'v' prefix if present
-  const version = tag.startsWith("v") ? tag.slice(1) : tag;
+  // Extract version from monorepo-style tags (e.g., "ai@6.0.68" -> "6.0.68")
+  const { version } = parseMonorepoTag(tag);
 
   // Match semver pattern: major.minor.patch[-prerelease]
   const match = version.match(/^(\d+)\.(\d+)\.(\d+)(?:-(.+))?$/);
@@ -501,11 +535,48 @@ function compareVersions(a: ParsedVersion, b: ParsedVersion): number {
 }
 
 /**
+ * Filter tags by package name for monorepo support.
+ * - If packageName is provided, only return tags matching that package
+ * - If no package-specific tags found, fall back to plain version tags
+ * - If packageName is not provided, return all tags
+ */
+function filterTagsByPackage(tags: string[], packageName?: string): string[] {
+  if (!packageName) {
+    return tags;
+  }
+
+  // Normalize package name for comparison (handle both "ai" and "@ai-sdk/gateway" styles)
+  const normalizedName = packageName.toLowerCase();
+
+  // Filter tags that match the package name
+  const matchingTags = tags.filter((tag) => {
+    const parsed = parseMonorepoTag(tag);
+    if (parsed.packageName === null) {
+      return false; // Plain version tags don't match specific packages
+    }
+    return parsed.packageName.toLowerCase() === normalizedName;
+  });
+
+  // If we found package-specific tags, use those
+  if (matchingTags.length > 0) {
+    return matchingTags;
+  }
+
+  // Fall back to plain version tags (for non-monorepo repos)
+  return tags.filter((tag) => parseMonorepoTag(tag).packageName === null);
+}
+
+/**
  * Find the latest stable version from a list of git tags.
  * Filters out prereleases and returns the highest semver version.
+ * If packageName is provided, filters tags to only those matching the package.
  */
-function findLatestStableVersion(tags: string[]): string | null {
-  const versions = tags
+export function findLatestStableVersion(
+  tags: string[],
+  packageName?: string,
+): string | null {
+  const filteredTags = filterTagsByPackage(tags, packageName);
+  const versions = filteredTags
     .map(parseVersion)
     .filter((v): v is ParsedVersion => v !== null)
     .filter((v) => !isPrerelease(v));
@@ -526,8 +597,11 @@ function findLatestStableVersion(tags: string[]): string | null {
  *
  * When a stable version is found, checks out to that tag so the code matches.
  * Handles shallow clones by fetching tags and the specific tag's commit.
+ *
+ * @param dirPath - Path to the git repository
+ * @param packageName - Optional package name for monorepo support (e.g., "ai" or "@ai-sdk/gateway")
  */
-export function detectVersion(dirPath: string): string {
+export function detectVersion(dirPath: string, packageName?: string): string {
   try {
     // Fetch all tags (needed for shallow clones)
     execSync("git fetch --tags --quiet 2>/dev/null", {
@@ -545,7 +619,7 @@ export function detectVersion(dirPath: string): string {
 
     if (tagsOutput) {
       const tags = tagsOutput.split("\n").filter(Boolean);
-      const latestStable = findLatestStableVersion(tags);
+      const latestStable = findLatestStableVersion(tags, packageName);
       if (latestStable) {
         // Fetch and checkout to the detected tag so code matches the version
         try {
@@ -568,9 +642,9 @@ export function detectVersion(dirPath: string): string {
           // Checkout failed, continue with current HEAD
         }
 
-        return latestStable.startsWith("v")
-          ? latestStable.slice(1)
-          : latestStable;
+        // Extract version from monorepo-style tags (e.g., "ai@6.0.68" -> "6.0.68")
+        const { version } = parseMonorepoTag(latestStable);
+        return version;
       }
     }
   } catch {

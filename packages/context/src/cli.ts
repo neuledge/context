@@ -291,8 +291,10 @@ async function addFromGitClone(
 
   try {
     // Detect version: explicit > ref > detected from repo > latest
+    // Pass repoName to detectVersion for monorepo support (filters tags by package name)
     const versionLabel =
-      options.version ?? (ref ? extractVersion(ref) : detectVersion(tempDir));
+      options.version ??
+      (ref ? extractVersion(ref) : detectVersion(tempDir, repoName));
 
     // Detect or use provided docs path
     let docsPath: string | undefined = options.docsPath;
@@ -360,7 +362,8 @@ async function addFromLocalDir(
   const dirName = basename(dirPath);
   const packageName =
     options.name ?? dirName.toLowerCase().replace(/[^a-z0-9-]/g, "-");
-  const versionLabel = options.version ?? detectVersion(dirPath);
+  // Pass packageName to detectVersion for monorepo support (filters tags by package name)
+  const versionLabel = options.version ?? detectVersion(dirPath, packageName);
 
   console.log(`Scanning ${dirPath}...`);
 
