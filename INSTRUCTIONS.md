@@ -38,12 +38,15 @@ Why: Writing docs first forces you to think through the API from the user's pers
 ### Changesets
 
 When modifying packages that are published (check for `"private": true` in package.json):
-- Create a changeset for user-facing changes: `pnpm changeset`
-- Select affected packages and appropriate bump type:
-  - `patch`: Bug fixes, internal changes
-  - `minor`: New features, non-breaking additions
-  - `major`: Breaking changes
-- Write a concise summary describing the change from a user's perspective
+- Create a changeset file in `.changeset/` with a random filename (e.g., `happy-tiger-123.md`):
+  ```markdown
+  ---
+  "package-name": patch
+  ---
+
+  Short summary of the change from user's perspective
+  ```
+- Bump types: `patch` (bug fixes), `minor` (new features), `major` (breaking changes)
 - Skip changesets for: docs-only changes, test-only changes, internal tooling
 
 Why: Changesets automate versioning and changelog generation, ensuring users know what changed between releases.
