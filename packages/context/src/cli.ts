@@ -500,14 +500,18 @@ program
 program
   .command("remove")
   .description("Remove a documentation package")
-  .argument("<name>", "Package name (without version)")
+  .argument("<name>", "Package name (e.g., 'next' or 'next@v16.2.0')")
   .action((name: string) => {
     const store = new PackageStore();
     loadPackages(store);
 
-    const pkg = store.get(name);
+    // Strip version suffix if present (e.g., "next@v16.2.0" -> "next")
+    const atIndex = name.indexOf("@");
+    const packageName = atIndex > 0 ? name.slice(0, atIndex) : name;
+
+    const pkg = store.get(packageName);
     if (!pkg) {
-      console.error(`Error: Package not found: ${name}`);
+      console.error(`Error: Package not found: ${packageName}`);
       process.exit(1);
     }
 
