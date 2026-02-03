@@ -653,3 +653,158 @@ export function detectVersion(dirPath: string, packageName?: string): string {
 
   return "latest";
 }
+
+/**
+ * Tag information with metadata for sorting and display.
+ */
+export interface TagInfo {
+  /** The full tag name (e.g., "ai@6.0.68" or "v1.2.3") */
+  name: string;
+  /** Parsed package name from tag, or null for plain version tags */
+  packageName: string | null;
+  /** Parsed version string */
+  version: string;
+  /** Whether this is a prerelease version */
+  isPrerelease: boolean;
+  /** Tag creation timestamp (Unix seconds) */
+  timestamp: number;
+}
+
+/**
+ * Get the default branch name (main or master).
+ */
+export function getDefaultBranch(dirPath: string): string {
+  try {
+    // Try to get the default branch from remote HEAD
+    const result = execSync(
+      "git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null",
+      {
+        cwd: dirPath,
+        encoding: "utf-8",
+        stdio: ["pipe", "pipe", "pipe"],
+      },
+    ).trim();
+    // Extract branch name from "refs/remotes/origin/main"
+    const match = result.match(/refs\/remotes\/origin\/(.+)$/);
+    if (match?.[1]) {
+      return match[1];
+    }
+  } catch {
+    // Fallback: check if main or master exists
+  }
+
+  try {
+    execSync("git show-ref --verify --quiet refs/heads/main", {
+      cwd: dirPath,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    return "main";
+  } catch {
+    // main doesn't exist
+  }
+
+  return "master";
+}
+
+/**
+ * Fetch git tags with metadata (creation date, prerelease status).
+ * Returns up to `limit` tags sorted by creation date (most recent first).
+ */
+export function fetchTagsWithMetadata(dirPath: string, limit = 100): TagInfo[] {
+  try {
+    // Fetch all tags (needed for shallow clones)
+    execSync("git fetch --tags --quiet 2>/dev/null", {
+      cwd: dirPath,
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+
+    // Get tags with creation date, sorted by date descending
+    // Format: timestamp<tab>tagname
+    const output = execSync(
+      `git tag -l --sort=-creatordate --format='%(creatordate:unix)\t%(refname:short)' 2>/dev/null | head -n ${limit}`,
+      {
+        cwd: dirPath,
+        encoding: "utf-8",
+        stdio: ["pipe", "pipe", "pipe"],
+      },
+    ).trim();
+
+    if (!output) {
+      return [];
+    }
+
+    const tags: TagInfo[] = [];
+
+    for (const line of output.split("\n")) {
+      const [timestampStr, tagName] = line.split("\t");
+      if (!tagName || !timestampStr) continue;
+
+      const timestamp = Number.parseInt(timestampStr, 10);
+      const { packageName, version } = parseMonorepoTag(tagName);
+
+      // Check if it's a prerelease by parsing and checking
+      const parsed = parseVersion(tagName);
+      const isPre = parsed ? isPrerelease(parsed) : false;
+
+      tags.push({
+        name: tagName,
+        packageName,
+        version,
+        isPrerelease: isPre,
+        timestamp,
+      });
+    }
+
+    return tags;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Sort tags for interactive selection:
+ * 1. Stable versions first, sorted by timestamp (most recent first)
+ * 2. Prereleases after, sorted by timestamp (most recent first)
+ */
+export function sortTagsForSelection(tags: TagInfo[]): TagInfo[] {
+  const stable = tags.filter((t) => !t.isPrerelease);
+  const prerelease = tags.filter((t) => t.isPrerelease);
+
+  // Both are already sorted by timestamp from git, but let's ensure it
+  stable.sort((a, b) => b.timestamp - a.timestamp);
+  prerelease.sort((a, b) => b.timestamp - a.timestamp);
+
+  return [...stable, ...prerelease];
+}
+
+/**
+ * Checkout a specific git ref (tag or branch).
+ */
+export function checkoutRef(dirPath: string, ref: string): void {
+  try {
+    // Fetch the specific ref (for shallow clones)
+    execSync(`git fetch --depth=1 origin tag ${ref} --no-tags 2>/dev/null`, {
+      cwd: dirPath,
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+  } catch {
+    // Tag fetch failed, try as branch
+    try {
+      execSync(`git fetch --depth=1 origin ${ref} 2>/dev/null`, {
+        cwd: dirPath,
+        encoding: "utf-8",
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+    } catch {
+      // Fetch failed, continue anyway
+    }
+  }
+
+  execSync(`git checkout ${ref} 2>/dev/null`, {
+    cwd: dirPath,
+    encoding: "utf-8",
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+}

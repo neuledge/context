@@ -15,14 +15,19 @@ import { basename, join, resolve } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { Command } from "commander";
 import {
+  checkoutRef,
   cloneRepository,
   detectLocalDocsFolder,
   detectVersion,
   extractRepoName,
-  extractVersion,
+  fetchTagsWithMetadata,
+  getDefaultBranch,
   isGitUrl,
   parseGitUrl,
+  parseMonorepoTag,
   readLocalDocsFiles,
+  sortTagsForSelection,
+  type TagInfo,
 } from "./git.js";
 import { buildPackage } from "./package-builder.js";
 import { type SearchResult, search } from "./search.js";
@@ -270,6 +275,7 @@ async function addFromUrl(
 }
 
 export interface AddFromGitOptions {
+  tag?: string;
   version?: string;
   docsPath?: string;
   name?: string;
@@ -277,24 +283,159 @@ export interface AddFromGitOptions {
   lang?: string;
 }
 
+/**
+ * Check if running in interactive TTY mode.
+ */
+function isInteractive(): boolean {
+  return process.stdin.isTTY === true && process.stdout.isTTY === true;
+}
+
+/**
+ * Prompt user to select a git tag from a list.
+ * Returns the selected tag name, or null for HEAD.
+ */
+async function promptTagSelection(
+  tags: TagInfo[],
+  defaultBranch: string,
+): Promise<string | null> {
+  const { select } = await import("@inquirer/prompts");
+
+  const HEAD_VALUE = "__HEAD__";
+
+  const choices = [
+    {
+      name: `HEAD (current ${defaultBranch} branch)`,
+      value: HEAD_VALUE,
+    },
+    ...tags.map((tag) => ({
+      name: tag.isPrerelease ? `${tag.name} (prerelease)` : tag.name,
+      value: tag.name,
+    })),
+  ];
+
+  const selected = await select({
+    message: "Select a tag:",
+    choices,
+    pageSize: 15,
+  });
+
+  return selected === HEAD_VALUE ? null : selected;
+}
+
+/**
+ * Prompt user to confirm or modify package name and version.
+ */
+async function promptPackageDetails(
+  suggestedName: string,
+  suggestedVersion: string,
+): Promise<{ name: string; version: string }> {
+  const { input } = await import("@inquirer/prompts");
+
+  const name = await input({
+    message: "Package name:",
+    default: suggestedName,
+  });
+
+  const version = await input({
+    message: "Version:",
+    default: suggestedVersion,
+  });
+
+  return { name, version };
+}
+
 /** Install a package from a git repository (via clone). */
 async function addFromGitClone(
   source: string,
   options: AddFromGitOptions,
 ): Promise<void> {
-  const { url, ref } = parseGitUrl(source);
-  const repoName = options.name ?? extractRepoName(url);
+  const { url, ref: urlRef } = parseGitUrl(source);
 
-  console.log(`Cloning ${url}${ref ? ` (${ref})` : ""}...`);
+  console.log(`Cloning ${url}...`);
 
-  const { tempDir, cleanup } = cloneRepository(url, ref);
+  // Clone without checking out a specific ref initially (we'll do it after tag selection)
+  const { tempDir, cleanup } = cloneRepository(url);
 
   try {
-    // Detect version: explicit > ref > detected from repo > latest
-    // Pass repoName to detectVersion for monorepo support (filters tags by package name)
-    const versionLabel =
-      options.version ??
-      (ref ? extractVersion(ref) : detectVersion(tempDir, repoName));
+    // Determine which tag/ref to use
+    let selectedTag: string | null = null;
+
+    if (options.tag) {
+      // Explicit --tag provided
+      selectedTag = options.tag;
+    } else if (urlRef) {
+      // Ref was part of the URL (e.g., github.com/user/repo#v1.0.0)
+      selectedTag = urlRef;
+    } else {
+      // Interactive tag selection
+      if (!isInteractive()) {
+        throw new Error(
+          "Interactive mode required. Use --tag to specify a git tag, or run in a terminal.",
+        );
+      }
+
+      console.log("Fetching tags...");
+      const tags = fetchTagsWithMetadata(tempDir);
+      const sortedTags = sortTagsForSelection(tags);
+      const defaultBranch = getDefaultBranch(tempDir);
+
+      if (sortedTags.length === 0) {
+        console.log("No tags found, using HEAD.");
+      } else {
+        selectedTag = await promptTagSelection(sortedTags, defaultBranch);
+      }
+    }
+
+    // Checkout the selected tag if specified
+    if (selectedTag) {
+      console.log(`Checking out ${selectedTag}...`);
+      checkoutRef(tempDir, selectedTag);
+    }
+
+    // Determine package name and version
+    let packageName: string;
+    let versionLabel: string;
+
+    // Extract suggested values from tag or use defaults
+    const repoName = extractRepoName(url);
+    let suggestedName = repoName;
+    let suggestedVersion = "latest";
+
+    if (selectedTag) {
+      const parsed = parseMonorepoTag(selectedTag);
+      if (parsed.packageName) {
+        suggestedName = parsed.packageName;
+      }
+      suggestedVersion = parsed.version;
+    }
+
+    // Use explicit options if provided, otherwise prompt or use suggestions
+    if (options.name && options.version) {
+      // Both provided, skip prompts
+      packageName = options.name;
+      versionLabel = options.version;
+    } else if (options.name) {
+      packageName = options.name;
+      versionLabel = options.version ?? suggestedVersion;
+    } else if (options.version) {
+      packageName = options.name ?? suggestedName;
+      versionLabel = options.version;
+    } else {
+      // Need to prompt for confirmation
+      if (!isInteractive()) {
+        // Non-interactive: use suggested values
+        packageName = suggestedName;
+        versionLabel = suggestedVersion;
+        console.log(`Using: ${packageName}@${versionLabel}`);
+      } else {
+        const details = await promptPackageDetails(
+          suggestedName,
+          suggestedVersion,
+        );
+        packageName = details.name;
+        versionLabel = details.version;
+      }
+    }
 
     // Detect or use provided docs path
     let docsPath: string | undefined = options.docsPath;
@@ -324,30 +465,30 @@ async function addFromGitClone(
 
     // Build the package
     ensureDataDir();
-    const outputPath = join(DATA_DIR, `${repoName}@${versionLabel}.db`);
+    const outputPath = join(DATA_DIR, `${packageName}@${versionLabel}.db`);
 
     console.log(`Building package...`);
     const result = buildPackage(outputPath, files, {
-      name: repoName,
+      name: packageName,
       version: versionLabel,
       sourceUrl: url,
     });
 
-    console.log(`✓ Built package: ${repoName}@${versionLabel}`);
+    console.log(`✓ Built package: ${packageName}@${versionLabel}`);
     console.log(`✓ Saved to ${outputPath}`);
 
     // Save to custom path if specified
     if (options.save) {
-      savePackageCopy(outputPath, options.save, repoName, versionLabel);
+      savePackageCopy(outputPath, options.save, packageName, versionLabel);
     }
 
     const sizeBytes = statSync(outputPath).size;
 
     console.log(
-      `\nInstalled: ${repoName}@${versionLabel} (${formatBytes(sizeBytes)}, ${result.sectionCount} sections)`,
+      `\nInstalled: ${packageName}@${versionLabel} (${formatBytes(sizeBytes)}, ${result.sectionCount} sections)`,
     );
 
-    warnIfLowDocs(result.sectionCount, repoName);
+    warnIfLowDocs(result.sectionCount, packageName);
   } finally {
     cleanup();
   }
@@ -430,6 +571,7 @@ program
     "<source>",
     "Package source: local .db file, URL (.db), GitHub URL, git URL, or local directory",
   )
+  .option("--tag <tag>", "Git tag to checkout (for git repos)")
   .option("--version <version>", "Custom version label")
   .option("--docs-path <path>", "Path to docs folder in repo/directory")
   .option("--name <name>", "Custom package name")
@@ -442,6 +584,7 @@ program
     async (
       source: string,
       options: {
+        tag?: string;
         version?: string;
         docsPath?: string;
         name?: string;

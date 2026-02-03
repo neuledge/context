@@ -1,5 +1,5 @@
 ---
-"@neuledge/context": patch
+"@neuledge/context": minor
 ---
 
-Fix version detection for monorepos with package-prefixed tags (e.g., `ai@6.0.68`, `@ai-sdk/gateway@2.0.31`)
+Add interactive tag selection for git repositories with `--tag` option for non-interactive use. Improves monorepo support by letting users select the correct package tag.
