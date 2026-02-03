@@ -295,7 +295,7 @@ context add git@github.com:user/repo.git
 context add ssh://git@github.com/user/repo.git
 
 # Custom options
-context add https://github.com/vercel/next.js --docs-path packages/docs --name nextjs
+context add https://github.com/vercel/next.js --path packages/docs --name nextjs
 ```
 
 **From local directory:**
@@ -307,7 +307,7 @@ Build a package from documentation in a local folder:
 context add ./my-project
 
 # Specify docs path explicitly
-context add /path/to/repo --docs-path docs
+context add /path/to/repo --path docs
 
 # Custom package name and version
 context add ./my-lib --name my-library --version 1.0.0
@@ -316,7 +316,7 @@ context add ./my-lib --name my-library --version 1.0.0
 | Option | Description |
 |--------|-------------|
 | `--version <version>` | Custom version label |
-| `--docs-path <path>` | Path to docs folder in repo/directory |
+| `--path <path>` | Path to docs folder in repo/directory |
 | `--name <name>` | Custom package name |
 | `--save <path>` | Save a copy of the package to the specified path |
 

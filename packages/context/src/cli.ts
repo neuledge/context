@@ -124,7 +124,7 @@ function warnIfLowDocs(sectionCount: number, repoName: string): void {
    🔍 Search for the docs repo: ${searchUrl}
 
    Or try:
-   - Use --docs-path to specify a different docs folder
+   - Use --path to specify a different docs folder
    - Check for a dedicated docs repo (e.g., ${repoName}-docs, ${repoName}.github.io)`);
   }
 }
@@ -276,7 +276,7 @@ async function addFromUrl(
 
 export interface AddFromGitOptions {
   version?: string;
-  docsPath?: string;
+  path?: string;
   name?: string;
   save?: string;
   lang?: string;
@@ -300,7 +300,7 @@ async function addFromGitClone(
       options.version ?? (ref ? extractVersion(ref) : detectVersion(tempDir));
 
     // Detect or use provided docs path
-    let docsPath: string | undefined = options.docsPath;
+    let docsPath: string | undefined = options.path;
     if (!docsPath) {
       const detected = detectLocalDocsFolder(tempDir);
       if (detected) {
@@ -315,10 +315,13 @@ async function addFromGitClone(
     }
 
     // Read all markdown files (filtered by language)
-    const files = readLocalDocsFiles(tempDir, { docsPath, lang: options.lang });
+    const files = readLocalDocsFiles(tempDir, {
+      path: docsPath,
+      lang: options.lang,
+    });
     if (files.length === 0) {
       throw new Error(
-        `No markdown files found${docsPath ? ` in ${docsPath}` : ""}. Use --docs-path to specify or --lang all to include all languages.`,
+        `No markdown files found${docsPath ? ` in ${docsPath}` : ""}. Use --path to specify or --lang all to include all languages.`,
       );
     }
     console.log(
@@ -370,7 +373,7 @@ async function addFromLocalDir(
   console.log(`Scanning ${dirPath}...`);
 
   // Detect or use provided docs path
-  let docsPath: string | undefined = options.docsPath;
+  let docsPath: string | undefined = options.path;
   if (!docsPath) {
     const detected = detectLocalDocsFolder(dirPath);
     if (detected) {
@@ -385,10 +388,13 @@ async function addFromLocalDir(
   }
 
   // Read all markdown files (filtered by language)
-  const files = readLocalDocsFiles(dirPath, { docsPath, lang: options.lang });
+  const files = readLocalDocsFiles(dirPath, {
+    path: docsPath,
+    lang: options.lang,
+  });
   if (files.length === 0) {
     throw new Error(
-      `No markdown files found${docsPath ? ` in ${docsPath}` : ""}. Use --docs-path to specify or --lang all to include all languages.`,
+      `No markdown files found${docsPath ? ` in ${docsPath}` : ""}. Use --path to specify or --lang all to include all languages.`,
     );
   }
   console.log(
@@ -433,7 +439,7 @@ program
     "Package source: local .db file, URL (.db), GitHub URL, git URL, or local directory",
   )
   .option("--version <version>", "Custom version label")
-  .option("--docs-path <path>", "Path to docs folder in repo/directory")
+  .option("--path <path>", "Path to docs folder in repo/directory")
   .option("--name <name>", "Custom package name")
   .option("--save <path>", "Save a copy of the package to the specified path")
   .option(
@@ -445,7 +451,7 @@ program
       source: string,
       options: {
         version?: string;
-        docsPath?: string;
+        path?: string;
         name?: string;
         save?: string;
         lang?: string;
