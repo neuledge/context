@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import type Database from "better-sqlite3";
 import { getMetaValue } from "./db.js";
 
@@ -55,6 +54,7 @@ function searchFts(db: Database.Database, query: string): ChunkMatch[] {
 
   // BM25 weights: doc_title, section_title, content
   // Higher weight = more important for ranking
+  // Fetch more results than needed to allow for deduplication
   const stmt = db.prepare(`
     SELECT
       c.id,
@@ -68,10 +68,32 @@ function searchFts(db: Database.Database, query: string): ChunkMatch[] {
     JOIN chunks c ON chunks_fts.rowid = c.id
     WHERE chunks_fts MATCH ?
     ORDER BY score DESC
-    LIMIT 20
+    LIMIT 100
   `);
 
   return stmt.all(ftsQuery) as ChunkMatch[];
+}
+
+/**
+ * Deduplicate chunks by section_title + content.
+ * Keeps the highest-scoring occurrence of each unique section.
+ * This runs before token budget to maximize diverse results.
+ */
+function deduplicateChunks(matches: ChunkMatch[]): ChunkMatch[] {
+  const seen = new Set<string>();
+  const deduplicated: ChunkMatch[] = [];
+
+  for (const match of matches) {
+    // Key by section_title + content (not including doc_title which varies)
+    const key = `${match.sectionTitle}\n${match.content}`;
+
+    if (!seen.has(key)) {
+      seen.add(key);
+      deduplicated.push(match);
+    }
+  }
+
+  return deduplicated;
 }
 
 function filterByRelevance(matches: ChunkMatch[]): ChunkMatch[] {
@@ -181,39 +203,16 @@ function assembleResults(matches: ChunkMatch[]): DocSnippet[] {
   return results;
 }
 
-/**
- * Deduplicate results by title + content.
- * Sections from different files with identical title and content are collapsed.
- * Keeps the first occurrence (highest relevance order).
- */
-function deduplicateResults(results: DocSnippet[]): DocSnippet[] {
-  const seen = new Set<string>();
-  const deduplicated: DocSnippet[] = [];
-
-  for (const result of results) {
-    const key = createHash("md5")
-      .update(`${result.title}\n${result.content}`)
-      .digest("hex")
-      .slice(0, 16);
-
-    if (!seen.has(key)) {
-      seen.add(key);
-      deduplicated.push(result);
-    }
-  }
-
-  return deduplicated;
-}
-
 export function search(db: Database.Database, topic: string): SearchResult {
   const name = getMetaValue(db, "name") ?? "unknown";
   const version = getMetaValue(db, "version") ?? "unknown";
 
   const matches = searchFts(db, topic);
-  const filtered = filterByRelevance(matches);
+  // Deduplicate before filtering to maximize diverse results within token budget
+  const deduplicated = deduplicateChunks(matches);
+  const filtered = filterByRelevance(deduplicated);
   const budgeted = applyTokenBudget(filtered);
-  const assembled = assembleResults(budgeted);
-  const results = deduplicateResults(assembled);
+  const results = assembleResults(budgeted);
 
   return {
     library: `${name}@${version}`,
