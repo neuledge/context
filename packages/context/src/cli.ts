@@ -583,7 +583,7 @@ program
     "Package source: local .db file, URL (.db), GitHub URL, git URL, or local directory",
   )
   .option("--tag <tag>", "Git tag to checkout (for git repos)")
-  .option("--version <version>", "Custom version label")
+  .option("--pkg-version <version>", "Custom version label")
   .option("--path <path>", "Path to docs folder in repo/directory")
   .option("--name <name>", "Custom package name")
   .option("--save <path>", "Save a copy of the package to the specified path")
@@ -596,7 +596,7 @@ program
       source: string,
       options: {
         tag?: string;
-        version?: string;
+        pkgVersion?: string;
         path?: string;
         name?: string;
         save?: string;
@@ -606,18 +606,24 @@ program
       try {
         const sourceType = detectSourceType(source);
 
+        // Map pkgVersion to version for internal use
+        const internalOptions = {
+          ...options,
+          version: options.pkgVersion,
+        };
+
         switch (sourceType) {
           case "file":
-            addFromFile(source, options);
+            addFromFile(source, internalOptions);
             break;
           case "url":
-            await addFromUrl(source, options);
+            await addFromUrl(source, internalOptions);
             break;
           case "git":
-            await addFromGitClone(source, options);
+            await addFromGitClone(source, internalOptions);
             break;
           case "local-dir":
-            await addFromLocalDir(source, options);
+            await addFromLocalDir(source, internalOptions);
             break;
         }
       } catch (err) {

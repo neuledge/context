@@ -310,12 +310,12 @@ context add ./my-project
 context add /path/to/repo --path docs
 
 # Custom package name and version
-context add ./my-lib --name my-library --version 1.0.0
+context add ./my-lib --name my-library --pkg-version 1.0.0
 ```
 
 | Option | Description |
 |--------|-------------|
-| `--version <version>` | Custom version label |
+| `--pkg-version <version>` | Custom version label |
 | `--path <path>` | Path to docs folder in repo/directory |
 | `--name <name>` | Custom package name |
 | `--save <path>` | Save a copy of the package to the specified path |
