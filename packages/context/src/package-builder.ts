@@ -11,10 +11,8 @@ import { type DocSection, parseMarkdown } from "./build.js";
  * Generate a content hash for section deduplication.
  * Uses first 16 chars of MD5 (sufficient for detecting identical content).
  */
-function sectionHash(section: DocSection): string {
-  // Hash by section title + content to identify duplicates across different files
-  const key = `${section.sectionTitle}\n${section.content}`;
-  return createHash("md5").update(key).digest("hex").slice(0, 16);
+function contentHash(content: string): string {
+  return createHash("md5").update(content).digest("hex").slice(0, 16);
 }
 
 export interface PackageBuildOptions {
@@ -96,8 +94,8 @@ export function buildPackage(
       try {
         const parsed = parseMarkdown(file.content, file.path);
         for (const section of parsed.sections) {
-          // Deduplicate sections with identical title + content
-          const hash = sectionHash(section);
+          // Deduplicate sections with identical content (ignore titles)
+          const hash = contentHash(section.content);
           if (!seenHashes.has(hash)) {
             seenHashes.add(hash);
             allSections.push(section);
