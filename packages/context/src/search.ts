@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type Database from "better-sqlite3";
 import { getMetaValue } from "./db.js";
 
@@ -180,6 +181,30 @@ function assembleResults(matches: ChunkMatch[]): DocSnippet[] {
   return results;
 }
 
+/**
+ * Deduplicate results by title + content.
+ * Sections from different files with identical title and content are collapsed.
+ * Keeps the first occurrence (highest relevance order).
+ */
+function deduplicateResults(results: DocSnippet[]): DocSnippet[] {
+  const seen = new Set<string>();
+  const deduplicated: DocSnippet[] = [];
+
+  for (const result of results) {
+    const key = createHash("md5")
+      .update(`${result.title}\n${result.content}`)
+      .digest("hex")
+      .slice(0, 16);
+
+    if (!seen.has(key)) {
+      seen.add(key);
+      deduplicated.push(result);
+    }
+  }
+
+  return deduplicated;
+}
+
 export function search(db: Database.Database, topic: string): SearchResult {
   const name = getMetaValue(db, "name") ?? "unknown";
   const version = getMetaValue(db, "version") ?? "unknown";
@@ -187,7 +212,8 @@ export function search(db: Database.Database, topic: string): SearchResult {
   const matches = searchFts(db, topic);
   const filtered = filterByRelevance(matches);
   const budgeted = applyTokenBudget(filtered);
-  const results = assembleResults(budgeted);
+  const assembled = assembleResults(budgeted);
+  const results = deduplicateResults(assembled);
 
   return {
     library: `${name}@${version}`,

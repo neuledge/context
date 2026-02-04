@@ -136,4 +136,62 @@ describe("search", () => {
 
     expect(result.results).toHaveLength(1);
   });
+
+  it("deduplicates results with identical title and content from different files", () => {
+    // Insert duplicate sections from different files (simulates monorepo READMEs)
+    const sharedContent =
+      "If you use coding agents such as Claude Code, add the AI SDK skill to your repository.";
+
+    insertChunk(db, {
+      docPath: "packages/fireworks/README.md",
+      docTitle: "README",
+      sectionTitle: "Skill for Coding Agents",
+      content: sharedContent,
+      tokens: 30,
+    });
+    insertChunk(db, {
+      docPath: "packages/gateway/README.md",
+      docTitle: "README",
+      sectionTitle: "Skill for Coding Agents",
+      content: sharedContent,
+      tokens: 30,
+    });
+    insertChunk(db, {
+      docPath: "packages/deepseek/README.md",
+      docTitle: "README",
+      sectionTitle: "Skill for Coding Agents",
+      content: sharedContent,
+      tokens: 30,
+    });
+    rebuildFtsIndex(db);
+
+    const result = search(db, "agents");
+
+    // Should only return 1 result, not 3 (deduplication by title + content)
+    expect(result.results).toHaveLength(1);
+    expect(result.results[0].title).toBe("README > Skill for Coding Agents");
+  });
+
+  it("keeps results with same title but different content", () => {
+    insertChunk(db, {
+      docPath: "packages/a/README.md",
+      docTitle: "README",
+      sectionTitle: "Installation",
+      content: "Install package A with npm install a.",
+      tokens: 20,
+    });
+    insertChunk(db, {
+      docPath: "packages/b/README.md",
+      docTitle: "README",
+      sectionTitle: "Installation",
+      content: "Install package B with npm install b.",
+      tokens: 20,
+    });
+    rebuildFtsIndex(db);
+
+    const result = search(db, "install");
+
+    // Both should be returned since content differs
+    expect(result.results).toHaveLength(2);
+  });
 });

@@ -149,7 +149,7 @@ Run the install command.
     expect(result.path).toBe(testDbPath);
   });
 
-  it("deduplicates sections with identical title and content from different files", () => {
+  it("stores all sections including duplicates (deduplication happens at query time)", () => {
     // Simulate the vercel/ai repo scenario where multiple README.md files
     // have the same "Skill for Coding Agents" section
     const sharedSection = `## Skill for Coding Agents
@@ -176,7 +176,7 @@ If you use coding agents such as Claude Code or Cursor, we highly recommend addi
       version: "1.0.0",
     });
 
-    // Verify that the shared section is only stored once
+    // Verify that all sections are stored (no deduplication at build time)
     const db = new Database(testDbPath, { readonly: true });
     try {
       const sharedSections = db
@@ -185,12 +185,10 @@ If you use coding agents such as Claude Code or Cursor, we highly recommend addi
         )
         .all("Skill for Coding Agents") as { doc_path: string }[];
 
-      // Should only have 1 entry, not 3
-      expect(sharedSections.length).toBe(1);
-      // First occurrence wins (deepseek)
-      expect(sharedSections[0].doc_path).toBe("packages/deepseek/README.md");
+      // All 3 identical sections should be stored
+      expect(sharedSections.length).toBe(3);
 
-      // Overview sections should all be kept since content differs
+      // Overview sections should all be kept (different content)
       const overviewSections = db
         .prepare("SELECT doc_path FROM chunks WHERE section_title = ?")
         .all("Overview") as { doc_path: string }[];
@@ -199,8 +197,8 @@ If you use coding agents such as Claude Code or Cursor, we highly recommend addi
       db.close();
     }
 
-    // 3 unique Overview sections + 1 shared "Skill for Coding Agents" = 4 sections
-    expect(result.sectionCount).toBe(4);
+    // 3 Overview sections + 3 "Skill for Coding Agents" = 6 sections
+    expect(result.sectionCount).toBe(6);
   });
 
   it("keeps sections with same title but different content", () => {

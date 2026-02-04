@@ -2,20 +2,9 @@
  * Package builder for creating documentation packages from markdown files.
  */
 
-import { createHash } from "node:crypto";
 import { existsSync, unlinkSync } from "node:fs";
 import Database from "better-sqlite3";
 import { type DocSection, parseMarkdown } from "./build.js";
-
-/**
- * Generate a content hash for section deduplication.
- * Uses first 16 chars of MD5 (sufficient for detecting identical content).
- */
-function sectionHash(section: DocSection): string {
-  // Hash by section title + content to identify duplicates across different files
-  const key = `${section.sectionTitle}\n${section.content}`;
-  return createHash("md5").update(key).digest("hex").slice(0, 16);
-}
 
 export interface PackageBuildOptions {
   name: string;
@@ -89,20 +78,14 @@ export function buildPackage(
       VALUES (?, ?, ?, ?, ?, ?)
     `);
 
+    // Collect all sections from all files (no deduplication at build time)
+    // Deduplication happens at query time to preserve original data
     const allSections: DocSection[] = [];
-    const seenHashes = new Set<string>();
 
     for (const file of files) {
       try {
         const parsed = parseMarkdown(file.content, file.path);
-        for (const section of parsed.sections) {
-          // Deduplicate sections with identical title + content
-          const hash = sectionHash(section);
-          if (!seenHashes.has(hash)) {
-            seenHashes.add(hash);
-            allSections.push(section);
-          }
-        }
+        allSections.push(...parsed.sections);
       } catch {
         // Skip files that fail to parse
       }
