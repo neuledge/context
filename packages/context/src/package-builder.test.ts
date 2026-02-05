@@ -149,25 +149,23 @@ Run the install command.
     expect(result.path).toBe(testDbPath);
   });
 
-  it("deduplicates sections with identical title and content from different files", () => {
+  it("deduplicates sections with identical content from different files", () => {
     // Simulate the vercel/ai repo scenario where multiple README.md files
     // have the same "Skill for Coding Agents" section
-    const sharedSection = `## Skill for Coding Agents
-
-If you use coding agents such as Claude Code or Cursor, we highly recommend adding the AI SDK skill to your repository.`;
+    const sharedContent = `If you use coding agents such as Claude Code or Cursor, we highly recommend adding the AI SDK skill to your repository.`;
 
     const files = [
       {
         path: "packages/deepseek/README.md",
-        content: `# DeepSeek Provider\n\n## Overview\n\nDeepSeek provider for the AI SDK.\n\n${sharedSection}`,
+        content: `# DeepSeek Provider\n\n## Overview\n\nDeepSeek provider for the AI SDK.\n\n## Skill for Coding Agents\n\n${sharedContent}`,
       },
       {
         path: "packages/elevenlabs/README.md",
-        content: `# ElevenLabs Provider\n\n## Overview\n\nElevenLabs provider for the AI SDK.\n\n${sharedSection}`,
+        content: `# ElevenLabs Provider\n\n## Overview\n\nElevenLabs provider for the AI SDK.\n\n## Skill for Coding Agents\n\n${sharedContent}`,
       },
       {
         path: "packages/fal/README.md",
-        content: `# Fal Provider\n\n## Overview\n\nFal provider for the AI SDK.\n\n${sharedSection}`,
+        content: `# Fal Provider\n\n## Overview\n\nFal provider for the AI SDK.\n\n## Skill for Coding Agents\n\n${sharedContent}`,
       },
     ];
 
@@ -201,6 +199,41 @@ If you use coding agents such as Claude Code or Cursor, we highly recommend addi
 
     // 3 unique Overview sections + 1 shared "Skill for Coding Agents" = 4 sections
     expect(result.sectionCount).toBe(4);
+  });
+
+  it("deduplicates sections with same content but different titles", () => {
+    const sharedContent = `This is the shared installation instructions for all packages.`;
+
+    const files = [
+      {
+        path: "packages/a/README.md",
+        content: `# Package A\n\n## Getting Started\n\n${sharedContent}`,
+      },
+      {
+        path: "packages/b/README.md",
+        content: `# Package B\n\n## Installation\n\n${sharedContent}`,
+      },
+    ];
+
+    buildPackage(testDbPath, files, {
+      name: "test-content-dedup",
+      version: "1.0.0",
+    });
+
+    const db = new Database(testDbPath, { readonly: true });
+    try {
+      // Content is identical, so only one should be stored (even though titles differ)
+      const sections = db
+        .prepare("SELECT doc_path, section_title FROM chunks WHERE content = ?")
+        .all(sharedContent) as { doc_path: string; section_title: string }[];
+
+      expect(sections.length).toBe(1);
+      // First occurrence wins
+      expect(sections[0].doc_path).toBe("packages/a/README.md");
+      expect(sections[0].section_title).toBe("Getting Started");
+    } finally {
+      db.close();
+    }
   });
 
   it("keeps sections with same title but different content", () => {
