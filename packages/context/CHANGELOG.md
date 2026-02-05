@@ -1,5 +1,11 @@
 # @neuledge/context
 
+## 0.2.2
+
+### Patch Changes
+
+- ab8ac14: Add demo gif to README
+
 ## 0.2.1
 
 ### Patch Changes
