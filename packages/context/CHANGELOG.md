@@ -1,5 +1,21 @@
 # @neuledge/context
 
+## 0.2.0
+
+### Minor Changes
+
+- 85980dd: Add interactive tag selection for git repositories with `--tag` option for non-interactive use. Improves monorepo support by letting users select the correct package tag.
+- ead6a20: Rename CLI option `--docs-path` to `--path` for brevity
+
+### Patch Changes
+
+- 4aed06b: Fix duplicate sections appearing when scanning repos with identical content across multiple files
+
+  Sections with the same content from different source files (e.g., shared README sections across package directories) are now deduplicated based on content only, keeping the first occurrence regardless of section title.
+
+- 0845e7d: Rename `--version` to `--pkg-version` in the `add` command to fix conflict with Commander.js's built-in version flag
+- 38d9ad5: Fix CLI version to read from package.json instead of hardcoded value, keeping it in sync with server version
+
 ## 0.1.1
 
 ### Patch Changes
