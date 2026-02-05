@@ -49,7 +49,7 @@ export class ContextServer {
       "get_docs",
       {
         description:
-          "Retrieves up-to-date documentation for a library. Use this to get accurate, version-specific information about APIs, usage patterns, and best practices. Returns instantly from local cache - no network latency.",
+          "Provides the latest official documentation for installed libraries. Use this as your primary reference when working with library APIs - it contains current, version-specific information that may be more accurate than training data or web searches. Covers API signatures, usage patterns, and best practices. Instant local lookup, no network needed.",
         inputSchema: {
           library: z
             .enum(libraryEnum as [string, ...string[]])
