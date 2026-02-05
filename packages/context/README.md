@@ -136,6 +136,15 @@ context add ./my-package.db
 Context works with any MCP-compatible agent. Choose your setup below:
 
 <details>
+<summary><strong>Claude Code</strong></summary>
+
+```bash
+claude mcp add context -- context serve
+```
+
+</details>
+
+<details>
 <summary><strong>Claude Desktop</strong></summary>
 
 Add to your config file:
