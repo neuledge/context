@@ -474,6 +474,94 @@ You can:
 
 ---
 
+## :mortar_board: Tutorial: Create, Share, and Reuse Packages
+
+Documentation packages are portable `.db` files that anyone can build once and reuse everywhere. This tutorial walks through the full workflow.
+
+### Step 1: Create a package from your docs
+
+Build a package from a git repository or a local directory:
+
+```bash
+# From a git repository
+context add https://github.com/your-org/your-library
+
+# From a local directory with docs
+context add ./my-project
+```
+
+Context auto-detects `docs/`, `documentation/`, or `doc/` folders. Override with `--path` if your docs live elsewhere:
+
+```bash
+context add ./my-project --path content/api-reference
+```
+
+Customize the package name and version:
+
+```bash
+context add ./my-project --name my-lib --pkg-version 2.0
+```
+
+### Step 2: Export the package for sharing
+
+Use `--save` to write a copy of the `.db` file you can distribute:
+
+```bash
+# Save to a directory (auto-named as my-lib@2.0.db)
+context add ./my-project --name my-lib --pkg-version 2.0 --save ./packages/
+
+# Save to a specific file path
+context add ./my-project --save ./my-lib-docs.db
+```
+
+You can also export an already-installed package. The `.db` files live in `~/.context/packages/`—just copy the one you need:
+
+```bash
+cp ~/.context/packages/my-lib@2.0.db ./shared-packages/
+```
+
+### Step 3: Share with your team
+
+Share the `.db` file however your team distributes artifacts:
+
+- **Git repository**: Commit the `.db` file to a shared repo or release assets
+- **File host / CDN**: Upload to any HTTP server, S3, or internal CDN
+- **Direct transfer**: Send the file via Slack, email, or shared drive
+
+### Step 4: Reuse a shared package
+
+Teammates install the shared package with a single command:
+
+```bash
+# From a URL (CDN, GitHub release, internal server, etc.)
+context add https://cdn.example.com/my-lib@2.0.db
+
+# From a local file (downloaded or checked into a repo)
+context add ./shared-packages/my-lib@2.0.db
+```
+
+No build step needed—pre-built packages install instantly.
+
+### Putting it all together
+
+A typical team workflow:
+
+```bash
+# Maintainer: build and export the package
+context add https://github.com/your-org/design-system \
+  --name design-system --pkg-version 3.1 --save ./packages/
+
+# Maintainer: upload design-system@3.1.db to your team's file host
+
+# Teammate: install from the shared URL
+context add https://internal-cdn.example.com/design-system@3.1.db
+
+# Everyone: query the docs through any MCP-compatible agent
+# "How do I use the DataTable component?"
+```
+
+---
+
 ## :wrench: Development
 
 ```bash
