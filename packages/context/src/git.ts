@@ -92,16 +92,26 @@ function isLocaleDir(name: string): boolean {
  * These are common repo files that aren't useful documentation.
  */
 const IGNORED_FILES = new Set([
-  "code_of_conduct.md",
-  "contributing.md",
-  "changelog.md",
-  "history.md",
-  "license.md",
-  "security.md",
-  "pull_request_template.md",
-  "issue_template.md",
-  "claude.md", // AI assistant configuration
+  "code_of_conduct",
+  "contributing",
+  "changelog",
+  "history",
+  "license",
+  "security",
+  "pull_request_template",
+  "issue_template",
+  "claude", // AI assistant configuration
 ]);
+
+/**
+ * Test fixture suffixes to ignore.
+ */
+const FIXTURE_SUFFIXES = ["expect", "test", "spec"];
+
+/**
+ * Documentation file extensions to include in search.
+ */
+const DOCUMENTATION_EXTENSIONS = [".md", ".mdx", ".qmd", ".rmd"];
 
 /**
  * Directories to ignore during markdown indexing.
@@ -363,17 +373,31 @@ function findMarkdownFiles(
           files.push(...findMarkdownFiles(fullPath, ig, relativePath, options));
         }
       } else if (entry.isFile()) {
-        if (entry.name.endsWith(".md") || entry.name.endsWith(".mdx")) {
-          const lowerName = entry.name.toLowerCase();
+        const lowerName = entry.name.toLowerCase();
+        const hasDocumentationExtension = DOCUMENTATION_EXTENSIONS.some((ext) =>
+          lowerName.endsWith(ext),
+        );
+
+        if (hasDocumentationExtension) {
           // Skip non-doc markdown files
-          if (IGNORED_FILES.has(lowerName)) continue;
+          // Find matching extension to remove it for checking ignored files
+          const matchingExt = DOCUMENTATION_EXTENSIONS.find((ext) =>
+            lowerName.endsWith(ext),
+          );
+          if (matchingExt) {
+            const baseName = lowerName.slice(0, -matchingExt.length);
+            if (IGNORED_FILES.has(baseName)) continue;
+          }
           // Skip test fixture files (e.g., component.expect.md, hook.test.md)
-          if (
-            lowerName.endsWith(".expect.md") ||
-            lowerName.endsWith(".test.md") ||
-            lowerName.endsWith(".spec.md")
-          ) {
-            continue;
+          if (matchingExt) {
+            const nameWithoutExt = lowerName.slice(0, -matchingExt.length);
+            const nameParts = nameWithoutExt.split(".");
+            if (nameParts.length > 1) {
+              const lastPart = nameParts[nameParts.length - 1] || '';
+              if (FIXTURE_SUFFIXES.includes(lastPart)) {
+                continue;
+              }
+            }
           }
           files.push(relativePath);
         }
