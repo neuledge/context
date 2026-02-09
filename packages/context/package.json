@@ -1,6 +1,7 @@
 {
   "name": "@neuledge/context",
-  "version": "0.2.2",
+  "version": "0.2.3",
+  "mcpName": "io.github.neuledge/context",
   "description": "Context management for Neuledge packages",
   "keywords": [],
   "homepage": "https://neuledge.com",

@@ -1,5 +1,11 @@
 # @neuledge/context
 
+## 0.2.3
+
+### Patch Changes
+
+- Add mcpName field for Official MCP Registry listing
+
 ## 0.2.2
 
 ### Patch Changes

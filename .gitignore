@@ -8,3 +8,4 @@ node_modules
 
 # sensitive stuff
 .env
+.mcpregistry_*
