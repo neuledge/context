@@ -1,0 +1,20 @@
+name: nextjs
+package: next
+description: "The React Framework for the Web"
+repository: https://github.com/vercel/next.js
+
+versions:
+  - min_version: "15.0.0"
+    source:
+      type: git
+      url: https://github.com/vercel/next.js
+      docs_path: docs
+    tag_pattern: "v{version}"
+
+  - min_version: "9.0.0"
+    max_version: "15.0.0"
+    source:
+      type: git
+      url: https://github.com/vercel/next.js
+      docs_path: docs
+    tag_pattern: "v{version}"

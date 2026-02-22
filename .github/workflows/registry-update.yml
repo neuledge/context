@@ -1,0 +1,42 @@
+name: Registry Update
+
+on:
+  schedule:
+    # Weekly: Monday 6 AM UTC
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+    inputs:
+      since:
+        description: "Only versions published in the last N days (leave empty to seed all)"
+        required: false
+        type: string
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Publish packages
+        env:
+          REGISTRY_PUBLISH_KEY: ${{ secrets.REGISTRY_PUBLISH_KEY }}
+        run: |
+          ARGS=""
+          if [ -n "${{ inputs.since }}" ]; then
+            ARGS="--since ${{ inputs.since }}"
+          elif [ "${{ github.event_name }}" = "schedule" ]; then
+            ARGS="--since 7"
+          fi
+          pnpm --filter @neuledge/registry registry publish-all $ARGS

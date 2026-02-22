@@ -353,19 +353,19 @@ These are handled separately, not in this repository:
 |---|------|--------|
 | **Stage 1** | | |
 | 1.1 | YAML definition format spec | done |
-| 1.2 | Create `packages/registry/` private workspace package | pending |
-| 1.3 | Definition parser with Zod schema (`definition.ts`) | pending |
-| 1.4 | Version discovery from registry APIs (`version-check.ts`) | pending |
-| 1.5 | Build-from-definition via `context add` (`build.ts`) | pending |
-| 1.6 | Publish client (`publish.ts`) | pending |
-| 1.7 | Registry CLI for local testing (`cli.ts`) | pending |
-| 1.8 | GitHub Actions weekly workflow (`registry-update.yml`) | pending |
-| 1.9 | Example definitions: nextjs, react | pending |
-| 1.10 | AI agent for registry maintenance (`.agents/registry/`) | pending |
-| 1.11 | Tests for parser, version discovery, build | pending |
+| 1.2 | Create `packages/registry/` private workspace package | done |
+| 1.3 | Definition parser with Zod schema (`definition.ts`) | done |
+| 1.4 | Version discovery from registry APIs (`version-check.ts`) | done |
+| 1.5 | Build-from-definition via `context add` (`build.ts`) | done |
+| 1.6 | Publish client (`publish.ts`) | done |
+| 1.7 | Registry CLI for local testing (`cli.ts`) | done |
+| 1.8 | GitHub Actions weekly workflow (`registry-update.yml`) | done |
+| 1.9 | Example definitions: nextjs, react | done |
+| 1.10 | AI agent for registry maintenance (`.agents/registry/`) | done |
+| 1.11 | Tests for parser, version discovery, build | done |
 | **Stage 2** | | |
-| 2.1 | Server config management (`~/.context/config.json`) | pending |
-| 2.2 | MCP `search_packages` tool | pending |
-| 2.3 | MCP `download_package` tool | pending |
-| 2.4 | Dynamic `get_docs` tool update after download | pending |
-| 2.5 | Server API specification document | pending |
+| 2.1 | Server config management (`~/.context/config.json`) | done |
+| 2.2 | MCP `search_packages` tool | done |
+| 2.3 | MCP `download_package` tool | done |
+| 2.4 | Dynamic `get_docs` tool update after download | done |
+| 2.5 | Server API specification document | done |

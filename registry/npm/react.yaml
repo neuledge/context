@@ -1,0 +1,11 @@
+name: react
+description: "A JavaScript library for building user interfaces"
+repository: https://github.com/facebook/react
+
+versions:
+  - min_version: "18.0.0"
+    source:
+      type: git
+      url: https://github.com/reactjs/react.dev
+      docs_path: src/content
+    tag_pattern: "v{version}"
