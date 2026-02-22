@@ -69,7 +69,7 @@ A **community-driven package registry** so pre-built documentation packages can 
 │  packages/registry/          ← private package   │
 │    src/                        (repo infra only)  │
 │      definition.ts             schema + parser   │
-│      version-check.ts          tag discovery     │
+│      version-check.ts          registry queries  │
 │      build.ts                  build from def    │
 │      publish.ts                server upload     │
 │      cli.ts                    local testing     │
@@ -124,8 +124,8 @@ Organizing by package manager prevents naming conflicts (e.g., `registry/npm/rea
 
 ```yaml
 # registry/npm/nextjs.yaml
-name: nextjs
-registry: npm
+name: nextjs                       # our package name (used in downloads)
+package: next                      # npm registry package name (for version discovery)
 description: "The React Framework for the Web"
 repository: https://github.com/vercel/next.js
 
@@ -142,17 +142,8 @@ versions:
       lang: en                    # language filter (default: en)
     tag_pattern: "v{version}"     # how git tags map to versions
 
-  - min_version: "13.0.0"
-    max_version: "15.0.0"         # exclusive
-    source:
-      type: git
-      url: https://github.com/vercel/next.js
-      docs_path: docs
-      lang: en
-    tag_pattern: "v{version}"
-
   - min_version: "9.0.0"
-    max_version: "13.0.0"
+    max_version: "15.0.0"         # exclusive
     source:
       type: git
       # Older docs lived in a different repo
@@ -163,10 +154,13 @@ versions:
 ```
 
 **Key design decisions:**
-- `tag_pattern`: `{version}` is replaced with the semver (e.g., `"v{version}"` → `v15.2.0`). Supports monorepo patterns like `"nextjs@{version}"`.
+- **No `registry` field in YAML** — derived from directory path (`registry/npm/nextjs.yaml` → `npm`). The parser enforces this.
+- **`package` field** — the registry package name (e.g., `next` on npm) used for version discovery. May differ from `name` (our internal name). If omitted, defaults to `name`.
+- **`tag_pattern`**: A literal string template with a single `{version}` placeholder. To construct a tag: replace `{version}` with the semver string. To extract a version: split on the literal prefix/suffix around `{version}`. No regex — the prefix and suffix are fixed strings. Examples: `"v{version}"` → prefix `v`, no suffix. `"nextjs@{version}"` → prefix `nextjs@`, no suffix.
 - Version ranges use semver comparison. `min_version` inclusive, `max_version` exclusive.
 - `source.type: git` is the only supported type initially. Can later add `url`, `script`, etc.
 - `lang` defaults to `"en"` per existing behavior in `context add`.
+- Each version range entry should have **distinct build instructions** (different URL, docs_path, or lang). If two entries have identical source config, merge them into one range.
 
 ### 1.2 Private `packages/registry/` Package
 
@@ -180,12 +174,14 @@ packages/registry/
   src/
     definition.ts       # Zod schema + YAML parser
     definition.test.ts
-    version-check.ts    # Discover versions from git tags
+    version-check.ts    # Discover versions from registry APIs (npm, pip)
     version-check.test.ts
     build.ts            # Build .db from definition + version
     publish.ts          # Upload .db to server
     cli.ts              # CLI entry point for local testing
 ```
+
+Note: `turbo.json` needs no changes — it uses task-based config that applies to all workspace packages automatically.
 
 Dependencies: `yaml`, `zod` (already in workspace). Dev: `vitest`, `typescript`, `tsx`.
 
@@ -193,19 +189,31 @@ Dependencies: `yaml`, `zod` (already in workspace). Dev: `vitest`, `typescript`,
 
 Responsibilities:
 - Parse and validate YAML definition files using Zod schemas
+- Derive `registry` from the file's parent directory name (e.g., `registry/npm/nextjs.yaml` → `npm`)
 - Resolve which version entry matches a given version (first match wins, semver comparison)
-- Construct git tag from `tag_pattern` + version string
-- Reverse-parse: extract version from a git tag using `tag_pattern`
+- Construct git tag from `tag_pattern` + version string (simple string replace of `{version}`)
 - List all definition files by scanning `registry/` directory
 
 ### 1.4 Version Discovery (`version-check.ts`)
 
+Discovers available versions by querying **package registry APIs** (not git tags). This is faster, doesn't require cloning, and gives the canonical version list.
+
 For each definition file:
-1. Clone the source repo (shallow, like `context add` does via `git.ts`)
-2. List git tags via `git tag -l`
-3. For each tag, try to extract a version using the `tag_pattern` (reversed)
-4. Filter to versions within the defined ranges (`min_version` <= v < `max_version`)
-5. Return list of `{ name, registry, version, tag }` tuples sorted by semver descending
+1. Query the package registry for available versions:
+   - **npm**: `GET https://registry.npmjs.org/<package>` → response includes `versions` object and `time` object with publish dates
+   - **pip**: `GET https://pypi.org/pypi/<package>/json` → response includes `releases` object
+   - Other registries can be added later with the same pattern
+2. The `package` field from the YAML definition provides the registry package name (e.g., `next` for npm, `django` for pip)
+3. Filter versions to those within at least one defined range (`min_version` <= v < `max_version`)
+4. Filter out prereleases (alpha, beta, rc, canary, etc.)
+5. Apply version limit: only keep the **latest patch per minor version** (e.g., for 15.0.x keep only 15.0.4, for 15.1.x keep only 15.1.3). This prevents building hundreds of patch releases
+6. Return list of `{ name, registry, version }` tuples sorted by semver descending
+
+**Why registry APIs instead of git tags:**
+- No cloning required — fast HTTP call vs shallow git clone
+- Gives us publish dates (useful for "recent versions only" in CI)
+- Canonical version list (git tags may include non-release tags)
+- Works even when git tag patterns are complex or inconsistent
 
 ### 1.5 Build from Definition (`build.ts`)
 
@@ -222,7 +230,7 @@ This delegates all build logic to `@neuledge/context` CLI, keeping the registry 
 Simple HTTP client:
 - Check existence: `GET <base-url>/packages/<registry>/<name>/<version>` → 200 (exists) or 404 (new)
 - Upload: `POST <base-url>/packages/<registry>/<name>/<version>` with `.db` file body, `Authorization: Bearer <key>` header
-- Base URL defaults to `https://api.context.neuledge.com/v1`, configurable via env var `REGISTRY_SERVER_URL`
+- Base URL defaults to `https://context.neuledge.com`, configurable via env var `REGISTRY_SERVER_URL`
 
 ### 1.7 Registry CLI (`cli.ts`)
 
@@ -231,7 +239,7 @@ Entry point for local testing and CI (not shipped to users):
 - `registry check [name]` — Discover available versions for one or all packages
 - `registry build <name> <version>` — Build a `.db` for a specific version
 - `registry publish <name> <version>` — Build and publish (requires `REGISTRY_PUBLISH_KEY` env var)
-- `registry publish-all` — Check all definitions, build and publish any missing versions (used by CI)
+- `registry publish-all [--since <days>]` — Check all definitions, build and publish missing versions (used by CI). `--since` limits to versions published on the registry in the last N days (default: 7)
 
 ### 1.8 GitHub Actions Workflow
 
@@ -241,9 +249,15 @@ Triggers: weekly cron (Monday 6 AM UTC) + manual dispatch.
 
 Steps:
 1. Checkout, setup Node.js + pnpm, install deps, build
-2. Run `pnpm --filter registry publish-all`
-   - For each definition: discover versions → check server → build missing → publish
+2. Run `pnpm --filter registry publish-all --since 7`
+   - For each definition: query registry for versions published in the last 7 days → filter to defined ranges → check if already on server → build missing → publish
+   - This avoids scanning all historical versions — only new releases are processed
 3. Uses `REGISTRY_PUBLISH_KEY` secret for auth
+
+**Error handling:**
+- If building one package fails, log the error and continue with the remaining packages
+- Exit with non-zero status if any package failed (so the workflow shows as failed)
+- GitHub Actions will notify on workflow failure via existing repo notification settings
 
 ### 1.9 Example Definitions
 
@@ -289,9 +303,11 @@ Configuration stored in `~/.context/config.json`:
 Add two new tools to the MCP server in `packages/context/src/server.ts`:
 
 **`search_packages`**
-- Input: `{ registry: "npm" | "pip" | ..., name: string, version?: string }`
+- Input: `{ registry: string, name: string, version?: string }`
+- `registry` is a free-form string (e.g., `"npm"`, `"pip"`) — the tool cannot enumerate all valid registries at registration time
 - Calls server search API
 - Returns list of matching packages with name, version, description, size
+- When `version` is omitted, the server returns all available versions (sorted by semver descending)
 
 **`download_package`**
 - Input: `{ registry: string, name: string, version: string, server?: string }`
@@ -306,7 +322,7 @@ Currently `get_docs` is registered once at startup with a fixed library enum. Af
 
 ### 2.4 Server Specification
 
-Document the expected server API so others can implement compatible servers. The base URL is configurable (e.g., `https://api.context.neuledge.com/v1`). Endpoints are relative to the base URL:
+Document the expected server API so others can implement compatible servers. The base URL is configurable (default: `https://context.neuledge.com`). Endpoints are relative to the base URL:
 - `GET /search?registry=<r>&name=<n>&version=<v>` — Search packages
 - `GET /packages/<registry>/<name>/<version>` — Check existence / get metadata
 - `GET /packages/<registry>/<name>/<version>/download` — Download .db file
@@ -331,7 +347,7 @@ These are handled separately, not in this repository:
 | 1.1 | YAML definition format spec | done |
 | 1.2 | Create `packages/registry/` private workspace package | pending |
 | 1.3 | Definition parser with Zod schema (`definition.ts`) | pending |
-| 1.4 | Version discovery from git tags (`version-check.ts`) | pending |
+| 1.4 | Version discovery from registry APIs (`version-check.ts`) | pending |
 | 1.5 | Build-from-definition via `context add` (`build.ts`) | pending |
 | 1.6 | Publish client (`publish.ts`) | pending |
 | 1.7 | Registry CLI for local testing (`cli.ts`) | pending |
