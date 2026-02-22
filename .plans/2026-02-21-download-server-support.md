@@ -1,6 +1,57 @@
 # Download Server Support
 
-Add server-backed package discovery and download to the Context MCP tool. This enables a community-driven package registry where YAML definition files in this repository describe how to build documentation packages, a weekly CI job builds and publishes them, and agents can search/download packages on demand.
+## Background
+
+### What is Context?
+
+Context (`@neuledge/context`) is an open-source MCP (Model Context Protocol) server that gives AI agents instant access to up-to-date library documentation. It works locally and offline — no cloud calls during operation.
+
+**How it works today:**
+1. A user runs `context add <git-repo-or-url>` to index documentation from a git repository, local directory, or pre-built `.db` file
+2. The CLI clones the repo, parses markdown/MDX files, chunks them by H2 sections, deduplicates, and stores everything in a SQLite database with FTS5 full-text search
+3. The `.db` file is saved to `~/.context/packages/`
+4. When an AI agent connects via MCP, it gets a `get_docs` tool that searches installed packages by keyword
+5. Results are relevance-ranked (BM25), token-budgeted (2000 tokens max), and grouped by document
+
+**The problem:** Users must manually find, clone, and build documentation packages. There's no way to discover or download pre-built packages. Every user rebuilds the same docs from scratch.
+
+### What this plan adds
+
+A **community-driven package registry** so pre-built documentation packages can be:
+- **Defined** via YAML files in this repository (anyone can submit a PR)
+- **Built automatically** by a weekly CI job
+- **Published** to the Neuledge server (free hosting)
+- **Discovered and downloaded** by AI agents via new MCP tools
+
+### Repository structure (current)
+
+```
+/
+├── packages/context/           ← published npm package (@neuledge/context)
+│   ├── src/
+│   │   ├── cli.ts              ← CLI: add, list, remove, serve, query
+│   │   ├── server.ts           ← MCP server with get_docs tool
+│   │   ├── build.ts            ← markdown parsing & chunking
+│   │   ├── package-builder.ts  ← creates SQLite .db from parsed sections
+│   │   ├── search.ts           ← FTS5 search with BM25 scoring
+│   │   ├── store.ts            ← in-memory package registry
+│   │   ├── git.ts              ← git clone, tag parsing, docs detection
+│   │   └── db.ts               ← SQLite schema validation helpers
+│   └── package.json            ← @neuledge/context, published to npm
+├── .github/workflows/ci.yml   ← lint, build, test on push/PR
+├── pnpm-workspace.yaml         ← workspace: packages/*
+└── package.json                ← root, private monorepo
+```
+
+### Key technical details
+
+- **Database format:** SQLite with tables `meta` (name, version, description, source_url), `chunks` (doc_path, doc_title, section_title, content, tokens, has_code), and `chunks_fts` (FTS5 virtual table with porter stemming)
+- **Chunking:** Splits on H2 headings, target 800 tokens/chunk, hard limit 1200, deduplicates by MD5 hash
+- **CLI `add` command** already supports: git repos (clone + tag checkout + docs detection), URLs (download .db), local dirs, local files. It accepts `--tag`, `--name`, `--pkg-version`, `--path`, `--lang`, `--save` options
+- **Git tag handling:** `git.ts` has `fetchTagsWithMetadata()`, `parseMonorepoTag()`, `sortTagsForSelection()`, version extraction from tags via semver parsing
+- **Workspace:** pnpm monorepo with turbo. Only `packages/context/` exists currently
+
+---
 
 ## Architecture Overview
 
@@ -28,6 +79,10 @@ Add server-backed package discovery and download to the Context MCP tool. This e
 │      server.ts                  context)         │
 │      ...                                         │
 │                                                  │
+│  .agents/registry/           ← AI agent config   │
+│    AGENT.md                    for researching   │
+│                                 & building defs  │
+│                                                  │
 │  .github/workflows/                              │
 │    registry-update.yml       ← weekly cron       │
 └──────────────┬───────────────────────────────────┘
@@ -50,7 +105,14 @@ Add server-backed package discovery and download to the Context MCP tool. This e
 └──────────────────────────────────────────────────┘
 ```
 
-**Key separation:** `packages/registry/` is a **private** workspace package (not published to npm). It depends on `@neuledge/context` and handles all registry infrastructure: parsing YAML definitions, discovering versions, building .db files (by shelling out to `context add`), and publishing to the server. The `@neuledge/context` package stays unchanged — it's the user-facing tool.
+**Key separation:**
+
+- `packages/context/` — The published npm package. User-facing. Handles MCP serving, local doc building, searching. Unchanged in Stage 1.
+- `packages/registry/` — Private workspace package (never published). Repo infrastructure only. Parses YAML definitions, discovers versions, orchestrates builds by shelling out to `context add`, publishes to server.
+- `registry/` — Top-level directory with YAML definition files organized by package manager. This is where the community contributes via PRs.
+- `.agents/registry/` — AI agent instructions for researching packages and creating/maintaining definition files.
+
+---
 
 ## Stage 1: Package Registry Definitions & Build Pipeline
 
@@ -101,19 +163,20 @@ versions:
 ```
 
 **Key design decisions:**
-- `tag_pattern`: Describes how to construct the git tag from a version string. `{version}` is replaced with the semver (e.g., `"v{version}"` → `v15.2.0`). Supports monorepo patterns like `"nextjs@{version}"`.
+- `tag_pattern`: `{version}` is replaced with the semver (e.g., `"v{version}"` → `v15.2.0`). Supports monorepo patterns like `"nextjs@{version}"`.
 - Version ranges use semver comparison. `min_version` inclusive, `max_version` exclusive.
-- `source.type: git` is the only supported type initially. Can later add `url` (direct download), `script` (custom build), etc.
-- `lang` defaults to `"en"` per existing behavior.
+- `source.type: git` is the only supported type initially. Can later add `url`, `script`, etc.
+- `lang` defaults to `"en"` per existing behavior in `context add`.
 
 ### 1.2 Private `packages/registry/` Package
 
-New workspace package: `packages/registry/` with `"private": true`.
+New workspace package with `"private": true` (already included by `pnpm-workspace.yaml`'s `packages/*` glob).
 
 ```
 packages/registry/
   package.json          # private, depends on @neuledge/context
   tsconfig.json
+  tsconfig.build.json
   src/
     definition.ts       # Zod schema + YAML parser
     definition.test.ts
@@ -124,105 +187,81 @@ packages/registry/
     cli.ts              # CLI entry point for local testing
 ```
 
-It uses the `context` CLI as a child process (or imports `buildPackage` and git helpers directly from `@neuledge/context`) to generate .db files. The registry package orchestrates: which repo, which tag, which docs path — then delegates the actual build.
+Dependencies: `yaml`, `zod` (already in workspace). Dev: `vitest`, `typescript`, `tsx`.
 
 ### 1.3 Registry Definition Parser (`definition.ts`)
 
 Responsibilities:
 - Parse and validate YAML definition files using Zod schemas
-- Resolve which version entry matches a given version
-- Construct git tag from tag_pattern + version
-- List all definition files in the `registry/` directory
-
-Zod schema:
-```typescript
-const SourceSchema = z.object({
-  type: z.literal("git"),
-  url: z.string().url(),
-  docs_path: z.string().optional(),
-  lang: z.string().default("en"),
-});
-
-const VersionEntrySchema = z.object({
-  min_version: z.string(),
-  max_version: z.string().optional(),
-  source: SourceSchema,
-  tag_pattern: z.string().default("v{version}"),
-});
-
-const PackageDefinitionSchema = z.object({
-  name: z.string(),
-  registry: z.string(),  // npm, pip, cargo, etc.
-  description: z.string().optional(),
-  repository: z.string().url().optional(),
-  versions: z.array(VersionEntrySchema).min(1),
-});
-```
+- Resolve which version entry matches a given version (first match wins, semver comparison)
+- Construct git tag from `tag_pattern` + version string
+- Reverse-parse: extract version from a git tag using `tag_pattern`
+- List all definition files by scanning `registry/` directory
 
 ### 1.4 Version Discovery (`version-check.ts`)
 
 For each definition file:
-1. Clone the repo (shallow)
-2. List git tags, filter by `tag_pattern` (reverse the pattern to extract versions)
-3. Parse to get available versions
-4. Filter to versions within the defined ranges
-5. Return list of `{ name, registry, version }` tuples
+1. Clone the source repo (shallow, like `context add` does via `git.ts`)
+2. List git tags via `git tag -l`
+3. For each tag, try to extract a version using the `tag_pattern` (reversed)
+4. Filter to versions within the defined ranges (`min_version` <= v < `max_version`)
+5. Return list of `{ name, registry, version, tag }` tuples sorted by semver descending
 
 ### 1.5 Build from Definition (`build.ts`)
 
-Given a definition file + target version:
-1. Parse the definition YAML
-2. Find the matching version entry (first range that contains the version)
-3. Compute git tag via `tag_pattern`
-4. Shell out to `context add <git-url> --tag <tag> --name <name> --pkg-version <version> --path <docs_path> --lang <lang> --save <output-path>`
-5. Output the .db file
+Given a definition + target version:
+1. Find the matching version entry
+2. Compute git tag via `tag_pattern`
+3. Shell out to: `context add <git-url> --tag <tag> --name <name> --pkg-version <version> --path <docs_path> --lang <lang> --save <output-path>`
+4. Return path to the built `.db` file
 
-This approach keeps the build logic in `@neuledge/context` where it belongs. The registry package is just orchestration.
+This delegates all build logic to `@neuledge/context` CLI, keeping the registry package as pure orchestration.
 
 ### 1.6 Publish to Server (`publish.ts`)
 
 Simple HTTP client:
-- Check if version exists: `GET /api/v1/packages/<registry>/<name>/<version>` → 200 or 404
-- Upload: `POST /api/v1/packages/<registry>/<name>/<version>` with `.db` file body and `Authorization: Bearer <key>` header
+- Check existence: `GET <server>/api/v1/packages/<registry>/<name>/<version>` → 200 (exists) or 404 (new)
+- Upload: `POST <server>/api/v1/packages/<registry>/<name>/<version>` with `.db` file body, `Authorization: Bearer <key>` header
+- Server URL defaults to `https://context.neuledge.com`, configurable via env var `REGISTRY_SERVER_URL`
 
 ### 1.7 Registry CLI (`cli.ts`)
 
-Entry point for local testing (not shipped to users):
-- `registry list` — List all definitions in `registry/`
+Entry point for local testing and CI (not shipped to users):
+- `registry list` — List all definitions in `registry/`, show name, registry, version ranges
 - `registry check [name]` — Discover available versions for one or all packages
-- `registry build <name> <version>` — Build a .db for a specific version
-- `registry publish <name> <version>` — Build and publish (requires key)
+- `registry build <name> <version>` — Build a `.db` for a specific version
+- `registry publish <name> <version>` — Build and publish (requires `REGISTRY_PUBLISH_KEY` env var)
+- `registry publish-all` — Check all definitions, build and publish any missing versions (used by CI)
 
 ### 1.8 GitHub Actions Workflow
 
 New file: `.github/workflows/registry-update.yml`
 
-```yaml
-on:
-  schedule:
-    - cron: '0 6 * * 1'  # Weekly on Monday at 6 AM UTC
-  workflow_dispatch:       # Allow manual trigger
+Triggers: weekly cron (Monday 6 AM UTC) + manual dispatch.
 
-jobs:
-  check-and-build:
-    runs-on: ubuntu-latest
-    steps:
-      - Checkout this repo
-      - Setup Node.js + pnpm
-      - Install dependencies & build
-      - Run: pnpm --filter registry check  # find new versions
-      - For each new version:
-        - Check if already published (API call)
-        - If not: build .db, publish to server
-    env:
-      REGISTRY_PUBLISH_KEY: ${{ secrets.REGISTRY_PUBLISH_KEY }}
-```
+Steps:
+1. Checkout, setup Node.js + pnpm, install deps, build
+2. Run `pnpm --filter registry publish-all`
+   - For each definition: discover versions → check server → build missing → publish
+3. Uses `REGISTRY_PUBLISH_KEY` secret for auth
 
 ### 1.9 Example Definitions
 
-Create 2-3 starter definitions to validate the format:
-- `registry/npm/nextjs.yaml` — Complex example with multiple version ranges
-- `registry/npm/react.yaml` — Simple single-range example
+Starter definitions to validate the format:
+- `registry/npm/nextjs.yaml` — Multiple version ranges, docs in main repo
+- `registry/npm/react.yaml` — Docs in separate repo (reactjs/react.dev)
+
+### 1.10 AI Agent for Registry Maintenance (`.agents/registry/`)
+
+An AI agent definition (markdown) that can:
+- Research popular packages across registries (npm, pip, cargo, etc.)
+- Find the correct documentation repository for each package
+- Determine git tag patterns and version ranges
+- Generate valid YAML definition files
+- Validate definitions against the Zod schema
+- Test-build a version to verify the definition works
+
+---
 
 ## Stage 2: MCP Download Server Integration
 
@@ -256,7 +295,7 @@ Add two new tools to the MCP server in `packages/context/src/server.ts`:
 
 **`download_package`**
 - Input: `{ registry: string, name: string, version: string, server?: string }`
-- Downloads .db from server
+- Downloads `.db` from server
 - Installs it (reuses existing `addFromUrl` logic)
 - Updates the `get_docs` tool enum to include the new package
 - Returns success/failure + package info
@@ -275,6 +314,15 @@ Document the expected server API so others can implement compatible servers:
 
 ---
 
+## Out of Scope
+
+These are handled separately, not in this repository:
+- Neuledge server implementation (hosting, API, database)
+- Neuledge website updates
+- Payment / rate limiting infrastructure
+
+---
+
 ## Progress
 
 | # | Task | Status |
@@ -289,7 +337,8 @@ Document the expected server API so others can implement compatible servers:
 | 1.7 | Registry CLI for local testing (`cli.ts`) | pending |
 | 1.8 | GitHub Actions weekly workflow (`registry-update.yml`) | pending |
 | 1.9 | Example definitions: nextjs, react | pending |
-| 1.10 | Tests for parser, version discovery, build | pending |
+| 1.10 | AI agent for registry maintenance (`.agents/registry/`) | pending |
+| 1.11 | Tests for parser, version discovery, build | pending |
 | **Stage 2** | | |
 | 2.1 | Server config management (`~/.context/config.json`) | pending |
 | 2.2 | MCP `search_packages` tool | pending |
