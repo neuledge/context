@@ -1,0 +1,32 @@
+{
+  "name": "registry",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Registry infrastructure for building and publishing context packages",
+  "type": "module",
+  "bin": {
+    "registry": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "rimraf --glob dist/** && tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "npx biome ci --error-on-warnings",
+    "fix": "npx biome check --write"
+  },
+  "dependencies": {
+    "@neuledge/context": "workspace:*",
+    "commander": "^14.0.0",
+    "yaml": "^2.8.2",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@total-typescript/tsconfig": "^1.0.4",
+    "@types/node": "^24.9.1",
+    "rimraf": "^6.0.1",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^4.0.3"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "@schema": "https://json.schemastore.org/tsconfig",
+  "extends": "@total-typescript/tsconfig/tsc/no-dom/library",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "baseUrl": ".",
+    "paths": {
+      "@neuledge/context": ["../context/src/index.js"],
+      "@neuledge/context/*": ["../context/src/*"]
+    },
+    "noEmit": true
+  },
+  "include": ["src"]
+}

@@ -2,6 +2,14 @@
 
 // Build utilities
 export { type DocSection, type ParsedDoc, parseMarkdown } from "./build.js";
+// Config utilities
+export {
+  type ContextConfig,
+  getDefaultServerUrl,
+  getServerUrl,
+  readConfig,
+  type ServerConfig,
+} from "./config.js";
 // Git utilities
 export {
   cloneRepository,
