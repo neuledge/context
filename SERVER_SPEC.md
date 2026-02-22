@@ -17,11 +17,6 @@ All endpoints are relative to a configurable base URL. Clients store server conf
 }
 ```
 
-## Authentication
-
-- **Read endpoints** (`GET`): No authentication required.
-- **Write endpoints** (`POST`): Require `Authorization: Bearer <key>` header. The server decides how keys are issued and managed.
-
 ## Endpoints
 
 ### Search packages
@@ -66,34 +61,6 @@ Returns an empty array `[]` when no packages match. Results are sorted by versio
 | `description` | string? | Short description |
 | `size` | number? | `.db` file size in bytes |
 
-### Get package metadata
-
-```
-GET /packages/<registry>/<name>/<version>
-```
-
-Check if a specific package version exists and get its metadata.
-
-**Response `200 OK`** (package exists):
-
-```json
-{
-  "name": "nextjs",
-  "registry": "npm",
-  "version": "15.1.0",
-  "description": "The React Framework for the Web",
-  "size": 3400000,
-  "sectionCount": 1245,
-  "createdAt": "2026-02-20T10:30:00Z"
-}
-```
-
-**Response `404 Not Found`** (package does not exist):
-
-```json
-{ "error": "Package not found" }
-```
-
 ### Download package
 
 ```
@@ -111,43 +78,6 @@ Download the `.db` file.
 
 ```json
 { "error": "Package not found" }
-```
-
-### Publish package
-
-```
-POST /packages/<registry>/<name>/<version>
-```
-
-Upload a built `.db` file. Requires authentication.
-
-**Request:**
-- `Authorization: Bearer <key>`
-- `Content-Type: application/octet-stream`
-- `Content-Length: <size>`
-- Body: raw SQLite `.db` file
-
-**Response `201 Created`:**
-
-```json
-{
-  "name": "nextjs",
-  "registry": "npm",
-  "version": "15.1.0",
-  "size": 3400000
-}
-```
-
-**Response `401 Unauthorized`:**
-
-```json
-{ "error": "Invalid or missing authentication" }
-```
-
-**Response `409 Conflict`** (version already exists):
-
-```json
-{ "error": "Package version already exists" }
 ```
 
 ## Package format (`.db` file)
@@ -194,8 +124,6 @@ CREATE VIRTUAL TABLE chunks_fts USING fts5(
 | `description` | Short package description |
 | `source_url` | URL of the source repository |
 
-The server should validate that uploaded `.db` files contain the required tables (`meta`, `chunks`, `chunks_fts`) and meta keys (`name`, `version`) before accepting them.
-
 ## Error format
 
 All error responses use a consistent JSON format:
@@ -216,4 +144,3 @@ Servers may implement rate limiting. When rate-limited, respond with:
 - Path parameters (`registry`, `name`, `version`) should be URL-decoded. They contain only alphanumeric characters, hyphens, dots, and `@` signs.
 - The server is responsible for storage. Files can be stored on disk, S3, or any blob store.
 - The server should serve `.db` files with `Content-Length` so clients can show download progress.
-- Publish should be idempotent for the same content — re-uploading the same version with identical content should succeed (or return `409`).
