@@ -1,0 +1,11 @@
+name: svelte
+description: "Cybernetically enhanced web apps"
+repository: https://github.com/sveltejs/svelte
+
+versions:
+  - min_version: "5.0.0"
+    source:
+      type: git
+      url: https://github.com/sveltejs/svelte
+      docs_path: documentation/docs
+    tag_pattern: "svelte@{version}"

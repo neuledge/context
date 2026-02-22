@@ -1,0 +1,11 @@
+name: vitest
+description: "Next generation testing framework powered by Vite"
+repository: https://github.com/vitest-dev/vitest
+
+versions:
+  - min_version: "2.0.0"
+    source:
+      type: git
+      url: https://github.com/vitest-dev/vitest
+      docs_path: docs
+    tag_pattern: "v{version}"

@@ -1,0 +1,11 @@
+name: zod
+description: "TypeScript-first schema validation with static type inference"
+repository: https://github.com/colinhacks/zod
+
+versions:
+  - min_version: "4.0.0"
+    source:
+      type: git
+      url: https://github.com/colinhacks/zod
+      docs_path: packages/docs/content
+    tag_pattern: "v{version}"
