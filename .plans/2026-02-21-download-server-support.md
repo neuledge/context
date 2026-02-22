@@ -220,9 +220,9 @@ This delegates all build logic to `@neuledge/context` CLI, keeping the registry 
 ### 1.6 Publish to Server (`publish.ts`)
 
 Simple HTTP client:
-- Check existence: `GET <server>/api/v1/packages/<registry>/<name>/<version>` → 200 (exists) or 404 (new)
-- Upload: `POST <server>/api/v1/packages/<registry>/<name>/<version>` with `.db` file body, `Authorization: Bearer <key>` header
-- Server URL defaults to `https://context.neuledge.com`, configurable via env var `REGISTRY_SERVER_URL`
+- Check existence: `GET <base-url>/packages/<registry>/<name>/<version>` → 200 (exists) or 404 (new)
+- Upload: `POST <base-url>/packages/<registry>/<name>/<version>` with `.db` file body, `Authorization: Bearer <key>` header
+- Base URL defaults to `https://context.neuledge.com/api/v1`, configurable via env var `REGISTRY_SERVER_URL`
 
 ### 1.7 Registry CLI (`cli.ts`)
 
@@ -306,11 +306,11 @@ Currently `get_docs` is registered once at startup with a fixed library enum. Af
 
 ### 2.4 Server Specification
 
-Document the expected server API so others can implement compatible servers:
-- `GET /api/v1/search?registry=<r>&name=<n>&version=<v>` — Search packages
-- `GET /api/v1/packages/<registry>/<name>/<version>` — Check existence / get metadata
-- `GET /api/v1/packages/<registry>/<name>/<version>/download` — Download .db file
-- `POST /api/v1/packages/<registry>/<name>/<version>` — Publish (authenticated)
+Document the expected server API so others can implement compatible servers. The base URL is configurable (e.g., `https://context.neuledge.com/api/v1`). Endpoints are relative to the base URL:
+- `GET /search?registry=<r>&name=<n>&version=<v>` — Search packages
+- `GET /packages/<registry>/<name>/<version>` — Check existence / get metadata
+- `GET /packages/<registry>/<name>/<version>/download` — Download .db file
+- `POST /packages/<registry>/<name>/<version>` — Publish (authenticated)
 
 ---
 
