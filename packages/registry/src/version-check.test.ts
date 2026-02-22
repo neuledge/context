@@ -5,7 +5,6 @@ import { discoverVersions } from "./version-check.js";
 const mockDefinition: PackageDefinition = {
   name: "testpkg",
   registry: "npm",
-  registryPackage: "test-package",
   versions: [
     {
       min_version: "2.0.0",

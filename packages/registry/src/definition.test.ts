@@ -61,8 +61,7 @@ describe("loadDefinition", () => {
 
   it("parses a valid YAML definition", () => {
     const yaml = `
-name: nextjs
-package: next
+name: next
 description: "The React Framework"
 repository: https://github.com/vercel/next.js
 versions:
@@ -73,16 +72,13 @@ versions:
       docs_path: docs
     tag_pattern: "v{version}"
 `;
-    // Put it under a "npm" directory to simulate registry/npm/nextjs.yaml
     const npmDir = join(tempDir, "npm");
     mkdirSync(npmDir);
-    const filePath = join(npmDir, "nextjs.yaml");
-    writeFileSync(filePath, yaml);
+    writeFileSync(join(npmDir, "next.yaml"), yaml);
 
-    const def = loadDefinition(filePath);
+    const def = loadDefinition(join(npmDir, "next.yaml"));
 
-    expect(def.name).toBe("nextjs");
-    expect(def.registryPackage).toBe("next");
+    expect(def.name).toBe("next");
     expect(def.registry).toBe("npm");
     expect(def.description).toBe("The React Framework");
     expect(def.versions).toHaveLength(1);
@@ -90,21 +86,22 @@ versions:
     expect(def.versions[0].tag_pattern).toBe("v{version}");
   });
 
-  it("defaults registryPackage to name when package is omitted", () => {
+  it("throws when name doesn't match filename", () => {
     const yaml = `
-name: react
+name: nextjs
 versions:
-  - min_version: "18.0.0"
+  - min_version: "15.0.0"
     source:
       type: git
-      url: https://github.com/reactjs/react.dev
+      url: https://github.com/vercel/next.js
 `;
     const npmDir = join(tempDir, "npm");
     mkdirSync(npmDir);
-    writeFileSync(join(npmDir, "react.yaml"), yaml);
+    writeFileSync(join(npmDir, "next.yaml"), yaml);
 
-    const def = loadDefinition(join(npmDir, "react.yaml"));
-    expect(def.registryPackage).toBe("react");
+    expect(() => loadDefinition(join(npmDir, "next.yaml"))).toThrow(
+      /doesn't match filename/,
+    );
   });
 
   it("throws on invalid YAML", () => {
@@ -128,20 +125,15 @@ describe("listDefinitions", () => {
   });
 
   it("scans registry directory for definitions", () => {
-    const yaml = `
-name: test-pkg
-versions:
-  - min_version: "1.0.0"
-    source:
-      type: git
-      url: https://github.com/test/test
-`;
     mkdirSync(join(tempDir, "npm"));
     mkdirSync(join(tempDir, "pip"));
-    writeFileSync(join(tempDir, "npm", "test.yaml"), yaml);
     writeFileSync(
-      join(tempDir, "pip", "test.yaml"),
-      yaml.replace("test-pkg", "test-pip"),
+      join(tempDir, "npm", "test.yaml"),
+      'name: test\nversions:\n  - min_version: "1.0.0"\n    source:\n      type: git\n      url: https://github.com/test/test\n',
+    );
+    writeFileSync(
+      join(tempDir, "pip", "testpip.yaml"),
+      'name: testpip\nversions:\n  - min_version: "1.0.0"\n    source:\n      type: git\n      url: https://github.com/test/test\n',
     );
 
     const defs = listDefinitions(tempDir);
@@ -161,7 +153,6 @@ describe("resolveVersionEntry", () => {
     ({
       name: "test",
       registry: "npm",
-      registryPackage: "test",
       versions: versions.map((v) => ({
         ...v,
         source: {

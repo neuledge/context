@@ -1,5 +1,4 @@
-name: nextjs
-package: next
+name: next
 description: "The React Framework for the Web"
 repository: https://github.com/vercel/next.js
 

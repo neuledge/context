@@ -1,8 +1,9 @@
 /**
  * YAML definition parser for registry packages.
  *
- * Each definition file (e.g., registry/npm/nextjs.yaml) describes
+ * Each definition file (e.g., registry/npm/next.yaml) describes
  * how to build documentation packages for a library across versions.
+ * The name must match the registry package name AND the filename.
  * The registry (npm, pip, etc.) is derived from the parent directory name.
  */
 
@@ -27,7 +28,6 @@ const VersionEntrySchema = z.object({
 
 const DefinitionFileSchema = z.object({
   name: z.string(),
-  package: z.string().optional(),
   description: z.string().optional(),
   repository: z.url().optional(),
   versions: z.array(VersionEntrySchema).min(1),
@@ -39,8 +39,6 @@ export type DefinitionFile = z.infer<typeof DefinitionFileSchema>;
 export interface PackageDefinition extends DefinitionFile {
   /** Derived from parent directory (e.g., "npm", "pip") */
   registry: string;
-  /** Resolved package name for registry queries (defaults to name) */
-  registryPackage: string;
 }
 
 /**
@@ -53,10 +51,17 @@ export function loadDefinition(filePath: string): PackageDefinition {
   const parsed = DefinitionFileSchema.parse(raw);
   const registry = basename(dirname(filePath));
 
+  // Filename must match the name field (e.g., next.yaml → name: next)
+  const expectedName = basename(filePath, ".yaml");
+  if (parsed.name !== expectedName) {
+    throw new Error(
+      `Definition name "${parsed.name}" doesn't match filename "${expectedName}.yaml"`,
+    );
+  }
+
   return {
     ...parsed,
     registry,
-    registryPackage: parsed.package ?? parsed.name,
   };
 }
 

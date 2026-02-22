@@ -13,8 +13,7 @@ You are an AI agent that researches popular libraries and creates registry defin
 ## Definition Format
 
 ```yaml
-name: <our-package-name>          # used in downloads
-package: <registry-package-name>  # for version discovery (optional, defaults to name)
+name: <package-name>              # must match registry name AND filename
 description: "Short description"
 repository: https://github.com/org/repo
 
@@ -61,7 +60,8 @@ This builds a `.db` file. Check that it has a reasonable number of sections (>10
 ## Guidelines
 
 - One YAML file per package
-- Use the most common/official name (e.g., `nextjs` not `next.js`)
+- The `name` field must match the registry package name (e.g., `next` not `nextjs`)
+- The filename must match the name (e.g., `next.yaml` for `name: next`)
 - Keep version ranges as broad as possible — only split when build instructions differ
 - Prefer the repo with the most user-facing documentation (API reference, guides, tutorials)
 - Skip repos that are mostly code with minimal docs

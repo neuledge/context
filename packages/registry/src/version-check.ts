@@ -44,7 +44,7 @@ export async function discoverVersions(
     throw new Error(`Unsupported registry: ${definition.registry}`);
   }
 
-  const allVersions = await fetcher(definition.registryPackage);
+  const allVersions = await fetcher(definition.name);
 
   // Filter by publish date if --since is set
   const sinceDate = options.since

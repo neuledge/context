@@ -123,9 +123,8 @@ Location: `registry/<manager>/<package-name>.yaml`
 Organizing by package manager prevents naming conflicts (e.g., `registry/npm/react.yaml` vs `registry/pip/react.yaml`).
 
 ```yaml
-# registry/npm/nextjs.yaml
-name: nextjs                       # our package name (used in downloads)
-package: next                      # npm registry package name (for version discovery)
+# registry/npm/next.yaml
+name: next                         # must match registry name AND filename
 description: "The React Framework for the Web"
 repository: https://github.com/vercel/next.js
 
@@ -154,8 +153,8 @@ versions:
 ```
 
 **Key design decisions:**
-- **No `registry` field in YAML** — derived from directory path (`registry/npm/nextjs.yaml` → `npm`). The parser enforces this.
-- **`package` field** — the registry package name (e.g., `next` on npm) used for version discovery. May differ from `name` (our internal name). If omitted, defaults to `name`.
+- **No `registry` field in YAML** — derived from directory path (`registry/npm/next.yaml` → `npm`). The parser enforces this.
+- **`name` must match both the registry package name and the filename** (e.g., `next.yaml` → `name: next`). No separate `package` field — one name for everything.
 - **`tag_pattern`**: A literal string template with a single `{version}` placeholder. To construct a tag: replace `{version}` with the semver string. To extract a version: split on the literal prefix/suffix around `{version}`. No regex — the prefix and suffix are fixed strings. Examples: `"v{version}"` → prefix `v`, no suffix. `"nextjs@{version}"` → prefix `nextjs@`, no suffix.
 - Version ranges use semver comparison. `min_version` inclusive, `max_version` exclusive.
 - `source.type: git` is the only supported type initially. Can later add `url`, `script`, etc.
