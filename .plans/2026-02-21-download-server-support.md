@@ -5,41 +5,52 @@ Add server-backed package discovery and download to the Context MCP tool. This e
 ## Architecture Overview
 
 ```
-┌─────────────────────────────────────────────┐
-│  This Repository (open source)              │
-│                                             │
-│  registry/                                  │
-│    npm/                                     │
-│      nextjs.yaml                            │
-│      react.yaml                             │
-│    pip/                                     │
-│      django.yaml                            │
-│    ...                                      │
-│                                             │
-│  .github/workflows/                         │
-│    registry-update.yml  (weekly cron)       │
-│                                             │
-│  packages/context/src/                      │
-│    registry.ts          (definition parser) │
-│    server.ts            (MCP tools)         │
-└──────────────┬──────────────────────────────┘
-               │ builds & publishes
+┌──────────────────────────────────────────────────┐
+│  This Repository (open source)                   │
+│                                                  │
+│  registry/                   ← YAML definitions  │
+│    npm/                        (community PRs)   │
+│      nextjs.yaml                                 │
+│      react.yaml                                  │
+│    pip/                                          │
+│      django.yaml                                 │
+│                                                  │
+│  packages/registry/          ← private package   │
+│    src/                        (repo infra only)  │
+│      definition.ts             schema + parser   │
+│      version-check.ts          tag discovery     │
+│      build.ts                  build from def    │
+│      publish.ts                server upload     │
+│      cli.ts                    local testing     │
+│                                                  │
+│  packages/context/           ← published package │
+│    src/                        (npm: @neuledge/   │
+│      server.ts                  context)         │
+│      ...                                         │
+│                                                  │
+│  .github/workflows/                              │
+│    registry-update.yml       ← weekly cron       │
+└──────────────┬───────────────────────────────────┘
+               │ builds .db using `context add`
+               │ then publishes to server
                ▼
-┌─────────────────────────────────────────────┐
-│  Neuledge Server (external, not this repo)  │
-│  - Stores .db packages                      │
-│  - Search API                               │
-│  - Download API                             │
-└──────────────┬──────────────────────────────┘
+┌──────────────────────────────────────────────────┐
+│  Neuledge Server (external, not this repo)       │
+│  - Stores .db packages                           │
+│  - Search API                                    │
+│  - Download API                                  │
+└──────────────┬───────────────────────────────────┘
                │ MCP tools query
                ▼
-┌─────────────────────────────────────────────┐
-│  AI Agent (via MCP)                         │
-│  - search_packages(registry, name, version) │
-│  - download_package(registry, name, version)│
-│  - get_docs(library, topic)                 │
-└─────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────┐
+│  AI Agent (via MCP)                              │
+│  - search_packages(registry, name, version)      │
+│  - download_package(registry, name, version)     │
+│  - get_docs(library, topic)                      │
+└──────────────────────────────────────────────────┘
 ```
+
+**Key separation:** `packages/registry/` is a **private** workspace package (not published to npm). It depends on `@neuledge/context` and handles all registry infrastructure: parsing YAML definitions, discovering versions, building .db files (by shelling out to `context add`), and publishing to the server. The `@neuledge/context` package stays unchanged — it's the user-facing tool.
 
 ## Stage 1: Package Registry Definitions & Build Pipeline
 
@@ -95,17 +106,35 @@ versions:
 - `source.type: git` is the only supported type initially. Can later add `url` (direct download), `script` (custom build), etc.
 - `lang` defaults to `"en"` per existing behavior.
 
-### 1.2 Registry Definition Parser
+### 1.2 Private `packages/registry/` Package
 
-New file: `packages/context/src/registry.ts`
+New workspace package: `packages/registry/` with `"private": true`.
+
+```
+packages/registry/
+  package.json          # private, depends on @neuledge/context
+  tsconfig.json
+  src/
+    definition.ts       # Zod schema + YAML parser
+    definition.test.ts
+    version-check.ts    # Discover versions from git tags
+    version-check.test.ts
+    build.ts            # Build .db from definition + version
+    publish.ts          # Upload .db to server
+    cli.ts              # CLI entry point for local testing
+```
+
+It uses the `context` CLI as a child process (or imports `buildPackage` and git helpers directly from `@neuledge/context`) to generate .db files. The registry package orchestrates: which repo, which tag, which docs path — then delegates the actual build.
+
+### 1.3 Registry Definition Parser (`definition.ts`)
 
 Responsibilities:
 - Parse and validate YAML definition files using Zod schemas
 - Resolve which version entry matches a given version
 - Construct git tag from tag_pattern + version
-- List all definition files in the registry directory
+- List all definition files in the `registry/` directory
 
-Schema (Zod):
+Zod schema:
 ```typescript
 const SourceSchema = z.object({
   type: z.literal("git"),
@@ -130,42 +159,41 @@ const PackageDefinitionSchema = z.object({
 });
 ```
 
-### 1.3 Version Discovery Script
-
-New file: `packages/context/src/version-check.ts`
+### 1.4 Version Discovery (`version-check.ts`)
 
 For each definition file:
 1. Clone the repo (shallow)
-2. List git tags, filter by tag_pattern
+2. List git tags, filter by `tag_pattern` (reverse the pattern to extract versions)
 3. Parse to get available versions
 4. Filter to versions within the defined ranges
 5. Return list of `{ name, registry, version }` tuples
 
-This will be used by both the CI workflow and can be tested locally.
-
-### 1.4 Build-from-Definition Script
-
-New file: `packages/context/src/registry-build.ts`
+### 1.5 Build from Definition (`build.ts`)
 
 Given a definition file + target version:
 1. Parse the definition YAML
-2. Find the matching version entry
-3. Clone the repo at the computed tag
-4. Build the package using existing `buildPackage()`
-5. Output the .db file to a specified path
+2. Find the matching version entry (first range that contains the version)
+3. Compute git tag via `tag_pattern`
+4. Shell out to `context add <git-url> --tag <tag> --name <name> --pkg-version <version> --path <docs_path> --lang <lang> --save <output-path>`
+5. Output the .db file
 
-This reuses the existing build pipeline (`git.ts` + `package-builder.ts`), which is already flexible enough for the initial version.
+This approach keeps the build logic in `@neuledge/context` where it belongs. The registry package is just orchestration.
 
-### 1.5 CLI Commands
+### 1.6 Publish to Server (`publish.ts`)
 
-Add to `cli.ts`:
-- `context registry list` — List all package definitions in registry/
-- `context registry check <name>` — Check for new versions of a specific package
-- `context registry build <name> <version>` — Build a specific version from definition
+Simple HTTP client:
+- Check if version exists: `GET /api/v1/packages/<registry>/<name>/<version>` → 200 or 404
+- Upload: `POST /api/v1/packages/<registry>/<name>/<version>` with `.db` file body and `Authorization: Bearer <key>` header
 
-These are primarily for local testing and debugging before CI runs.
+### 1.7 Registry CLI (`cli.ts`)
 
-### 1.6 GitHub Actions Workflow
+Entry point for local testing (not shipped to users):
+- `registry list` — List all definitions in `registry/`
+- `registry check [name]` — Discover available versions for one or all packages
+- `registry build <name> <version>` — Build a .db for a specific version
+- `registry publish <name> <version>` — Build and publish (requires key)
+
+### 1.8 GitHub Actions Workflow
 
 New file: `.github/workflows/registry-update.yml`
 
@@ -182,26 +210,23 @@ jobs:
       - Checkout this repo
       - Setup Node.js + pnpm
       - Install dependencies & build
-      - For each definition file:
-        - Discover new versions
-        - For each new version:
-          - Check if already published on Neuledge server (API call)
-          - If not: build .db, publish to server (with REGISTRY_PUBLISH_KEY secret)
+      - Run: pnpm --filter registry check  # find new versions
+      - For each new version:
+        - Check if already published (API call)
+        - If not: build .db, publish to server
+    env:
+      REGISTRY_PUBLISH_KEY: ${{ secrets.REGISTRY_PUBLISH_KEY }}
 ```
 
-The publish step will use a simple HTTP API call (POST with the .db file + auth header). The server implementation is external, but we define the expected API contract:
-
-**Publish API contract (what the workflow expects):**
-- `GET /api/v1/packages/<registry>/<name>/<version>` → 200 if exists, 404 if not
-- `POST /api/v1/packages/<registry>/<name>/<version>` → Upload .db file, requires `Authorization: Bearer <key>`
-
-### 1.7 Example Definitions
+### 1.9 Example Definitions
 
 Create 2-3 starter definitions to validate the format:
 - `registry/npm/nextjs.yaml` — Complex example with multiple version ranges
 - `registry/npm/react.yaml` — Simple single-range example
 
 ## Stage 2: MCP Download Server Integration
+
+_(Lives in `packages/context/` — this IS user-facing)_
 
 ### 2.1 Server Configuration
 
@@ -222,7 +247,7 @@ Configuration stored in `~/.context/config.json`:
 
 ### 2.2 MCP Tools
 
-Add two new tools to the MCP server:
+Add two new tools to the MCP server in `packages/context/src/server.ts`:
 
 **`search_packages`**
 - Input: `{ registry: "npm" | "pip" | ..., name: string, version?: string }`
@@ -255,13 +280,16 @@ Document the expected server API so others can implement compatible servers:
 | # | Task | Status |
 |---|------|--------|
 | **Stage 1** | | |
-| 1.1 | Define YAML schema & create Zod validator (`registry.ts`) | pending |
-| 1.2 | Version discovery: list available versions from git tags (`version-check.ts`) | pending |
-| 1.3 | Build-from-definition: build .db from YAML + version (`registry-build.ts`) | pending |
-| 1.4 | CLI commands: `registry list`, `registry check`, `registry build` | pending |
-| 1.5 | GitHub Actions weekly workflow (`registry-update.yml`) | pending |
-| 1.6 | Example definitions: nextjs, react | pending |
-| 1.7 | Tests for registry parser, version discovery, build | pending |
+| 1.1 | YAML definition format spec | done |
+| 1.2 | Create `packages/registry/` private workspace package | pending |
+| 1.3 | Definition parser with Zod schema (`definition.ts`) | pending |
+| 1.4 | Version discovery from git tags (`version-check.ts`) | pending |
+| 1.5 | Build-from-definition via `context add` (`build.ts`) | pending |
+| 1.6 | Publish client (`publish.ts`) | pending |
+| 1.7 | Registry CLI for local testing (`cli.ts`) | pending |
+| 1.8 | GitHub Actions weekly workflow (`registry-update.yml`) | pending |
+| 1.9 | Example definitions: nextjs, react | pending |
+| 1.10 | Tests for parser, version discovery, build | pending |
 | **Stage 2** | | |
 | 2.1 | Server config management (`~/.context/config.json`) | pending |
 | 2.2 | MCP `search_packages` tool | pending |
