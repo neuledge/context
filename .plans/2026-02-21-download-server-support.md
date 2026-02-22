@@ -351,21 +351,26 @@ These are handled separately, not in this repository:
 
 | # | Task | Status |
 |---|------|--------|
-| **Stage 1** | | |
+| **Stage 1: Registry package** | | |
 | 1.1 | YAML definition format spec | done |
 | 1.2 | Create `packages/registry/` private workspace package | done |
 | 1.3 | Definition parser with Zod schema (`definition.ts`) | done |
 | 1.4 | Version discovery from registry APIs (`version-check.ts`) | done |
-| 1.5 | Build-from-definition via `context add` (`build.ts`) | done |
+| 1.5 | Build-from-definition via `@neuledge/context` (`build.ts`) | done |
 | 1.6 | Publish client (`publish.ts`) | done |
 | 1.7 | Registry CLI for local testing (`cli.ts`) | done |
 | 1.8 | GitHub Actions weekly workflow (`registry-update.yml`) | done |
 | 1.9 | Example definitions: nextjs, react | done |
 | 1.10 | AI agent for registry maintenance (`.agents/registry/`) | done |
-| 1.11 | Tests for parser, version discovery, build | done |
-| **Stage 2** | | |
-| 2.1 | Server config management (`~/.context/config.json`) | done |
-| 2.2 | MCP `search_packages` tool | done |
-| 2.3 | MCP `download_package` tool | done |
-| 2.4 | Dynamic `get_docs` tool update after download | done |
-| 2.5 | Server API specification document | done |
+| 1.11 | Tests for parser, version discovery | done |
+| 1.12 | **Validate**: test-build a real package end-to-end | pending |
+| **Stage 2: Server preparation & population** | | |
+| 2.1 | Server is deployed and accessible | pending |
+| 2.2 | Validate publish flow: build + upload to server | pending |
+| 2.3 | Run CI cron to populate initial packages | pending |
+| **Stage 3: MCP download tools** | | |
+| 3.1 | Server config management (`~/.context/config.json`) | pending |
+| 3.2 | MCP `search_packages` tool | pending |
+| 3.3 | MCP `download_package` tool | pending |
+| 3.4 | Dynamic `get_docs` tool update after download | pending |
+| 3.5 | Server API specification document | pending |
