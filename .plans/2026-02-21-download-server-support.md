@@ -123,9 +123,8 @@ Location: `registry/<manager>/<package-name>.yaml`
 Organizing by package manager prevents naming conflicts (e.g., `registry/npm/react.yaml` vs `registry/pip/react.yaml`).
 
 ```yaml
-# registry/npm/nextjs.yaml
-name: nextjs                       # our package name (used in downloads)
-package: next                      # npm registry package name (for version discovery)
+# registry/npm/next.yaml
+name: next                         # must match registry name AND filename
 description: "The React Framework for the Web"
 repository: https://github.com/vercel/next.js
 
@@ -154,8 +153,8 @@ versions:
 ```
 
 **Key design decisions:**
-- **No `registry` field in YAML** — derived from directory path (`registry/npm/nextjs.yaml` → `npm`). The parser enforces this.
-- **`package` field** — the registry package name (e.g., `next` on npm) used for version discovery. May differ from `name` (our internal name). If omitted, defaults to `name`.
+- **No `registry` field in YAML** — derived from directory path (`registry/npm/next.yaml` → `npm`). The parser enforces this.
+- **`name` must match both the registry package name and the filename** (e.g., `next.yaml` → `name: next`). No separate `package` field — one name for everything.
 - **`tag_pattern`**: A literal string template with a single `{version}` placeholder. To construct a tag: replace `{version}` with the semver string. To extract a version: split on the literal prefix/suffix around `{version}`. No regex — the prefix and suffix are fixed strings. Examples: `"v{version}"` → prefix `v`, no suffix. `"nextjs@{version}"` → prefix `nextjs@`, no suffix.
 - Version ranges use semver comparison. `min_version` inclusive, `max_version` exclusive.
 - `source.type: git` is the only supported type initially. Can later add `url`, `script`, etc.
@@ -351,21 +350,26 @@ These are handled separately, not in this repository:
 
 | # | Task | Status |
 |---|------|--------|
-| **Stage 1** | | |
+| **Stage 1: Registry package (build locally)** | | |
 | 1.1 | YAML definition format spec | done |
-| 1.2 | Create `packages/registry/` private workspace package | pending |
-| 1.3 | Definition parser with Zod schema (`definition.ts`) | pending |
-| 1.4 | Version discovery from registry APIs (`version-check.ts`) | pending |
-| 1.5 | Build-from-definition via `context add` (`build.ts`) | pending |
-| 1.6 | Publish client (`publish.ts`) | pending |
-| 1.7 | Registry CLI for local testing (`cli.ts`) | pending |
-| 1.8 | GitHub Actions weekly workflow (`registry-update.yml`) | pending |
-| 1.9 | Example definitions: nextjs, react | pending |
-| 1.10 | AI agent for registry maintenance (`.agents/registry/`) | pending |
-| 1.11 | Tests for parser, version discovery, build | pending |
-| **Stage 2** | | |
-| 2.1 | Server config management (`~/.context/config.json`) | pending |
-| 2.2 | MCP `search_packages` tool | pending |
-| 2.3 | MCP `download_package` tool | pending |
-| 2.4 | Dynamic `get_docs` tool update after download | pending |
-| 2.5 | Server API specification document | pending |
+| 1.2 | Create `packages/registry/` private workspace package | done |
+| 1.3 | Definition parser with Zod schema (`definition.ts`) | done |
+| 1.4 | Version discovery from registry APIs (`version-check.ts`) | done |
+| 1.5 | Build-from-definition via `@neuledge/context` (`build.ts`) | done |
+| 1.6 | Registry CLI: `list`, `check`, `build` (`cli.ts`) | done |
+| 1.7 | Example definitions: nextjs, react | done |
+| 1.8 | AI agent for registry maintenance (`.agents/registry/`) | done |
+| 1.9 | Tests for parser, version discovery | done |
+| 1.10 | **Validate**: test-build a real package end-to-end | done |
+| **Stage 2: Server & publish pipeline** | | |
+| 2.1 | Server is deployed and accessible | pending |
+| 2.2 | Publish client (`publish.ts`) | pending |
+| 2.3 | CLI `publish` / `publish-all` commands | pending |
+| 2.4 | GitHub Actions cron workflow (`registry-update.yml`) | pending |
+| 2.5 | Validate: build + upload + populate initial packages | pending |
+| **Stage 3: MCP download tools** | | |
+| 3.1 | Server config management (`~/.context/config.json`) | pending |
+| 3.2 | MCP `search_packages` tool | pending |
+| 3.3 | MCP `download_package` tool | pending |
+| 3.4 | Dynamic `get_docs` tool update after download | pending |
+| 3.5 | Server API specification document | pending |
