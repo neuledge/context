@@ -222,7 +222,7 @@ This delegates all build logic to `@neuledge/context` CLI, keeping the registry 
 Simple HTTP client:
 - Check existence: `GET <base-url>/packages/<registry>/<name>/<version>` → 200 (exists) or 404 (new)
 - Upload: `POST <base-url>/packages/<registry>/<name>/<version>` with `.db` file body, `Authorization: Bearer <key>` header
-- Base URL defaults to `https://context.neuledge.com/api/v1`, configurable via env var `REGISTRY_SERVER_URL`
+- Base URL defaults to `https://api.context.neuledge.com/v1`, configurable via env var `REGISTRY_SERVER_URL`
 
 ### 1.7 Registry CLI (`cli.ts`)
 
@@ -306,7 +306,7 @@ Currently `get_docs` is registered once at startup with a fixed library enum. Af
 
 ### 2.4 Server Specification
 
-Document the expected server API so others can implement compatible servers. The base URL is configurable (e.g., `https://context.neuledge.com/api/v1`). Endpoints are relative to the base URL:
+Document the expected server API so others can implement compatible servers. The base URL is configurable (e.g., `https://api.context.neuledge.com/v1`). Endpoints are relative to the base URL:
 - `GET /search?registry=<r>&name=<n>&version=<v>` — Search packages
 - `GET /packages/<registry>/<name>/<version>` — Check existence / get metadata
 - `GET /packages/<registry>/<name>/<version>/download` — Download .db file
