@@ -217,13 +217,15 @@ For each definition file:
 
 ### 1.5 Build from Definition (`build.ts`)
 
+Imports build functions directly from `@neuledge/context` (workspace dependency) rather than shelling out to the CLI. This is simpler, avoids needing the binary on PATH, and gives typed access to results.
+
 Given a definition + target version:
 1. Find the matching version entry
 2. Compute git tag via `tag_pattern`
-3. Shell out to: `context add <git-url> --tag <tag> --name <name> --pkg-version <version> --path <docs_path> --lang <lang> --save <output-path>`
-4. Return path to the built `.db` file
-
-This delegates all build logic to `@neuledge/context` CLI, keeping the registry package as pure orchestration.
+3. Call `cloneRepository(url, tag)` from `@neuledge/context/git`
+4. Call `readLocalDocsFiles(tempDir, { path: docs_path, lang })` from `@neuledge/context/git`
+5. Call `buildPackage(outputPath, files, { name, version, sourceUrl })` from `@neuledge/context/package-builder`
+6. Clean up temp dir, return path to the built `.db` file
 
 ### 1.6 Publish to Server (`publish.ts`)
 
@@ -254,10 +256,16 @@ Steps:
    - This avoids scanning all historical versions — only new releases are processed
 3. Uses `REGISTRY_PUBLISH_KEY` secret for auth
 
-**Error handling:**
-- If building one package fails, log the error and continue with the remaining packages
+**Error handling and scalability:**
+- If building one package/version fails, log the error with package name + version + error message, then continue with remaining packages
+- At the end, print a summary: N succeeded, M failed (with list of failures)
 - Exit with non-zero status if any package failed (so the workflow shows as failed)
 - GitHub Actions will notify on workflow failure via existing repo notification settings
+
+**Initial seeding vs. ongoing updates:**
+- The weekly cron (`--since 7`) handles ongoing updates — only new releases
+- For initial population when a new definition is added, run `registry publish-all` without `--since` (manual dispatch). This builds all versions matching the defined ranges (latest patch per minor)
+- Manual dispatch via GitHub Actions UI supports an optional `since` input parameter — leave empty to seed all versions, or set to N days for a targeted backfill
 
 ### 1.9 Example Definitions
 
