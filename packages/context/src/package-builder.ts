@@ -2,10 +2,46 @@
  * Package builder for creating documentation packages from markdown files.
  */
 
+import { execSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, unlinkSync } from "node:fs";
 import Database from "better-sqlite3";
 import { type DocSection, parseMarkdown } from "./build.js";
+
+/**
+ * Check if pandoc is available on the system.
+ * Caches the result after first check.
+ */
+let pandocAvailable: boolean | null = null;
+function isPandocAvailable(): boolean {
+  if (pandocAvailable === null) {
+    try {
+      execSync("pandoc --version", { stdio: ["pipe", "pipe", "pipe"] });
+      pandocAvailable = true;
+    } catch {
+      pandocAvailable = false;
+    }
+  }
+  return pandocAvailable;
+}
+
+/**
+ * Convert reStructuredText content to Markdown using pandoc.
+ * Returns null if conversion fails or pandoc is not available.
+ */
+function rstToMarkdown(content: string): string | null {
+  if (!isPandocAvailable()) return null;
+  try {
+    return execSync("pandoc -f rst -t markdown --wrap=none", {
+      input: content,
+      encoding: "utf-8",
+      timeout: 30000,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Generate a content hash for section deduplication.
@@ -31,6 +67,8 @@ export interface BuildResult {
   path: string;
   sectionCount: number;
   totalTokens: number;
+  /** Number of RST files skipped because pandoc is not installed */
+  rstSkipped: number;
 }
 
 /**
@@ -90,9 +128,19 @@ export function buildPackage(
     const allSections: DocSection[] = [];
     const seenHashes = new Set<string>();
 
+    let rstSkipped = 0;
     for (const file of files) {
       try {
-        const parsed = parseMarkdown(file.content, file.path);
+        let content = file.content;
+        if (file.path.endsWith(".rst")) {
+          const converted = rstToMarkdown(content);
+          if (converted === null) {
+            rstSkipped++;
+            continue;
+          }
+          content = converted;
+        }
+        const parsed = parseMarkdown(content, file.path);
         for (const section of parsed.sections) {
           // Deduplicate sections with identical content (ignore titles)
           const hash = contentHash(section.content);
@@ -131,6 +179,7 @@ export function buildPackage(
       path: outputPath,
       sectionCount: allSections.length,
       totalTokens,
+      rstSkipped,
     };
   } finally {
     db.close();

@@ -1,9 +1,19 @@
+import { execSync } from "node:child_process";
 import { existsSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildPackage } from "./package-builder.js";
+
+function hasPandoc(): boolean {
+  try {
+    execSync("pandoc --version", { stdio: ["pipe", "pipe", "pipe"] });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 describe("buildPackage", () => {
   const testDbPath = join(tmpdir(), `test-package-${Date.now()}.db`);
@@ -233,6 +243,84 @@ Run the install command.
       expect(sections[0].section_title).toBe("Getting Started");
     } finally {
       db.close();
+    }
+  });
+
+  it("converts .rst files to markdown when pandoc is available", () => {
+    if (!hasPandoc()) {
+      console.log("Skipping: pandoc not installed");
+      return;
+    }
+
+    const files = [
+      {
+        path: "docs/getting-started.rst",
+        content: [
+          "Getting Started",
+          "===============",
+          "",
+          "Installation",
+          "------------",
+          "",
+          "Install with pip:",
+          "",
+          ".. code-block:: bash",
+          "",
+          "   pip install mylib",
+          "",
+          "Usage",
+          "-----",
+          "",
+          "Import and use the library.",
+        ].join("\n"),
+      },
+    ];
+
+    const result = buildPackage(testDbPath, files, {
+      name: "rst-test",
+      version: "1.0.0",
+    });
+
+    expect(result.sectionCount).toBeGreaterThan(0);
+    expect(result.rstSkipped).toBe(0);
+
+    const db = new Database(testDbPath, { readonly: true });
+    try {
+      const results = db
+        .prepare("SELECT * FROM chunks_fts WHERE chunks_fts MATCH ?")
+        .all("installation");
+      expect(results.length).toBeGreaterThan(0);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("reports rstSkipped when mixing .md and .rst without pandoc", () => {
+    const files = [
+      {
+        path: "docs/intro.md",
+        content:
+          "# Intro\n\n## Overview\n\nThis is the overview section with enough content.",
+      },
+      {
+        path: "docs/guide.rst",
+        content: "Guide\n=====\n\nSome RST content.\n",
+      },
+    ];
+
+    // Should not throw regardless of pandoc availability
+    const result = buildPackage(testDbPath, files, {
+      name: "mixed-format",
+      version: "1.0.0",
+    });
+
+    // Markdown file should always be indexed
+    expect(result.sectionCount).toBeGreaterThan(0);
+    // rstSkipped depends on pandoc availability
+    if (hasPandoc()) {
+      expect(result.rstSkipped).toBe(0);
+    } else {
+      expect(result.rstSkipped).toBe(1);
     }
   });
 
