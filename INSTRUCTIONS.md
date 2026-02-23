@@ -1,5 +1,7 @@
 # AI Development Guidelines
 
+Agent-specific instructions are in `.agents/` subfolders and override these guidelines.
+
 ## Core Principles
 
 ### Minimalism
