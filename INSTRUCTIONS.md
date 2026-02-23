@@ -1,6 +1,6 @@
 # AI Development Guidelines
 
-> **Note:** Agent-specific AI instructions are defined in `.agents/` folders. Each agent has its own subfolder with instructions that override or extend these global guidelines.
+Agent-specific instructions are in `.agents/` subfolders and override these guidelines.
 
 ## Core Principles
 
