@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { PackageDefinition } from "./definition.js";
+import type {
+  UnversionedDefinition,
+  VersionedDefinition,
+} from "./definition.js";
 import { discoverVersions } from "./version-check.js";
 
-const mockDefinition: PackageDefinition = {
+const mockDefinition: VersionedDefinition = {
   name: "testpkg",
   registry: "npm",
   versions: [
@@ -112,5 +115,26 @@ describe("discoverVersions", () => {
     } as Response);
 
     await expect(discoverVersions(mockDefinition)).rejects.toThrow("404");
+  });
+
+  it("returns 'latest' for unversioned definitions without calling registry", async () => {
+    const mockFetch = vi.mocked(fetch);
+    const unversioned: UnversionedDefinition = {
+      name: "drizzle-orm",
+      registry: "npm",
+      source: {
+        type: "git",
+        url: "https://github.com/drizzle-team/drizzle-orm-docs",
+        lang: "en",
+      },
+    };
+
+    const versions = await discoverVersions(unversioned);
+
+    expect(versions).toEqual([
+      { name: "drizzle-orm", registry: "npm", version: "latest" },
+    ]);
+    // Should NOT call the registry API
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });

@@ -20,6 +20,8 @@ export interface PackageBuildOptions {
   version: string;
   description?: string;
   sourceUrl?: string;
+  /** Git commit SHA used to build this package (for skip-if-unchanged checks) */
+  sourceCommit?: string;
 }
 
 export interface MarkdownFile {
@@ -79,6 +81,9 @@ export function buildPackage(
     }
     if (options.sourceUrl) {
       insertMeta.run("source_url", options.sourceUrl);
+    }
+    if (options.sourceCommit) {
+      insertMeta.run("source_commit", options.sourceCommit);
     }
 
     // Parse and insert chunks

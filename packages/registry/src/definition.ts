@@ -6,6 +6,13 @@
  * The name must match the registry package name AND the file path.
  * Scoped packages use subdirectories (e.g., registry/npm/@trpc/server.yaml).
  * The registry (npm, pip, etc.) is derived from the parent directory name.
+ *
+ * Definitions come in two forms:
+ * - **Versioned**: `versions` array with semver ranges and tag patterns.
+ *   Used when docs are tagged alongside library releases.
+ * - **Unversioned**: top-level `source` field, no version ranges.
+ *   Used when docs live in a separate repo without version tags (e.g., drizzle-orm).
+ *   Always builds from the default branch with version label "latest".
  */
 
 import { readdirSync, readFileSync } from "node:fs";
@@ -27,19 +34,58 @@ const VersionEntrySchema = z.object({
   tag_pattern: z.string().default("v{version}"),
 });
 
-const DefinitionFileSchema = z.object({
-  name: z.string(),
-  description: z.string().optional(),
-  repository: z.url().optional(),
-  versions: z.array(VersionEntrySchema).min(1),
-});
+// A definition has either `versions` (versioned) or `source` (unversioned), not both.
+const DefinitionFileSchema = z
+  .object({
+    name: z.string(),
+    description: z.string().optional(),
+    repository: z.url().optional(),
+    versions: z.array(VersionEntrySchema).min(1).optional(),
+    source: SourceSchema.optional(),
+  })
+  .check((ctx) => {
+    const hasVersions = ctx.value.versions != null;
+    const hasSource = ctx.value.source != null;
+    if (hasVersions === hasSource) {
+      ctx.issues.push({
+        message:
+          "Must have either 'versions' (versioned docs) or 'source' (unversioned docs), but not both",
+        path: hasVersions ? ["source"] : ["versions"],
+        input: ctx.value,
+        code: "custom",
+      });
+    }
+  });
 
+export type Source = z.infer<typeof SourceSchema>;
 export type VersionEntry = z.infer<typeof VersionEntrySchema>;
 export type DefinitionFile = z.infer<typeof DefinitionFileSchema>;
 
-export interface PackageDefinition extends DefinitionFile {
+interface BaseDefinition {
+  name: string;
+  description?: string;
+  repository?: string;
   /** Derived from parent directory (e.g., "npm", "pip") */
   registry: string;
+}
+
+export interface VersionedDefinition extends BaseDefinition {
+  versions: VersionEntry[];
+  source?: undefined;
+}
+
+export interface UnversionedDefinition extends BaseDefinition {
+  source: Source;
+  versions?: undefined;
+}
+
+export type PackageDefinition = VersionedDefinition | UnversionedDefinition;
+
+/** Check if a definition uses versioned docs (has `versions` array). */
+export function isVersioned(
+  def: PackageDefinition,
+): def is VersionedDefinition {
+  return def.versions != null;
 }
 
 /**
@@ -79,7 +125,7 @@ export function loadDefinition(
   return {
     ...parsed,
     registry,
-  };
+  } as PackageDefinition;
 }
 
 /**
@@ -120,9 +166,10 @@ export function listDefinitions(registryDir: string): PackageDefinition[] {
  * Find the first version entry that matches a given version.
  * Ranges are evaluated top-to-bottom; first match wins.
  * A version matches if: min_version <= version (< max_version if set).
+ * Only applicable to versioned definitions.
  */
 export function resolveVersionEntry(
-  definition: PackageDefinition,
+  definition: VersionedDefinition,
   version: string,
 ): VersionEntry | undefined {
   return definition.versions.find((entry) => {

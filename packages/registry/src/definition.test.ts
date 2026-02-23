@@ -5,10 +5,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   compareSemver,
   constructTag,
+  isVersioned,
   listDefinitions,
   loadDefinition,
-  type PackageDefinition,
   resolveVersionEntry,
+  type VersionedDefinition,
 } from "./definition.js";
 
 describe("compareSemver", () => {
@@ -81,6 +82,8 @@ versions:
     expect(def.name).toBe("next");
     expect(def.registry).toBe("npm");
     expect(def.description).toBe("The React Framework");
+    expect(isVersioned(def)).toBe(true);
+    if (!isVersioned(def)) throw new Error("expected versioned");
     expect(def.versions).toHaveLength(1);
     expect(def.versions[0].source.lang).toBe("en");
     expect(def.versions[0].tag_pattern).toBe("v{version}");
@@ -133,6 +136,7 @@ versions:
 
     expect(def.name).toBe("@trpc/server");
     expect(def.registry).toBe("npm");
+    if (!isVersioned(def)) throw new Error("expected versioned");
     expect(def.versions[0].tag_pattern).toBe("@trpc/server@{version}");
   });
 
@@ -210,20 +214,19 @@ describe("resolveVersionEntry", () => {
       min_version: string;
       max_version?: string;
     }>,
-  ) =>
-    ({
-      name: "test",
-      registry: "npm",
-      versions: versions.map((v) => ({
-        ...v,
-        source: {
-          type: "git" as const,
-          url: "https://example.com",
-          lang: "en",
-        },
-        tag_pattern: "v{version}",
-      })),
-    }) as unknown as PackageDefinition;
+  ): VersionedDefinition => ({
+    name: "test",
+    registry: "npm",
+    versions: versions.map((v) => ({
+      ...v,
+      source: {
+        type: "git" as const,
+        url: "https://example.com",
+        lang: "en",
+      },
+      tag_pattern: "v{version}",
+    })),
+  });
 
   it("matches version in open-ended range", () => {
     const def = makeDef([{ min_version: "15.0.0" }]);
@@ -249,5 +252,97 @@ describe("resolveVersionEntry", () => {
     expect(entry).toBeDefined();
     // Should match the first entry (15.0.0+), not the second
     expect(entry?.max_version).toBeUndefined();
+  });
+});
+
+describe("unversioned definitions", () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), "unver-test-"));
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it("parses an unversioned definition with top-level source", () => {
+    const yaml = `
+name: drizzle-orm
+description: "TypeScript ORM"
+repository: https://github.com/drizzle-team/drizzle-orm
+source:
+  type: git
+  url: https://github.com/drizzle-team/drizzle-orm-docs
+  docs_path: src/content/docs
+`;
+    const npmDir = join(tempDir, "npm");
+    mkdirSync(npmDir);
+    writeFileSync(join(npmDir, "drizzle-orm.yaml"), yaml);
+
+    const def = loadDefinition(join(npmDir, "drizzle-orm.yaml"));
+
+    expect(def.name).toBe("drizzle-orm");
+    expect(def.registry).toBe("npm");
+    expect(isVersioned(def)).toBe(false);
+    if (isVersioned(def)) throw new Error("expected unversioned");
+    expect(def.source.url).toBe(
+      "https://github.com/drizzle-team/drizzle-orm-docs",
+    );
+    expect(def.source.docs_path).toBe("src/content/docs");
+    expect(def.source.lang).toBe("en");
+  });
+
+  it("rejects definition with both versions and source", () => {
+    const yaml = `
+name: bad
+source:
+  type: git
+  url: https://github.com/test/test
+versions:
+  - min_version: "1.0.0"
+    source:
+      type: git
+      url: https://github.com/test/test
+`;
+    const npmDir = join(tempDir, "npm");
+    mkdirSync(npmDir);
+    writeFileSync(join(npmDir, "bad.yaml"), yaml);
+
+    expect(() => loadDefinition(join(npmDir, "bad.yaml"))).toThrow();
+  });
+
+  it("rejects definition with neither versions nor source", () => {
+    const yaml = `
+name: empty
+description: "No source"
+`;
+    const npmDir = join(tempDir, "npm");
+    mkdirSync(npmDir);
+    writeFileSync(join(npmDir, "empty.yaml"), yaml);
+
+    expect(() => loadDefinition(join(npmDir, "empty.yaml"))).toThrow();
+  });
+
+  it("lists both versioned and unversioned definitions", () => {
+    mkdirSync(join(tempDir, "npm"));
+    writeFileSync(
+      join(tempDir, "npm", "next.yaml"),
+      'name: next\nversions:\n  - min_version: "15.0.0"\n    source:\n      type: git\n      url: https://github.com/vercel/next.js\n',
+    );
+    writeFileSync(
+      join(tempDir, "npm", "drizzle-orm.yaml"),
+      "name: drizzle-orm\nsource:\n  type: git\n  url: https://github.com/drizzle-team/drizzle-orm-docs\n",
+    );
+
+    const defs = listDefinitions(tempDir);
+    expect(defs).toHaveLength(2);
+
+    const drizzle = defs.find((d) => d.name === "drizzle-orm");
+    const next = defs.find((d) => d.name === "next");
+    if (!drizzle || !next) throw new Error("expected both definitions");
+
+    expect(isVersioned(drizzle)).toBe(false);
+    expect(isVersioned(next)).toBe(true);
   });
 });
