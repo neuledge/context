@@ -8,8 +8,8 @@
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { Command } from "commander";
-import { buildFromDefinition } from "./build.js";
-import { listDefinitions } from "./definition.js";
+import { buildFromDefinition, buildUnversioned } from "./build.js";
+import { isVersioned, listDefinitions } from "./definition.js";
 import { discoverVersions } from "./version-check.js";
 
 const DEFAULT_REGISTRY_DIR = resolve(
@@ -34,12 +34,17 @@ program
     }
 
     for (const def of definitions) {
-      const ranges = def.versions
-        .map(
-          (v) => `${v.min_version}${v.max_version ? `-${v.max_version}` : "+"}`,
-        )
-        .join(", ");
-      console.log(`${def.registry}/${def.name}  [${ranges}]`);
+      if (isVersioned(def)) {
+        const ranges = def.versions
+          .map(
+            (v) =>
+              `${v.min_version}${v.max_version ? `-${v.max_version}` : "+"}`,
+          )
+          .join(", ");
+        console.log(`${def.registry}/${def.name}  [${ranges}]`);
+      } else {
+        console.log(`${def.registry}/${def.name}  (unversioned)`);
+      }
     }
   });
 
@@ -74,7 +79,7 @@ program
   });
 
 program
-  .command("build <name> <version>")
+  .command("build <name> [version]")
   .description("Build a .db package for a specific version")
   .option("--dir <path>", "Registry directory", DEFAULT_REGISTRY_DIR)
   .option("--output <path>", "Output directory", "./dist-packages")
@@ -82,11 +87,26 @@ program
     const def = findDefinition(opts.dir, name);
     mkdirSync(opts.output, { recursive: true });
 
-    console.log(`Building ${def.registry}/${def.name}@${version}...`);
-    const result = buildFromDefinition(def, version, opts.output);
-    console.log(
-      `Built: ${result.path} (${result.sectionCount} sections, ${result.totalTokens} tokens)`,
-    );
+    if (isVersioned(def)) {
+      if (!version) {
+        throw new Error(
+          `Version required for versioned package "${name}". Use: registry build ${name} <version>`,
+        );
+      }
+      console.log(`Building ${def.registry}/${def.name}@${version}...`);
+      const result = buildFromDefinition(def, version, opts.output);
+      console.log(
+        `Built: ${result.path} (${result.sectionCount} sections, ${result.totalTokens} tokens)`,
+      );
+    } else {
+      console.log(
+        `Building ${def.registry}/${def.name}@latest (unversioned)...`,
+      );
+      const result = buildUnversioned(def, opts.output);
+      console.log(
+        `Built: ${result.path} (${result.sectionCount} sections, ${result.totalTokens} tokens)`,
+      );
+    }
   });
 
 function findDefinition(dir: string, name: string) {

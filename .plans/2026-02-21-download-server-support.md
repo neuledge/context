@@ -152,6 +152,24 @@ versions:
     tag_pattern: "v{version}"
 ```
 
+**Unversioned definitions** (added later — see `2026-02-23-unversioned-docs-support.md`):
+
+For libraries where docs live in a separate repo without version tags (e.g., drizzle-orm), use a top-level `source` instead of `versions`:
+
+```yaml
+# registry/npm/drizzle-orm.yaml
+name: drizzle-orm
+description: "TypeScript ORM that lets you write SQL in TypeScript"
+repository: https://github.com/drizzle-team/drizzle-orm
+
+source:
+  type: git
+  url: https://github.com/drizzle-team/drizzle-orm-docs
+  docs_path: src/content/docs
+```
+
+A definition has **either** `versions` (versioned) **or** `source` (unversioned), never both. Unversioned packages are labeled `"latest"` and use `source_commit` (git SHA) to skip rebuilds when nothing changed.
+
 **Key design decisions:**
 - **No `registry` field in YAML** — derived from directory path (`registry/npm/next.yaml` → `npm`). The parser enforces this.
 - **`name` must match both the registry package name and the filename** (e.g., `next.yaml` → `name: next`). No separate `package` field — one name for everything.

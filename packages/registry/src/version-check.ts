@@ -7,6 +7,7 @@
 
 import {
   compareSemver,
+  isVersioned,
   type PackageDefinition,
   resolveVersionEntry,
 } from "./definition.js";
@@ -32,13 +33,29 @@ const registryFetchers: Record<string, RegistryFetcher> = {
 
 /**
  * Discover available versions for a package definition.
- * Queries the appropriate registry API, filters to defined ranges,
- * removes prereleases, and keeps only the latest patch per minor.
+ *
+ * For versioned definitions: queries the appropriate registry API,
+ * filters to defined ranges, removes prereleases, and keeps only
+ * the latest patch per minor.
+ *
+ * For unversioned definitions: returns a single "latest" entry
+ * (no registry API call needed — docs are always built from HEAD).
  */
 export async function discoverVersions(
   definition: PackageDefinition,
   options: { since?: number } = {},
 ): Promise<AvailableVersion[]> {
+  // Unversioned definitions always have a single "latest" version
+  if (!isVersioned(definition)) {
+    return [
+      {
+        name: definition.name,
+        registry: definition.registry,
+        version: "latest",
+      },
+    ];
+  }
+
   const fetcher = registryFetchers[definition.registry];
   if (!fetcher) {
     throw new Error(`Unsupported registry: ${definition.registry}`);
