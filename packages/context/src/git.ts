@@ -88,19 +88,30 @@ function isLocaleDir(name: string): boolean {
 }
 
 /**
- * Files to ignore during markdown indexing.
+ * Documentation file extensions to include in search.
+ * Markdown formats are parsed directly; RST files are converted via pandoc.
+ */
+const DOCUMENTATION_EXTENSIONS = [".md", ".mdx", ".rst"];
+
+/**
+ * Test fixture suffixes to ignore (e.g., component.expect.md, hook.test.md).
+ */
+const FIXTURE_SUFFIXES = ["expect", "test", "spec"];
+
+/**
+ * Files to ignore during documentation indexing (extension-agnostic).
  * These are common repo files that aren't useful documentation.
  */
 const IGNORED_FILES = new Set([
-  "code_of_conduct.md",
-  "contributing.md",
-  "changelog.md",
-  "history.md",
-  "license.md",
-  "security.md",
-  "pull_request_template.md",
-  "issue_template.md",
-  "claude.md", // AI assistant configuration
+  "code_of_conduct",
+  "contributing",
+  "changelog",
+  "history",
+  "license",
+  "security",
+  "pull_request_template",
+  "issue_template",
+  "claude", // AI assistant configuration
 ]);
 
 /**
@@ -363,15 +374,20 @@ function findMarkdownFiles(
           files.push(...findMarkdownFiles(fullPath, ig, relativePath, options));
         }
       } else if (entry.isFile()) {
-        if (entry.name.endsWith(".md") || entry.name.endsWith(".mdx")) {
-          const lowerName = entry.name.toLowerCase();
-          // Skip non-doc markdown files
-          if (IGNORED_FILES.has(lowerName)) continue;
-          // Skip test fixture files (e.g., component.expect.md, hook.test.md)
+        const lowerName = entry.name.toLowerCase();
+        const matchingExt = DOCUMENTATION_EXTENSIONS.find((ext) =>
+          lowerName.endsWith(ext),
+        );
+
+        if (matchingExt) {
+          const baseName = lowerName.slice(0, -matchingExt.length);
+          // Skip non-doc files (extension-agnostic check)
+          if (IGNORED_FILES.has(baseName)) continue;
+          // Skip test fixture files (e.g., component.expect.md)
+          const nameParts = baseName.split(".");
           if (
-            lowerName.endsWith(".expect.md") ||
-            lowerName.endsWith(".test.md") ||
-            lowerName.endsWith(".spec.md")
+            nameParts.length > 1 &&
+            FIXTURE_SUFFIXES.includes(nameParts[nameParts.length - 1] ?? "")
           ) {
             continue;
           }

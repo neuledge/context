@@ -457,18 +457,18 @@ async function addFromGitClone(
       console.log(`✓ Reading from repository root`);
     }
 
-    // Read all markdown files (filtered by language)
+    // Read all documentation files (filtered by language)
     const files = readLocalDocsFiles(tempDir, {
       path: docsPath,
       lang: options.lang,
     });
     if (files.length === 0) {
       throw new Error(
-        `No markdown files found${docsPath ? ` in ${docsPath}` : ""}. Use --path to specify or --lang all to include all languages.`,
+        `No documentation files found${docsPath ? ` in ${docsPath}` : ""}. Use --path to specify or --lang all to include all languages.`,
       );
     }
     console.log(
-      `✓ Found ${files.length} markdown files${options.lang ? ` (lang: ${options.lang})` : ""}`,
+      `✓ Found ${files.length} documentation files${options.lang ? ` (lang: ${options.lang})` : ""}`,
     );
 
     // Build the package
@@ -481,6 +481,12 @@ async function addFromGitClone(
       version: versionLabel,
       sourceUrl: url,
     });
+
+    if (result.rstSkipped > 0) {
+      console.log(
+        `⚠️  Skipped ${result.rstSkipped} .rst files (install pandoc to convert reStructuredText)`,
+      );
+    }
 
     console.log(`✓ Built package: ${packageName}@${versionLabel}`);
     console.log(`✓ Saved to ${outputPath}`);
@@ -531,18 +537,18 @@ async function addFromLocalDir(
     console.log(`✓ Reading from directory root`);
   }
 
-  // Read all markdown files (filtered by language)
+  // Read all documentation files (filtered by language)
   const files = readLocalDocsFiles(dirPath, {
     path: docsPath,
     lang: options.lang,
   });
   if (files.length === 0) {
     throw new Error(
-      `No markdown files found${docsPath ? ` in ${docsPath}` : ""}. Use --path to specify or --lang all to include all languages.`,
+      `No documentation files found${docsPath ? ` in ${docsPath}` : ""}. Use --path to specify or --lang all to include all languages.`,
     );
   }
   console.log(
-    `✓ Found ${files.length} markdown files${options.lang ? ` (lang: ${options.lang})` : ""}`,
+    `✓ Found ${files.length} documentation files${options.lang ? ` (lang: ${options.lang})` : ""}`,
   );
 
   // Build the package
@@ -555,6 +561,12 @@ async function addFromLocalDir(
     version: versionLabel,
     sourceUrl: dirPath,
   });
+
+  if (result.rstSkipped > 0) {
+    console.log(
+      `⚠️  Skipped ${result.rstSkipped} .rst files (install pandoc to convert reStructuredText)`,
+    );
+  }
 
   console.log(`✓ Built package: ${packageName}@${versionLabel}`);
   console.log(`✓ Saved to ${outputPath}`);
