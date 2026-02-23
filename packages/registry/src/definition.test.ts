@@ -111,6 +111,49 @@ versions:
 
     expect(() => loadDefinition(join(npmDir, "bad.yaml"))).toThrow();
   });
+
+  it("parses a scoped package definition via managerDir", () => {
+    const yaml = `
+name: "@trpc/server"
+description: "tRPC Server"
+versions:
+  - min_version: "10.0.0"
+    source:
+      type: git
+      url: https://github.com/trpc/trpc
+      docs_path: www/docs
+    tag_pattern: "@trpc/server@{version}"
+`;
+    const npmDir = join(tempDir, "npm");
+    const scopeDir = join(npmDir, "@trpc");
+    mkdirSync(scopeDir, { recursive: true });
+    writeFileSync(join(scopeDir, "server.yaml"), yaml);
+
+    const def = loadDefinition(join(scopeDir, "server.yaml"), npmDir);
+
+    expect(def.name).toBe("@trpc/server");
+    expect(def.registry).toBe("npm");
+    expect(def.versions[0].tag_pattern).toBe("@trpc/server@{version}");
+  });
+
+  it("throws when scoped name doesn't match path", () => {
+    const yaml = `
+name: "@trpc/client"
+versions:
+  - min_version: "10.0.0"
+    source:
+      type: git
+      url: https://github.com/trpc/trpc
+`;
+    const npmDir = join(tempDir, "npm");
+    const scopeDir = join(npmDir, "@trpc");
+    mkdirSync(scopeDir, { recursive: true });
+    writeFileSync(join(scopeDir, "server.yaml"), yaml);
+
+    expect(() => loadDefinition(join(scopeDir, "server.yaml"), npmDir)).toThrow(
+      /doesn't match filename/,
+    );
+  });
 });
 
 describe("listDefinitions", () => {
@@ -140,6 +183,24 @@ describe("listDefinitions", () => {
     expect(defs).toHaveLength(2);
     expect(defs[0].registry).toBe("npm");
     expect(defs[1].registry).toBe("pip");
+  });
+
+  it("discovers scoped packages in @scope subdirectories", () => {
+    mkdirSync(join(tempDir, "npm"));
+    mkdirSync(join(tempDir, "npm", "@trpc"), { recursive: true });
+    writeFileSync(
+      join(tempDir, "npm", "next.yaml"),
+      'name: next\nversions:\n  - min_version: "15.0.0"\n    source:\n      type: git\n      url: https://github.com/vercel/next.js\n',
+    );
+    writeFileSync(
+      join(tempDir, "npm", "@trpc", "server.yaml"),
+      'name: "@trpc/server"\nversions:\n  - min_version: "10.0.0"\n    source:\n      type: git\n      url: https://github.com/trpc/trpc\n',
+    );
+
+    const defs = listDefinitions(tempDir);
+    expect(defs).toHaveLength(2);
+    expect(defs.map((d) => d.name)).toEqual(["@trpc/server", "next"]);
+    expect(defs[0].registry).toBe("npm");
   });
 });
 

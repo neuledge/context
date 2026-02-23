@@ -3,12 +3,13 @@
  *
  * Each definition file (e.g., registry/npm/next.yaml) describes
  * how to build documentation packages for a library across versions.
- * The name must match the registry package name AND the filename.
+ * The name must match the registry package name AND the file path.
+ * Scoped packages use subdirectories (e.g., registry/npm/@trpc/server.yaml).
  * The registry (npm, pip, etc.) is derived from the parent directory name.
  */
 
 import { readdirSync, readFileSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod/v4";
 
@@ -44,15 +45,31 @@ export interface PackageDefinition extends DefinitionFile {
 /**
  * Parse and validate a YAML definition file.
  * The registry is derived from the file's parent directory name.
+ *
+ * When managerDir is provided, the expected name is derived from the
+ * relative path (supporting scoped packages like @trpc/server.yaml).
+ * Otherwise, falls back to the immediate parent directory for registry
+ * and filename for the expected name.
  */
-export function loadDefinition(filePath: string): PackageDefinition {
+export function loadDefinition(
+  filePath: string,
+  managerDir?: string,
+): PackageDefinition {
   const content = readFileSync(filePath, "utf-8");
   const raw = parseYaml(content);
   const parsed = DefinitionFileSchema.parse(raw);
-  const registry = basename(dirname(filePath));
 
-  // Filename must match the name field (e.g., next.yaml → name: next)
-  const expectedName = basename(filePath, ".yaml");
+  const registry = managerDir
+    ? basename(managerDir)
+    : basename(dirname(filePath));
+
+  // Derive expected name from relative path within managerDir
+  // e.g., npm/@trpc/server.yaml → @trpc/server
+  // e.g., npm/next.yaml → next
+  const expectedName = managerDir
+    ? relative(managerDir, filePath).replace(/\.yaml$/, "")
+    : basename(filePath, ".yaml");
+
   if (parsed.name !== expectedName) {
     throw new Error(
       `Definition name "${parsed.name}" doesn't match filename "${expectedName}.yaml"`,
@@ -67,6 +84,7 @@ export function loadDefinition(filePath: string): PackageDefinition {
 
 /**
  * Scan the registry/ directory and load all definitions.
+ * Supports scoped packages via @scope subdirectories (e.g., npm/@trpc/server.yaml).
  */
 export function listDefinitions(registryDir: string): PackageDefinition[] {
   const definitions: PackageDefinition[] = [];
@@ -75,10 +93,21 @@ export function listDefinitions(registryDir: string): PackageDefinition[] {
     if (!manager.isDirectory()) continue;
 
     const managerDir = join(registryDir, manager.name);
-    for (const file of readdirSync(managerDir, { withFileTypes: true })) {
-      if (!file.isFile() || !file.name.endsWith(".yaml")) continue;
-
-      definitions.push(loadDefinition(join(managerDir, file.name)));
+    for (const entry of readdirSync(managerDir, { withFileTypes: true })) {
+      if (entry.isFile() && entry.name.endsWith(".yaml")) {
+        definitions.push(
+          loadDefinition(join(managerDir, entry.name), managerDir),
+        );
+      } else if (entry.isDirectory() && entry.name.startsWith("@")) {
+        // Scoped package directory (e.g., @trpc/)
+        const scopeDir = join(managerDir, entry.name);
+        for (const file of readdirSync(scopeDir, { withFileTypes: true })) {
+          if (!file.isFile() || !file.name.endsWith(".yaml")) continue;
+          definitions.push(
+            loadDefinition(join(scopeDir, file.name), managerDir),
+          );
+        }
+      }
     }
   }
 

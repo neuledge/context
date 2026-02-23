@@ -1,0 +1,11 @@
+name: nuxt
+description: "The Intuitive Vue Framework"
+repository: https://github.com/nuxt/nuxt
+
+versions:
+  - min_version: "3.0.0"
+    source:
+      type: git
+      url: https://github.com/nuxt/nuxt
+      docs_path: docs
+    tag_pattern: "v{version}"
