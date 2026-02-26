@@ -1,0 +1,8 @@
+name: express
+description: "Fast, unopinionated, minimalist web framework for Node.js"
+repository: https://github.com/expressjs/express
+
+source:
+  type: git
+  url: https://github.com/expressjs/expressjs.com
+  docs_path: en

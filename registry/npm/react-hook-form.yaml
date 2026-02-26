@@ -1,0 +1,11 @@
+name: react-hook-form
+description: "Performant, flexible and extensible forms with easy-to-use validation"
+repository: https://github.com/react-hook-form/react-hook-form
+
+versions:
+  - min_version: "7.0.0"
+    source:
+      type: git
+      url: https://github.com/react-hook-form/react-hook-form
+      docs_path: docs
+    tag_pattern: "v{version}"

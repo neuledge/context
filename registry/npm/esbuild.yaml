@@ -1,0 +1,11 @@
+name: esbuild
+description: "An extremely fast JavaScript and CSS bundler and minifier"
+repository: https://github.com/evanw/esbuild
+
+versions:
+  - min_version: "0.17.0"
+    source:
+      type: git
+      url: https://github.com/evanw/esbuild
+      docs_path: docs
+    tag_pattern: "v{version}"

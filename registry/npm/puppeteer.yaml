@@ -1,0 +1,11 @@
+name: puppeteer
+description: "A high-level API to control Chrome over the DevTools Protocol"
+repository: https://github.com/puppeteer/puppeteer
+
+versions:
+  - min_version: "20.0.0"
+    source:
+      type: git
+      url: https://github.com/puppeteer/puppeteer
+      docs_path: docs
+    tag_pattern: "puppeteer-v{version}"

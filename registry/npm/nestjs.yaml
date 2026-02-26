@@ -1,0 +1,8 @@
+name: nestjs
+description: "A progressive Node.js framework for building efficient server-side applications"
+repository: https://github.com/nestjs/nest
+
+source:
+  type: git
+  url: https://github.com/nestjs/docs.nestjs.com
+  docs_path: content

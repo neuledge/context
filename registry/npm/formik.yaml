@@ -1,0 +1,11 @@
+name: formik
+description: "Build forms in React without the tears"
+repository: https://github.com/jaredpalmer/formik
+
+versions:
+  - min_version: "2.0.0"
+    source:
+      type: git
+      url: https://github.com/jaredpalmer/formik
+      docs_path: docs
+    tag_pattern: "formik@{version}"

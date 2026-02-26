@@ -1,0 +1,11 @@
+name: d3
+description: "Data-Driven Documents: JavaScript library for visualizing data"
+repository: https://github.com/d3/d3
+
+versions:
+  - min_version: "7.0.0"
+    source:
+      type: git
+      url: https://github.com/d3/d3
+      docs_path: docs
+    tag_pattern: "v{version}"

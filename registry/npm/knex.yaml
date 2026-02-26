@@ -1,0 +1,11 @@
+name: knex
+description: "SQL query builder for JavaScript"
+repository: https://github.com/knex/knex
+
+versions:
+  - min_version: "2.0.0"
+    source:
+      type: git
+      url: https://github.com/knex/knex
+      docs_path: docs
+    tag_pattern: "{version}"

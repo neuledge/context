@@ -1,0 +1,11 @@
+name: cheerio
+description: "Fast and flexible HTML parsing for Node.js"
+repository: https://github.com/cheeriojs/cheerio
+
+versions:
+  - min_version: "1.0.0"
+    source:
+      type: git
+      url: https://github.com/cheeriojs/cheerio
+      docs_path: website
+    tag_pattern: "v{version}"

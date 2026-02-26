@@ -1,0 +1,11 @@
+name: "@apollo/client"
+description: "A fully-featured caching GraphQL client"
+repository: https://github.com/apollographql/apollo-client
+
+versions:
+  - min_version: "3.0.0"
+    source:
+      type: git
+      url: https://github.com/apollographql/apollo-client
+      docs_path: docs
+    tag_pattern: "@apollo/client@{version}"

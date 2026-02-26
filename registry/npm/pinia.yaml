@@ -1,0 +1,11 @@
+name: pinia
+description: "Intuitive, type safe, and flexible store for Vue"
+repository: https://github.com/vuejs/pinia
+
+versions:
+  - min_version: "2.0.0"
+    source:
+      type: git
+      url: https://github.com/vuejs/pinia
+      docs_path: packages/docs
+    tag_pattern: "v{version}"

@@ -1,0 +1,8 @@
+name: parcel
+description: "Zero configuration web application bundler"
+repository: https://github.com/parcel-bundler/parcel
+
+source:
+  type: git
+  url: https://github.com/parcel-bundler/website
+  docs_path: src

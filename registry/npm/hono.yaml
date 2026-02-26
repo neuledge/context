@@ -1,0 +1,8 @@
+name: hono
+description: "Ultrafast web framework for the Edges"
+repository: https://github.com/honojs/hono
+
+source:
+  type: git
+  url: https://github.com/honojs/website
+  docs_path: docs
