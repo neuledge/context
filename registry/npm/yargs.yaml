@@ -1,0 +1,11 @@
+name: yargs
+description: "Yargs helps build interactive command line tools"
+repository: https://github.com/yargs/yargs
+
+versions:
+  - min_version: "17.0.0"
+    source:
+      type: git
+      url: https://github.com/yargs/yargs
+      docs_path: docs
+    tag_pattern: "v{version}"

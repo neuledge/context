@@ -1,0 +1,11 @@
+name: playwright
+description: "Cross-browser automation library for web testing"
+repository: https://github.com/microsoft/playwright
+
+versions:
+  - min_version: "1.0.0"
+    source:
+      type: git
+      url: https://github.com/microsoft/playwright
+      docs_path: docs/src
+    tag_pattern: "v{version}"

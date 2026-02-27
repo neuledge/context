@@ -1,0 +1,8 @@
+name: tailwindcss
+description: "A utility-first CSS framework for rapid UI development"
+repository: https://github.com/tailwindlabs/tailwindcss
+
+source:
+  type: git
+  url: https://github.com/tailwindlabs/tailwindcss.com
+  docs_path: src/docs

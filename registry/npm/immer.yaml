@@ -1,0 +1,11 @@
+name: immer
+description: "Create the next immutable state by mutating the current one"
+repository: https://github.com/immerjs/immer
+
+versions:
+  - min_version: "9.0.0"
+    source:
+      type: git
+      url: https://github.com/immerjs/immer
+      docs_path: website/docs
+    tag_pattern: "v{version}"

@@ -1,0 +1,8 @@
+name: react-native
+description: "A framework for building native applications using React"
+repository: https://github.com/facebook/react-native
+
+source:
+  type: git
+  url: https://github.com/facebook/react-native-website
+  docs_path: docs

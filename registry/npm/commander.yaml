@@ -1,0 +1,11 @@
+name: commander
+description: "Node.js command-line interfaces made easy"
+repository: https://github.com/tj/commander.js
+
+versions:
+  - min_version: "11.0.0"
+    source:
+      type: git
+      url: https://github.com/tj/commander.js
+      docs_path: docs
+    tag_pattern: "v{version}"

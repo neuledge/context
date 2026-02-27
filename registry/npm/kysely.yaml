@@ -1,0 +1,11 @@
+name: kysely
+description: "Type-safe TypeScript SQL query builder"
+repository: https://github.com/kysely-org/kysely
+
+versions:
+  - min_version: "0.26.0"
+    source:
+      type: git
+      url: https://github.com/kysely-org/kysely
+      docs_path: docs
+    tag_pattern: "{version}"

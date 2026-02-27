@@ -1,0 +1,11 @@
+name: rxjs
+description: "Reactive Extensions Library for JavaScript"
+repository: https://github.com/ReactiveX/rxjs
+
+versions:
+  - min_version: "7.0.0"
+    source:
+      type: git
+      url: https://github.com/ReactiveX/rxjs
+      docs_path: apps/rxjs.dev/content
+    tag_pattern: "v{version}"

@@ -1,0 +1,11 @@
+name: "@docusaurus/core"
+description: "Easy to maintain open source documentation websites"
+repository: https://github.com/facebook/docusaurus
+
+versions:
+  - min_version: "2.0.0"
+    source:
+      type: git
+      url: https://github.com/facebook/docusaurus
+      docs_path: website
+    tag_pattern: "v{version}"

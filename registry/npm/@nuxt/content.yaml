@@ -1,0 +1,11 @@
+name: "@nuxt/content"
+description: "File-based CMS for Nuxt, using Markdown and more"
+repository: https://github.com/nuxt/content
+
+versions:
+  - min_version: "2.0.0"
+    source:
+      type: git
+      url: https://github.com/nuxt/content
+      docs_path: docs
+    tag_pattern: "v{version}"

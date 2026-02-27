@@ -1,0 +1,8 @@
+name: prisma
+description: "Next-generation ORM for Node.js and TypeScript"
+repository: https://github.com/prisma/prisma
+
+source:
+  type: git
+  url: https://github.com/prisma/docs
+  docs_path: apps/docs/content/docs

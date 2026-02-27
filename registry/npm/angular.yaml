@@ -1,0 +1,11 @@
+name: angular
+description: "Platform for building mobile and desktop web applications"
+repository: https://github.com/angular/angular
+
+versions:
+  - min_version: "17.0.0"
+    source:
+      type: git
+      url: https://github.com/angular/angular
+      docs_path: adev/src/content
+    tag_pattern: "v{version}"

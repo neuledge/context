@@ -1,0 +1,11 @@
+name: "@mui/material"
+description: "Ready-to-use React components that implement Material Design"
+repository: https://github.com/mui/material-ui
+
+versions:
+  - min_version: "5.0.0"
+    source:
+      type: git
+      url: https://github.com/mui/material-ui
+      docs_path: docs/data/material
+    tag_pattern: "v{version}"

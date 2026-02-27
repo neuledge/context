@@ -1,0 +1,8 @@
+name: preact
+description: "Fast 3kB alternative to React with the same modern API"
+repository: https://github.com/preactjs/preact
+
+source:
+  type: git
+  url: https://github.com/preactjs/preact-www
+  docs_path: content

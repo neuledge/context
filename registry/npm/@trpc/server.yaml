@@ -1,0 +1,11 @@
+name: "@trpc/server"
+description: "End-to-end typesafe APIs made easy"
+repository: https://github.com/trpc/trpc
+
+versions:
+  - min_version: "10.0.0"
+    source:
+      type: git
+      url: https://github.com/trpc/trpc
+      docs_path: www/docs
+    tag_pattern: "@trpc/server@{version}"

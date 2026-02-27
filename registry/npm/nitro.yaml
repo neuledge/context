@@ -1,0 +1,11 @@
+name: nitro
+description: "Next generation server toolkit — create web servers with everything you need"
+repository: https://github.com/unjs/nitro
+
+versions:
+  - min_version: "2.0.0"
+    source:
+      type: git
+      url: https://github.com/unjs/nitro
+      docs_path: docs
+    tag_pattern: "v{version}"

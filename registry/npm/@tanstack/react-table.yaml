@@ -1,0 +1,11 @@
+name: "@tanstack/react-table"
+description: "Headless UI for building powerful tables and datagrids"
+repository: https://github.com/TanStack/table
+
+versions:
+  - min_version: "8.0.0"
+    source:
+      type: git
+      url: https://github.com/TanStack/table
+      docs_path: docs
+    tag_pattern: "v{version}"

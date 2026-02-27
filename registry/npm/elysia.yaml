@@ -1,0 +1,8 @@
+name: elysia
+description: "Ergonomic framework for Humans — TypeScript first"
+repository: https://github.com/elysiajs/elysia
+
+source:
+  type: git
+  url: https://github.com/elysiajs/documentation
+  docs_path: docs

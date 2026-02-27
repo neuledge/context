@@ -1,0 +1,11 @@
+name: rollup
+description: "Module bundler for JavaScript"
+repository: https://github.com/rollup/rollup
+
+versions:
+  - min_version: "3.0.0"
+    source:
+      type: git
+      url: https://github.com/rollup/rollup
+      docs_path: docs
+    tag_pattern: "v{version}"

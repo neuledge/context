@@ -1,0 +1,11 @@
+name: electron
+description: "Build cross-platform desktop apps with JavaScript, HTML, and CSS"
+repository: https://github.com/electron/electron
+
+versions:
+  - min_version: "20.0.0"
+    source:
+      type: git
+      url: https://github.com/electron/electron
+      docs_path: docs
+    tag_pattern: "v{version}"

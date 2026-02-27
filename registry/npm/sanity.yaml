@@ -1,0 +1,11 @@
+name: sanity
+description: "Platform for structured content with a real-time API"
+repository: https://github.com/sanity-io/sanity
+
+versions:
+  - min_version: "3.0.0"
+    source:
+      type: git
+      url: https://github.com/sanity-io/sanity
+      docs_path: docs
+    tag_pattern: "v{version}"

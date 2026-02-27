@@ -1,0 +1,11 @@
+name: jest
+description: "Delightful JavaScript testing framework with a focus on simplicity"
+repository: https://github.com/jestjs/jest
+
+versions:
+  - min_version: "27.0.0"
+    source:
+      type: git
+      url: https://github.com/jestjs/jest
+      docs_path: docs
+    tag_pattern: "v{version}"
