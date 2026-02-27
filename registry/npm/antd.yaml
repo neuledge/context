@@ -1,0 +1,11 @@
+name: antd
+description: "An enterprise-class UI design language and React UI library"
+repository: https://github.com/ant-design/ant-design
+
+versions:
+  - min_version: "5.0.0"
+    source:
+      type: git
+      url: https://github.com/ant-design/ant-design
+      docs_path: docs
+    tag_pattern: "{version}"

@@ -1,0 +1,8 @@
+name: "@langchain/core"
+description: "Core LangChain Expression Language and base abstractions for TypeScript"
+repository: https://github.com/langchain-ai/langchainjs
+
+source:
+  type: git
+  url: https://github.com/langchain-ai/langchainjs
+  docs_path: docs/core_docs

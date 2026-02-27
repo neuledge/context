@@ -1,0 +1,8 @@
+name: sst
+description: "Build full-stack apps on your own infrastructure"
+repository: https://github.com/sst/sst
+
+source:
+  type: git
+  url: https://github.com/sst/sst
+  docs_path: www/src/content

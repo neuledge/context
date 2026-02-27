@@ -1,0 +1,8 @@
+name: "@testing-library/react"
+description: "Simple and complete React DOM testing utilities"
+repository: https://github.com/testing-library/react-testing-library
+
+source:
+  type: git
+  url: https://github.com/testing-library/testing-library-docs
+  docs_path: docs

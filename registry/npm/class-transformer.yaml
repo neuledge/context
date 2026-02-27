@@ -1,0 +1,11 @@
+name: class-transformer
+description: "Decorator-based transformation between plain objects and class instances"
+repository: https://github.com/typestack/class-transformer
+
+versions:
+  - min_version: "0.5.0"
+    source:
+      type: git
+      url: https://github.com/typestack/class-transformer
+      docs_path: docs
+    tag_pattern: "v{version}"

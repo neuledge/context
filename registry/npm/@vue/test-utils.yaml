@@ -1,0 +1,11 @@
+name: "@vue/test-utils"
+description: "Test utilities for Vue 3"
+repository: https://github.com/vuejs/test-utils
+
+versions:
+  - min_version: "2.0.0"
+    source:
+      type: git
+      url: https://github.com/vuejs/test-utils
+      docs_path: docs
+    tag_pattern: "v{version}"

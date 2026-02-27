@@ -1,0 +1,8 @@
+name: turbo
+description: "Incremental bundler and build system optimized for JavaScript and TypeScript monorepos"
+repository: https://github.com/vercel/turborepo
+
+source:
+  type: git
+  url: https://github.com/vercel/turborepo
+  docs_path: docs

@@ -1,0 +1,8 @@
+name: lucia
+description: "Authentication resources for JavaScript and TypeScript"
+repository: https://github.com/lucia-auth/lucia
+
+source:
+  type: git
+  url: https://github.com/lucia-auth/lucia
+  docs_path: pages

@@ -1,0 +1,8 @@
+name: "@keystone-6/core"
+description: "The superpowered CMS for developers — with a GraphQL API"
+repository: https://github.com/keystonejs/keystone
+
+source:
+  type: git
+  url: https://github.com/keystonejs/keystone
+  docs_path: docs

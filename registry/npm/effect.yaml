@@ -1,0 +1,11 @@
+name: effect
+description: "Powerful TypeScript framework for building production-grade applications"
+repository: https://github.com/Effect-TS/effect
+
+versions:
+  - min_version: "3.0.0"
+    source:
+      type: git
+      url: https://github.com/Effect-TS/effect
+      docs_path: docs
+    tag_pattern: "effect@{version}"

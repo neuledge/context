@@ -1,0 +1,11 @@
+name: tsup
+description: "Bundle your TypeScript library with no config, powered by esbuild"
+repository: https://github.com/egoist/tsup
+
+versions:
+  - min_version: "6.0.0"
+    source:
+      type: git
+      url: https://github.com/egoist/tsup
+      docs_path: docs
+    tag_pattern: "v{version}"
