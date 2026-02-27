@@ -65,9 +65,11 @@ export function buildFromDefinition(
   }
 
   const tag = constructTag(entry.tag_pattern, version);
+  // Replace / in scoped names (e.g., @trpc/server → @trpc-server) for valid filenames
+  const safeName = definition.name.replace(/\//g, "-");
   const outputPath = join(
     outputDir,
-    `${definition.registry}-${definition.name}@${version}.db`,
+    `${definition.registry}-${safeName}@${version}.db`,
   );
 
   // Clone the repository at the specific tag
@@ -116,9 +118,10 @@ export function buildUnversioned(
 ): RegistryBuildResult {
   const version = "latest";
   const { source } = definition;
+  const safeName = definition.name.replace(/\//g, "-");
   const outputPath = join(
     outputDir,
-    `${definition.registry}-${definition.name}@${version}.db`,
+    `${definition.registry}-${safeName}@${version}.db`,
   );
 
   // Clone without a specific ref — gets the default branch

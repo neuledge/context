@@ -5,4 +5,4 @@ repository: https://github.com/vercel/turborepo
 source:
   type: git
   url: https://github.com/vercel/turborepo
-  docs_path: docs
+  docs_path: apps/docs/content

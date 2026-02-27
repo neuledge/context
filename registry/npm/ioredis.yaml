@@ -7,5 +7,4 @@ versions:
     source:
       type: git
       url: https://github.com/redis/ioredis
-      docs_path: docs
     tag_pattern: "v{version}"

@@ -3,9 +3,17 @@ description: "A logger for just about everything"
 repository: https://github.com/winstonjs/winston
 
 versions:
-  - min_version: "3.0.0"
+  - min_version: "3.3.0"
     source:
       type: git
       url: https://github.com/winstonjs/winston
       docs_path: docs
-    tag_pattern: "winston@{version}"
+    tag_pattern: "v{version}"
+
+  - min_version: "3.0.0"
+    max_version: "3.3.0"
+    source:
+      type: git
+      url: https://github.com/winstonjs/winston
+      docs_path: docs
+    tag_pattern: "{version}"

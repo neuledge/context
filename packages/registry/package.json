@@ -7,7 +7,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "registry": "./dist/cli.js"
+    "registry": "./dist/cli.js",
+    "test-registry": "./dist/test-registry.js"
   },
   "exports": {
     ".": "./dist/index.js"
@@ -16,6 +17,7 @@
     "build": "rimraf --glob dist/** && tsc -p tsconfig.build.json",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test-registry": "tsx src/test-registry.ts",
     "lint": "npx biome ci --error-on-warnings",
     "fix": "npx biome check --write"
   },

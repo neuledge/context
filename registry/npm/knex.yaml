@@ -7,5 +7,4 @@ versions:
     source:
       type: git
       url: https://github.com/knex/knex
-      docs_path: docs
     tag_pattern: "{version}"
