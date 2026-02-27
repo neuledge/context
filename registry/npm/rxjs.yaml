@@ -7,5 +7,5 @@ versions:
     source:
       type: git
       url: https://github.com/ReactiveX/rxjs
-      docs_path: apps/rxjs.dev/content
-    tag_pattern: "v{version}"
+      docs_path: docs_app/content
+    tag_pattern: "{version}"

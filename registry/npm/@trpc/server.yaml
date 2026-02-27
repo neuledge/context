@@ -8,4 +8,4 @@ versions:
       type: git
       url: https://github.com/trpc/trpc
       docs_path: www/docs
-    tag_pattern: "@trpc/server@{version}"
+    tag_pattern: "v{version}"

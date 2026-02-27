@@ -1,6 +1,7 @@
 # auto generated
 dist
 dist-packages
+dist-test
 node_modules
 .turbo
 

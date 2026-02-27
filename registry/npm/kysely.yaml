@@ -7,5 +7,5 @@ versions:
     source:
       type: git
       url: https://github.com/kysely-org/kysely
-      docs_path: docs
+      docs_path: site/docs
     tag_pattern: "{version}"
