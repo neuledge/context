@@ -198,8 +198,7 @@ program
   )
   .option(
     "--since <days>",
-    "Only versions published on registry in last N days",
-    "7",
+    "Only versions published on registry in last N days (omit to include all)",
   )
   .action(async (opts) => {
     const definitions = listDefinitions(opts.dir);

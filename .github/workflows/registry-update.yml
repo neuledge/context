@@ -45,5 +45,11 @@ jobs:
           REGISTRY_PUBLISH_KEY: ${{ secrets.REGISTRY_PUBLISH_KEY }}
           REGISTRY_SERVER_URL: ${{ vars.REGISTRY_SERVER_URL || 'https://context.neuledge.com' }}
         run: |
-          SINCE="${{ github.event.inputs.since || '7' }}"
-          pnpm --filter @neuledge/registry registry publish-all --since "$SINCE"
+          SINCE="${{ github.event.inputs.since }}"
+          if [ -n "$SINCE" ]; then
+            pnpm --filter @neuledge/registry registry publish-all --since "$SINCE"
+          elif [ "${{ github.event_name }}" = "schedule" ]; then
+            pnpm --filter @neuledge/registry registry publish-all --since 7
+          else
+            pnpm --filter @neuledge/registry registry publish-all
+          fi
