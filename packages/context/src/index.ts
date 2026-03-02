@@ -2,6 +2,21 @@
 
 // Build utilities
 export { type DocSection, type ParsedDoc, parseMarkdown } from "./build.js";
+// Config
+export {
+  type Config,
+  getDefaultServerUrl,
+  getServerUrl,
+  loadConfig,
+  type ServerConfig,
+  saveConfig,
+} from "./config.js";
+// Download
+export {
+  downloadPackage,
+  type SearchResultEntry,
+  searchPackages,
+} from "./download.js";
 // Git utilities
 export {
   cloneRepository,
