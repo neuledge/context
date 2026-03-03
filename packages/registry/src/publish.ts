@@ -11,11 +11,11 @@ import { readFileSync } from "node:fs";
 const DEFAULT_SERVER_URL = "https://api.context.neuledge.com";
 
 function getServerUrl(): string {
-  return process.env.REGISTRY_SERVER_URL || DEFAULT_SERVER_URL;
+  return process.env.REGISTRY_SERVER_URL?.trim() || DEFAULT_SERVER_URL;
 }
 
 function getPublishKey(): string {
-  const key = process.env.REGISTRY_PUBLISH_KEY;
+  const key = process.env.REGISTRY_PUBLISH_KEY?.trim();
   if (!key) {
     throw new Error(
       "REGISTRY_PUBLISH_KEY environment variable is required for publishing",
@@ -41,7 +41,14 @@ export async function checkPackageExists(
   version: string,
 ): Promise<PackageMetadata | null> {
   const url = `${getServerUrl()}/packages/${encodeURIComponent(registry)}/${encodeURIComponent(name)}/${encodeURIComponent(version)}`;
-  const response = await fetch(url);
+
+  const headers: Record<string, string> = {};
+  const key = process.env.REGISTRY_PUBLISH_KEY?.trim();
+  if (key) {
+    headers.Authorization = `Bearer ${key}`;
+  }
+
+  const response = await fetch(url, { headers });
 
   if (response.status === 404) {
     return null;
