@@ -1,0 +1,11 @@
+name: lodash
+description: "A modern JavaScript utility library delivering modularity, performance, and extras"
+repository: https://github.com/lodash/lodash
+
+versions:
+  - min_version: "4.0.0"
+    source:
+      type: git
+      url: https://github.com/lodash/lodash
+      docs_path: doc
+    tag_pattern: "{version}"

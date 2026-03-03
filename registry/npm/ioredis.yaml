@@ -1,0 +1,10 @@
+name: ioredis
+description: "Robust, full-featured Redis client for Node.js"
+repository: https://github.com/redis/ioredis
+
+versions:
+  - min_version: "5.0.0"
+    source:
+      type: git
+      url: https://github.com/redis/ioredis
+    tag_pattern: "v{version}"

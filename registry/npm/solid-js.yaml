@@ -1,0 +1,8 @@
+name: solid-js
+description: "A declarative, efficient, and flexible JavaScript library for building user interfaces"
+repository: https://github.com/solidjs/solid
+
+source:
+  type: git
+  url: https://github.com/solidjs/solid-docs
+  docs_path: src/routes

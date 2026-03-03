@@ -1,0 +1,11 @@
+name: sharp
+description: "High performance Node.js image processing"
+repository: https://github.com/lovell/sharp
+
+versions:
+  - min_version: "0.30.0"
+    source:
+      type: git
+      url: https://github.com/lovell/sharp
+      docs_path: docs
+    tag_pattern: "v{version}"

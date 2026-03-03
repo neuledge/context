@@ -1,0 +1,11 @@
+name: pino
+description: "Super fast, all natural JSON logger for Node.js"
+repository: https://github.com/pinojs/pino
+
+versions:
+  - min_version: "8.0.0"
+    source:
+      type: git
+      url: https://github.com/pinojs/pino
+      docs_path: docs
+    tag_pattern: "v{version}"

@@ -1,0 +1,8 @@
+name: drizzle-orm
+description: "TypeScript ORM that lets you write SQL in TypeScript"
+repository: https://github.com/drizzle-team/drizzle-orm
+
+source:
+  type: git
+  url: https://github.com/drizzle-team/drizzle-orm-docs
+  docs_path: src/content/docs

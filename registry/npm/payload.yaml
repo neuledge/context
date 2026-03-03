@@ -1,0 +1,11 @@
+name: payload
+description: "The most powerful TypeScript-native headless CMS"
+repository: https://github.com/payloadcms/payload
+
+versions:
+  - min_version: "3.0.0"
+    source:
+      type: git
+      url: https://github.com/payloadcms/payload
+      docs_path: docs
+    tag_pattern: "v{version}"

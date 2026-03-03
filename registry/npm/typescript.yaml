@@ -1,0 +1,8 @@
+name: typescript
+description: "TypeScript is JavaScript with syntax for types"
+repository: https://github.com/microsoft/TypeScript
+
+source:
+  type: git
+  url: https://github.com/microsoft/TypeScript-Website
+  docs_path: packages/documentation/copy/en

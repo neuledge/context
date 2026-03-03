@@ -1,0 +1,11 @@
+name: remix
+description: "Full stack web framework focused on web fundamentals and user experience"
+repository: https://github.com/remix-run/remix
+
+versions:
+  - min_version: "1.0.0"
+    source:
+      type: git
+      url: https://github.com/remix-run/remix
+      docs_path: docs
+    tag_pattern: "v{version}"

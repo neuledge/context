@@ -1,0 +1,11 @@
+name: "@sveltejs/kit"
+description: "Web development, streamlined — the meta-framework for Svelte"
+repository: https://github.com/sveltejs/kit
+
+versions:
+  - min_version: "2.0.0"
+    source:
+      type: git
+      url: https://github.com/sveltejs/kit
+      docs_path: documentation/docs
+    tag_pattern: "@sveltejs/kit@{version}"

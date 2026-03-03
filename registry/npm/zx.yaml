@@ -1,0 +1,11 @@
+name: zx
+description: "A tool for writing better shell scripts"
+repository: https://github.com/google/zx
+
+versions:
+  - min_version: "7.0.0"
+    source:
+      type: git
+      url: https://github.com/google/zx
+      docs_path: docs
+    tag_pattern: "{version}"

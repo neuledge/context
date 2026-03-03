@@ -1,0 +1,8 @@
+name: ember-source
+description: "A JavaScript framework for creating ambitious web applications"
+repository: https://github.com/emberjs/ember.js
+
+source:
+  type: git
+  url: https://github.com/ember-learn/guides-source
+  docs_path: guides/release

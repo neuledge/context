@@ -1,0 +1,8 @@
+name: "@react-three/fiber"
+description: "A React renderer for Three.js"
+repository: https://github.com/pmndrs/react-three-fiber
+
+source:
+  type: git
+  url: https://github.com/pmndrs/react-three-fiber
+  docs_path: docs

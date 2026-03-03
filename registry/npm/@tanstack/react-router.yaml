@@ -1,0 +1,11 @@
+name: "@tanstack/react-router"
+description: "Fully typesafe router for React applications"
+repository: https://github.com/TanStack/router
+
+versions:
+  - min_version: "1.0.0"
+    source:
+      type: git
+      url: https://github.com/TanStack/router
+      docs_path: docs
+    tag_pattern: "v{version}"

@@ -1,0 +1,11 @@
+name: vite
+description: "Next generation frontend tooling"
+repository: https://github.com/vitejs/vite
+
+versions:
+  - min_version: "5.0.0"
+    source:
+      type: git
+      url: https://github.com/vitejs/vite
+      docs_path: docs
+    tag_pattern: "v{version}"

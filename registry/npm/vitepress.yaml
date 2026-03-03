@@ -1,0 +1,11 @@
+name: vitepress
+description: "Vite and Vue powered static site generator"
+repository: https://github.com/vuejs/vitepress
+
+versions:
+  - min_version: "1.0.0"
+    source:
+      type: git
+      url: https://github.com/vuejs/vitepress
+      docs_path: docs
+    tag_pattern: "v{version}"

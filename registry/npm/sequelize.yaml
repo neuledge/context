@@ -1,0 +1,8 @@
+name: sequelize
+description: "A promise-based Node.js ORM for SQL databases"
+repository: https://github.com/sequelize/sequelize
+
+source:
+  type: git
+  url: https://github.com/sequelize/website
+  docs_path: docs

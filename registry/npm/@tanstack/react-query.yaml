@@ -1,0 +1,11 @@
+name: "@tanstack/react-query"
+description: "Powerful asynchronous state management for React"
+repository: https://github.com/TanStack/query
+
+versions:
+  - min_version: "5.0.0"
+    source:
+      type: git
+      url: https://github.com/TanStack/query
+      docs_path: docs
+    tag_pattern: "@tanstack/react-query@{version}"

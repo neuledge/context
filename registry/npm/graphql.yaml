@@ -1,0 +1,8 @@
+name: graphql
+description: "A query language and runtime for your API"
+repository: https://github.com/graphql/graphql-js
+
+source:
+  type: git
+  url: https://github.com/graphql/graphql.github.io
+  docs_path: src

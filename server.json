@@ -1,0 +1,20 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.neuledge/context",
+  "description": "Local-first documentation for AI agents. Offline, instant, private doc retrieval.",
+  "repository": {
+    "url": "https://github.com/neuledge/context",
+    "source": "github"
+  },
+  "version": "0.2.3",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@neuledge/context",
+      "version": "0.2.3",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+name: axios
+description: "Promise-based HTTP client for the browser and Node.js"
+repository: https://github.com/axios/axios
+
+source:
+  type: git
+  url: https://github.com/axios/axios-docs
+  docs_path: posts

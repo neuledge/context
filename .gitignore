@@ -1,5 +1,7 @@
 # auto generated
 dist
+dist-packages
+dist-test
 node_modules
 .turbo
 
@@ -8,3 +10,4 @@ node_modules
 
 # sensitive stuff
 .env
+.mcpregistry_*

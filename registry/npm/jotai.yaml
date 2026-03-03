@@ -1,0 +1,11 @@
+name: jotai
+description: "Primitive and flexible state management for React"
+repository: https://github.com/pmndrs/jotai
+
+versions:
+  - min_version: "2.0.0"
+    source:
+      type: git
+      url: https://github.com/pmndrs/jotai
+      docs_path: docs
+    tag_pattern: "v{version}"

@@ -1,0 +1,11 @@
+name: mobx
+description: "Simple, scalable state management"
+repository: https://github.com/mobxjs/mobx
+
+versions:
+  - min_version: "6.0.0"
+    source:
+      type: git
+      url: https://github.com/mobxjs/mobx
+      docs_path: docs
+    tag_pattern: "mobx@{version}"

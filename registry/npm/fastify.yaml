@@ -1,0 +1,11 @@
+name: fastify
+description: "Fast and low overhead web framework for Node.js"
+repository: https://github.com/fastify/fastify
+
+versions:
+  - min_version: "4.0.0"
+    source:
+      type: git
+      url: https://github.com/fastify/fastify
+      docs_path: docs
+    tag_pattern: "v{version}"

@@ -1,0 +1,8 @@
+name: webpack
+description: "A static module bundler for modern JavaScript applications"
+repository: https://github.com/webpack/webpack
+
+source:
+  type: git
+  url: https://github.com/webpack/webpack.js.org
+  docs_path: src/content

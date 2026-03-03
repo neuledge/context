@@ -1,0 +1,11 @@
+name: nx
+description: "Smart, fast, and extensible build system for monorepos"
+repository: https://github.com/nrwl/nx
+
+versions:
+  - min_version: "17.0.0"
+    source:
+      type: git
+      url: https://github.com/nrwl/nx
+      docs_path: docs
+    tag_pattern: "v{version}"

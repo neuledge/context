@@ -1,0 +1,11 @@
+name: mocha
+description: "Simple, flexible, fun JavaScript test framework"
+repository: https://github.com/mochajs/mocha
+
+versions:
+  - min_version: "10.0.0"
+    source:
+      type: git
+      url: https://github.com/mochajs/mocha
+      docs_path: docs
+    tag_pattern: "v{version}"

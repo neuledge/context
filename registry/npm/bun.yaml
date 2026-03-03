@@ -1,0 +1,11 @@
+name: bun
+description: "Incredibly fast JavaScript runtime, bundler, test runner, and package manager"
+repository: https://github.com/oven-sh/bun
+
+versions:
+  - min_version: "1.0.0"
+    source:
+      type: git
+      url: https://github.com/oven-sh/bun
+      docs_path: docs
+    tag_pattern: "bun-v{version}"

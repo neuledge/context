@@ -1,0 +1,8 @@
+name: ai
+description: "Vercel AI SDK for building AI-powered streaming text and chat UIs"
+repository: https://github.com/vercel/ai
+
+source:
+  type: git
+  url: https://github.com/vercel/ai
+  docs_path: content

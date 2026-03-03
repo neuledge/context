@@ -1,0 +1,11 @@
+name: better-auth
+description: "Framework-agnostic authentication library for TypeScript"
+repository: https://github.com/better-auth/better-auth
+
+versions:
+  - min_version: "1.0.0"
+    source:
+      type: git
+      url: https://github.com/better-auth/better-auth
+      docs_path: docs
+    tag_pattern: "v{version}"

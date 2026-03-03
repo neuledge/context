@@ -1,0 +1,11 @@
+name: bullmq
+description: "Message queue and batch processing for Node.js backed by Redis"
+repository: https://github.com/taskforcesh/bullmq
+
+versions:
+  - min_version: "3.0.0"
+    source:
+      type: git
+      url: https://github.com/taskforcesh/bullmq
+      docs_path: docs/gitbook
+    tag_pattern: "v{version}"

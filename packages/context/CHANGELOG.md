@@ -1,5 +1,17 @@
 # @neuledge/context
 
+## 0.2.3
+
+### Patch Changes
+
+- Add mcpName field for Official MCP Registry listing
+
+## 0.2.2
+
+### Patch Changes
+
+- ab8ac14: Add demo gif to README
+
 ## 0.2.1
 
 ### Patch Changes

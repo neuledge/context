@@ -1,0 +1,348 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  compareSemver,
+  constructTag,
+  isVersioned,
+  listDefinitions,
+  loadDefinition,
+  resolveVersionEntry,
+  type VersionedDefinition,
+} from "./definition.js";
+
+describe("compareSemver", () => {
+  it("compares equal versions", () => {
+    expect(compareSemver("1.0.0", "1.0.0")).toBe(0);
+  });
+
+  it("compares major versions", () => {
+    expect(compareSemver("2.0.0", "1.0.0")).toBeGreaterThan(0);
+    expect(compareSemver("1.0.0", "2.0.0")).toBeLessThan(0);
+  });
+
+  it("compares minor versions", () => {
+    expect(compareSemver("1.2.0", "1.1.0")).toBeGreaterThan(0);
+  });
+
+  it("compares patch versions", () => {
+    expect(compareSemver("1.0.2", "1.0.1")).toBeGreaterThan(0);
+  });
+
+  it("handles missing patch", () => {
+    expect(compareSemver("1.0", "1.0.0")).toBe(0);
+  });
+});
+
+describe("constructTag", () => {
+  it("constructs v-prefixed tags", () => {
+    expect(constructTag("v{version}", "1.2.3")).toBe("v1.2.3");
+  });
+
+  it("constructs scoped tags", () => {
+    expect(constructTag("nextjs@{version}", "15.0.0")).toBe("nextjs@15.0.0");
+  });
+
+  it("constructs plain version tags", () => {
+    expect(constructTag("{version}", "1.0.0")).toBe("1.0.0");
+  });
+});
+
+describe("loadDefinition", () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), "def-test-"));
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it("parses a valid YAML definition", () => {
+    const yaml = `
+name: next
+description: "The React Framework"
+repository: https://github.com/vercel/next.js
+versions:
+  - min_version: "15.0.0"
+    source:
+      type: git
+      url: https://github.com/vercel/next.js
+      docs_path: docs
+    tag_pattern: "v{version}"
+`;
+    const npmDir = join(tempDir, "npm");
+    mkdirSync(npmDir);
+    writeFileSync(join(npmDir, "next.yaml"), yaml);
+
+    const def = loadDefinition(join(npmDir, "next.yaml"));
+
+    expect(def.name).toBe("next");
+    expect(def.registry).toBe("npm");
+    expect(def.description).toBe("The React Framework");
+    expect(isVersioned(def)).toBe(true);
+    if (!isVersioned(def)) throw new Error("expected versioned");
+    expect(def.versions).toHaveLength(1);
+    expect(def.versions[0].source.lang).toBe("en");
+    expect(def.versions[0].tag_pattern).toBe("v{version}");
+  });
+
+  it("throws when name doesn't match filename", () => {
+    const yaml = `
+name: nextjs
+versions:
+  - min_version: "15.0.0"
+    source:
+      type: git
+      url: https://github.com/vercel/next.js
+`;
+    const npmDir = join(tempDir, "npm");
+    mkdirSync(npmDir);
+    writeFileSync(join(npmDir, "next.yaml"), yaml);
+
+    expect(() => loadDefinition(join(npmDir, "next.yaml"))).toThrow(
+      /doesn't match filename/,
+    );
+  });
+
+  it("throws on invalid YAML", () => {
+    const npmDir = join(tempDir, "npm");
+    mkdirSync(npmDir);
+    writeFileSync(join(npmDir, "bad.yaml"), "name: 123\nversions: nope");
+
+    expect(() => loadDefinition(join(npmDir, "bad.yaml"))).toThrow();
+  });
+
+  it("parses a scoped package definition via managerDir", () => {
+    const yaml = `
+name: "@trpc/server"
+description: "tRPC Server"
+versions:
+  - min_version: "10.0.0"
+    source:
+      type: git
+      url: https://github.com/trpc/trpc
+      docs_path: www/docs
+    tag_pattern: "@trpc/server@{version}"
+`;
+    const npmDir = join(tempDir, "npm");
+    const scopeDir = join(npmDir, "@trpc");
+    mkdirSync(scopeDir, { recursive: true });
+    writeFileSync(join(scopeDir, "server.yaml"), yaml);
+
+    const def = loadDefinition(join(scopeDir, "server.yaml"), npmDir);
+
+    expect(def.name).toBe("@trpc/server");
+    expect(def.registry).toBe("npm");
+    if (!isVersioned(def)) throw new Error("expected versioned");
+    expect(def.versions[0].tag_pattern).toBe("@trpc/server@{version}");
+  });
+
+  it("throws when scoped name doesn't match path", () => {
+    const yaml = `
+name: "@trpc/client"
+versions:
+  - min_version: "10.0.0"
+    source:
+      type: git
+      url: https://github.com/trpc/trpc
+`;
+    const npmDir = join(tempDir, "npm");
+    const scopeDir = join(npmDir, "@trpc");
+    mkdirSync(scopeDir, { recursive: true });
+    writeFileSync(join(scopeDir, "server.yaml"), yaml);
+
+    expect(() => loadDefinition(join(scopeDir, "server.yaml"), npmDir)).toThrow(
+      /doesn't match filename/,
+    );
+  });
+});
+
+describe("listDefinitions", () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), "list-test-"));
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it("scans registry directory for definitions", () => {
+    mkdirSync(join(tempDir, "npm"));
+    mkdirSync(join(tempDir, "pip"));
+    writeFileSync(
+      join(tempDir, "npm", "test.yaml"),
+      'name: test\nversions:\n  - min_version: "1.0.0"\n    source:\n      type: git\n      url: https://github.com/test/test\n',
+    );
+    writeFileSync(
+      join(tempDir, "pip", "testpip.yaml"),
+      'name: testpip\nversions:\n  - min_version: "1.0.0"\n    source:\n      type: git\n      url: https://github.com/test/test\n',
+    );
+
+    const defs = listDefinitions(tempDir);
+    expect(defs).toHaveLength(2);
+    expect(defs[0].registry).toBe("npm");
+    expect(defs[1].registry).toBe("pip");
+  });
+
+  it("discovers scoped packages in @scope subdirectories", () => {
+    mkdirSync(join(tempDir, "npm"));
+    mkdirSync(join(tempDir, "npm", "@trpc"), { recursive: true });
+    writeFileSync(
+      join(tempDir, "npm", "next.yaml"),
+      'name: next\nversions:\n  - min_version: "15.0.0"\n    source:\n      type: git\n      url: https://github.com/vercel/next.js\n',
+    );
+    writeFileSync(
+      join(tempDir, "npm", "@trpc", "server.yaml"),
+      'name: "@trpc/server"\nversions:\n  - min_version: "10.0.0"\n    source:\n      type: git\n      url: https://github.com/trpc/trpc\n',
+    );
+
+    const defs = listDefinitions(tempDir);
+    expect(defs).toHaveLength(2);
+    expect(defs.map((d) => d.name)).toEqual(["@trpc/server", "next"]);
+    expect(defs[0].registry).toBe("npm");
+  });
+});
+
+describe("resolveVersionEntry", () => {
+  const makeDef = (
+    versions: Array<{
+      min_version: string;
+      max_version?: string;
+    }>,
+  ): VersionedDefinition => ({
+    name: "test",
+    registry: "npm",
+    versions: versions.map((v) => ({
+      ...v,
+      source: {
+        type: "git" as const,
+        url: "https://example.com",
+        lang: "en",
+      },
+      tag_pattern: "v{version}",
+    })),
+  });
+
+  it("matches version in open-ended range", () => {
+    const def = makeDef([{ min_version: "15.0.0" }]);
+    expect(resolveVersionEntry(def, "15.1.0")).toBeDefined();
+    expect(resolveVersionEntry(def, "16.0.0")).toBeDefined();
+    expect(resolveVersionEntry(def, "14.9.9")).toBeUndefined();
+  });
+
+  it("matches version in bounded range", () => {
+    const def = makeDef([{ min_version: "9.0.0", max_version: "15.0.0" }]);
+    expect(resolveVersionEntry(def, "9.0.0")).toBeDefined();
+    expect(resolveVersionEntry(def, "14.9.9")).toBeDefined();
+    expect(resolveVersionEntry(def, "15.0.0")).toBeUndefined();
+  });
+
+  it("returns first matching entry (top-to-bottom)", () => {
+    const def = makeDef([
+      { min_version: "15.0.0" },
+      { min_version: "9.0.0", max_version: "15.0.0" },
+    ]);
+
+    const entry = resolveVersionEntry(def, "15.0.0");
+    expect(entry).toBeDefined();
+    // Should match the first entry (15.0.0+), not the second
+    expect(entry?.max_version).toBeUndefined();
+  });
+});
+
+describe("unversioned definitions", () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), "unver-test-"));
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it("parses an unversioned definition with top-level source", () => {
+    const yaml = `
+name: drizzle-orm
+description: "TypeScript ORM"
+repository: https://github.com/drizzle-team/drizzle-orm
+source:
+  type: git
+  url: https://github.com/drizzle-team/drizzle-orm-docs
+  docs_path: src/content/docs
+`;
+    const npmDir = join(tempDir, "npm");
+    mkdirSync(npmDir);
+    writeFileSync(join(npmDir, "drizzle-orm.yaml"), yaml);
+
+    const def = loadDefinition(join(npmDir, "drizzle-orm.yaml"));
+
+    expect(def.name).toBe("drizzle-orm");
+    expect(def.registry).toBe("npm");
+    expect(isVersioned(def)).toBe(false);
+    if (isVersioned(def)) throw new Error("expected unversioned");
+    expect(def.source.url).toBe(
+      "https://github.com/drizzle-team/drizzle-orm-docs",
+    );
+    expect(def.source.docs_path).toBe("src/content/docs");
+    expect(def.source.lang).toBe("en");
+  });
+
+  it("rejects definition with both versions and source", () => {
+    const yaml = `
+name: bad
+source:
+  type: git
+  url: https://github.com/test/test
+versions:
+  - min_version: "1.0.0"
+    source:
+      type: git
+      url: https://github.com/test/test
+`;
+    const npmDir = join(tempDir, "npm");
+    mkdirSync(npmDir);
+    writeFileSync(join(npmDir, "bad.yaml"), yaml);
+
+    expect(() => loadDefinition(join(npmDir, "bad.yaml"))).toThrow();
+  });
+
+  it("rejects definition with neither versions nor source", () => {
+    const yaml = `
+name: empty
+description: "No source"
+`;
+    const npmDir = join(tempDir, "npm");
+    mkdirSync(npmDir);
+    writeFileSync(join(npmDir, "empty.yaml"), yaml);
+
+    expect(() => loadDefinition(join(npmDir, "empty.yaml"))).toThrow();
+  });
+
+  it("lists both versioned and unversioned definitions", () => {
+    mkdirSync(join(tempDir, "npm"));
+    writeFileSync(
+      join(tempDir, "npm", "next.yaml"),
+      'name: next\nversions:\n  - min_version: "15.0.0"\n    source:\n      type: git\n      url: https://github.com/vercel/next.js\n',
+    );
+    writeFileSync(
+      join(tempDir, "npm", "drizzle-orm.yaml"),
+      "name: drizzle-orm\nsource:\n  type: git\n  url: https://github.com/drizzle-team/drizzle-orm-docs\n",
+    );
+
+    const defs = listDefinitions(tempDir);
+    expect(defs).toHaveLength(2);
+
+    const drizzle = defs.find((d) => d.name === "drizzle-orm");
+    const next = defs.find((d) => d.name === "next");
+    if (!drizzle || !next) throw new Error("expected both definitions");
+
+    expect(isVersioned(drizzle)).toBe(false);
+    expect(isVersioned(next)).toBe(true);
+  });
+});

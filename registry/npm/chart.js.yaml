@@ -1,0 +1,11 @@
+name: chart.js
+description: "Simple yet flexible JavaScript charting library"
+repository: https://github.com/chartjs/Chart.js
+
+versions:
+  - min_version: "3.0.0"
+    source:
+      type: git
+      url: https://github.com/chartjs/Chart.js
+      docs_path: docs
+    tag_pattern: "v{version}"

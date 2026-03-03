@@ -1,0 +1,8 @@
+name: next-auth
+description: "Authentication for the Web"
+repository: https://github.com/nextauthjs/next-auth
+
+source:
+  type: git
+  url: https://github.com/nextauthjs/next-auth
+  docs_path: docs

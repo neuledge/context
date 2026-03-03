@@ -1,0 +1,8 @@
+name: astro
+description: "The web framework for content-driven websites"
+repository: https://github.com/withastro/astro
+
+source:
+  type: git
+  url: https://github.com/withastro/docs
+  docs_path: src/content/docs

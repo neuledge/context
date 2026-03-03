@@ -1,0 +1,11 @@
+name: valibot
+description: "The modular and type safe schema library for validating structural data"
+repository: https://github.com/fabian-hiller/valibot
+
+versions:
+  - min_version: "1.0.0"
+    source:
+      type: git
+      url: https://github.com/fabian-hiller/valibot
+      docs_path: website/src/routes
+    tag_pattern: "v{version}"
