@@ -24,7 +24,7 @@ const DEFAULT_CONFIG: Config = {
   servers: [
     {
       name: "neuledge",
-      url: "https://context.neuledge.com",
+      url: "https://api.context.neuledge.com",
       default: true,
     },
   ],
@@ -53,7 +53,7 @@ export function saveConfig(config: Config): void {
 export function getDefaultServerUrl(): string {
   const config = loadConfig();
   const defaultServer = config.servers.find((s) => s.default);
-  return defaultServer?.url ?? "https://context.neuledge.com";
+  return defaultServer?.url ?? "https://api.context.neuledge.com";
 }
 
 /** Get a server URL by name, falling back to default. */

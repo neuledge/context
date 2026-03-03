@@ -2,7 +2,7 @@
 
 A Context download server hosts pre-built documentation packages (`.db` files) and serves them to AI agents via the MCP protocol. This document specifies the HTTP API that a compatible server must implement.
 
-The default server is `https://context.neuledge.com`. Anyone can run their own.
+The default server is `https://api.context.neuledge.com`. Anyone can run their own.
 
 ## Base URL
 
@@ -11,7 +11,7 @@ All endpoints are relative to a configurable base URL. Clients store server conf
 ```json
 {
   "servers": [
-    { "name": "neuledge", "url": "https://context.neuledge.com", "default": true },
+    { "name": "neuledge", "url": "https://api.context.neuledge.com", "default": true },
     { "name": "internal", "url": "https://context.acme.corp" }
   ]
 }

@@ -43,7 +43,7 @@ jobs:
       - name: Publish packages
         env:
           REGISTRY_PUBLISH_KEY: ${{ secrets.REGISTRY_PUBLISH_KEY }}
-          REGISTRY_SERVER_URL: ${{ vars.REGISTRY_SERVER_URL || 'https://context.neuledge.com' }}
+          REGISTRY_SERVER_URL: ${{ vars.REGISTRY_SERVER_URL || 'https://api.context.neuledge.com' }}
         run: |
           SINCE="${{ github.event.inputs.since }}"
           if [ -n "$SINCE" ]; then

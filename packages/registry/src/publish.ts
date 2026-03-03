@@ -8,7 +8,7 @@
 
 import { readFileSync } from "node:fs";
 
-const DEFAULT_SERVER_URL = "https://context.neuledge.com";
+const DEFAULT_SERVER_URL = "https://api.context.neuledge.com";
 
 function getServerUrl(): string {
   return process.env.REGISTRY_SERVER_URL || DEFAULT_SERVER_URL;
