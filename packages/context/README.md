@@ -261,15 +261,56 @@ That's it! Just ask your AI agent:
 
 Your agent will automatically search the [community registry](registry/) (100+ npm packages), download the right docs, and give you accurate, version-specific answers. No manual setup needed — everything happens on demand.
 
-Want to add docs for a library that's not in the registry yet? Use `context add` to build from any source (see [CLI Reference](#books-cli-reference)), or [submit a PR](registry/) to add it to the registry for everyone.
+You can also browse and install packages manually:
+
+```bash
+context browse npm/next       # See available versions
+context install npm/next      # Install latest version
+```
+
+For libraries not in the registry, use `context add` to build from any source (see [CLI Reference](#books-cli-reference)), or [submit a PR](registry/) to add it to the registry for everyone.
 
 ---
 
 ## :books: CLI Reference
 
+### `context browse <package>`
+
+Search for packages available on the registry server.
+
+```bash
+# Browse by registry/name
+context browse npm/next
+
+# Output:
+#   npm/next@15.1.3           3.4 MB  The React Framework for the Web
+#   npm/next@15.0.4           3.2 MB  The React Framework for the Web
+#   ...
+#
+#   Found 12 versions. Install with: context install npm/next
+
+# Browse with just a name (defaults to npm)
+context browse react
+```
+
+### `context install <registry/name> [version]`
+
+Download and install a pre-built package from the registry server.
+
+```bash
+# Install latest version
+context install npm/next
+
+# Install a specific version
+context install npm/next 15.0.4
+
+# Install from other registries
+context install pip/django
+```
+
 ### `context add <source>`
 
-Install a documentation package. The source type is auto-detected.
+Build and install a documentation package from source. Use this for libraries not in the registry, or for private/internal docs. The source type is auto-detected.
 
 **From git repository:**
 

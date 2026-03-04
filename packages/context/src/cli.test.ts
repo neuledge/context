@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectSourceType } from "./cli.js";
+import { detectSourceType, parseRegistryPackage } from "./cli.js";
 
 describe("detectSourceType", () => {
   describe("file sources", () => {
@@ -92,5 +92,36 @@ describe("detectSourceType", () => {
       expect(detectSourceType("")).toBe("file");
       expect(detectSourceType("   ")).toBe("file");
     });
+  });
+});
+
+describe("parseRegistryPackage", () => {
+  it("parses simple registry/name", () => {
+    expect(parseRegistryPackage("npm/next")).toEqual({
+      registry: "npm",
+      name: "next",
+    });
+    expect(parseRegistryPackage("pip/django")).toEqual({
+      registry: "pip",
+      name: "django",
+    });
+  });
+
+  it("parses scoped packages", () => {
+    expect(parseRegistryPackage("npm/@trpc/server")).toEqual({
+      registry: "npm",
+      name: "@trpc/server",
+    });
+    expect(parseRegistryPackage("npm/@tanstack/react-query")).toEqual({
+      registry: "npm",
+      name: "@tanstack/react-query",
+    });
+  });
+
+  it("returns null for invalid formats", () => {
+    expect(parseRegistryPackage("next")).toBeNull();
+    expect(parseRegistryPackage("")).toBeNull();
+    expect(parseRegistryPackage("/next")).toBeNull();
+    expect(parseRegistryPackage("npm/")).toBeNull();
   });
 });
