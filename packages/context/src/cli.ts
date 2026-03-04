@@ -19,6 +19,8 @@ import { Command } from "commander";
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json") as { version: string };
 
+import { getServerUrl } from "./config.js";
+import { downloadPackage, searchPackages } from "./download.js";
 import {
   checkoutRef,
   cloneRepository,
@@ -38,11 +40,6 @@ import { buildPackage } from "./package-builder.js";
 import { type SearchResult, search } from "./search.js";
 import { ContextServer } from "./server.js";
 import { type PackageInfo, PackageStore, readPackageInfo } from "./store.js";
-
-// TODO: Package ecosystem enhancements:
-// - Package registry: GitHub-based registry for discovering community packages
-// - Version management: Track multiple versions, update notifications
-// - Package generation CLI: Dedicated `context build` command for creating packages
 
 type SourceType = "file" | "url" | "git" | "local-dir";
 
@@ -779,6 +776,131 @@ program
       db.close();
     }
   });
+
+/**
+ * Parse a "registry/name" string (e.g., "npm/next", "pip/django").
+ * Returns { registry, name } or null if the format is invalid.
+ */
+export function parseRegistryPackage(input: string): {
+  registry: string;
+  name: string;
+} | null {
+  // Handle scoped packages: npm/@scope/name → registry=npm, name=@scope/name
+  const firstSlash = input.indexOf("/");
+  if (firstSlash <= 0) return null;
+
+  const registry = input.slice(0, firstSlash);
+  const name = input.slice(firstSlash + 1);
+  if (!name) return null;
+
+  return { registry, name };
+}
+
+program
+  .command("browse")
+  .description("Search for packages available on the registry server")
+  .argument("<package>", 'Package to search for (e.g., "npm/next" or "next")')
+  .option(
+    "--server <name>",
+    "Server name from config (uses default if omitted)",
+  )
+  .action(async (pkg: string, options: { server?: string }) => {
+    try {
+      const serverUrl = getServerUrl(options.server);
+
+      // Parse "registry/name" or treat as name-only search
+      const parsed = parseRegistryPackage(pkg);
+      const registry = parsed?.registry ?? "npm";
+      const name = parsed?.name ?? pkg;
+
+      const results = await searchPackages(serverUrl, registry, name);
+
+      if (results.length === 0) {
+        console.log(`No packages found for "${pkg}".`);
+        return;
+      }
+
+      console.log();
+      for (const entry of results) {
+        const id = `${entry.registry}/${entry.name}@${entry.version}`;
+        const size = entry.size ? formatBytes(entry.size).padStart(8) : "";
+        const desc = entry.description ? `  ${entry.description}` : "";
+        console.log(`  ${id.padEnd(32)} ${size}${desc}`);
+      }
+      console.log(
+        `\nFound ${results.length} version${results.length === 1 ? "" : "s"}. Install with: context install ${registry}/${name}`,
+      );
+    } catch (err) {
+      console.error(`Error: ${err instanceof Error ? err.message : err}`);
+      process.exit(1);
+    }
+  });
+
+program
+  .command("install")
+  .description("Download and install a package from the registry server")
+  .argument("<package>", 'Package to install (e.g., "npm/next")')
+  .argument("[version]", "Specific version (installs latest if omitted)")
+  .option(
+    "--server <name>",
+    "Server name from config (uses default if omitted)",
+  )
+  .action(
+    async (
+      pkg: string,
+      versionArg: string | undefined,
+      options: { server?: string },
+    ) => {
+      try {
+        const parsed = parseRegistryPackage(pkg);
+        if (!parsed) {
+          console.error(
+            `Error: Invalid package format "${pkg}". Use registry/name (e.g., npm/next, pip/django).`,
+          );
+          process.exit(1);
+        }
+
+        const serverUrl = getServerUrl(options.server);
+        let targetVersion = versionArg;
+
+        // If no version specified, find the latest
+        if (!targetVersion) {
+          const results = await searchPackages(
+            serverUrl,
+            parsed.registry,
+            parsed.name,
+          );
+
+          const latest = results[0];
+          if (!latest) {
+            console.error(
+              `Error: No packages found for "${pkg}" on the server.`,
+            );
+            process.exit(1);
+          }
+
+          targetVersion = latest.version;
+        }
+
+        console.log(
+          `Installing ${parsed.registry}/${parsed.name}@${targetVersion}...`,
+        );
+        const info = await downloadPackage(
+          serverUrl,
+          parsed.registry,
+          parsed.name,
+          targetVersion,
+        );
+
+        console.log(
+          `\nInstalled: ${info.name}@${info.version} (${formatBytes(info.sizeBytes)}, ${info.sectionCount} sections)`,
+        );
+      } catch (err) {
+        console.error(`Error: ${err instanceof Error ? err.message : err}`);
+        process.exit(1);
+      }
+    },
+  );
 
 // Only parse when run directly (not when imported for testing)
 const isRunDirectly =

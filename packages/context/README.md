@@ -1,8 +1,7 @@
 <p align="center">
   <h1 align="center">Context</h1>
   <p align="center">
-    <strong>Local-first documentation for AI agents</strong><br/>
-    Give your AI assistant expert knowledge of any library—offline, instant, private.
+    <strong>Up-to-date docs for AI agents — local, instant, plug and play.</strong>
   </p>
 </p>
 
@@ -14,97 +13,27 @@
 
 ---
 
-## The Problem
+AI agents are trained on outdated docs. When libraries release new versions, your AI doesn't know — and confidently gives you wrong answers.
 
-You're building with Next.js 16, and your AI assistant confidently suggests code using the old Pages Router because that's what it learned from training data. You paste the docs. It hallucinates anyway. You paste more docs. The context window fills up. Repeat.
+```js
+// Your AI, mass-trained on AI SDK v5 docs, will suggest:
+import { Experimental_Agent as Agent, stepCountIs } from 'ai';
 
-**AI assistants are powerful, but they're stuck in the past.** Their training data is months or years old, and they don't know the specifics of the libraries you're using today.
-
----
-
-## The Solution
-
-Context connects your AI assistant directly to up-to-date documentation—locally, instantly, and privately.
-
-```
-You: "How do I create middleware in Next.js 16?"
-
-AI:  [automatically queries local docs]
-     "In Next.js 16, create a middleware.ts file in your project root..."
-     [accurate, version-specific answer]
+// But v6 changed the API entirely:
+import { ToolLoopAgent } from 'ai';
 ```
 
-No copy-pasting. No hallucinations about deprecated APIs. No waiting for cloud lookups.
+The fix isn't better prompting. It's giving your AI the right docs.
+
+## How It Works
+
+Context is an MCP server backed by a [community-driven package registry](registry/) with **100+ popular libraries** already built and ready to use. When your AI agent needs documentation, it searches the registry, downloads the right package, and queries it locally — all automatically.
+
+**Install once. Configure once. Then just ask your AI.**
 
 <p align="center">
   <img src="https://media.githubusercontent.com/media/neuledge/context/main/packages/context/assets/ai-sdk-demo.gif" alt="Context demo" width="800">
 </p>
-
----
-
-## Real-World Use Cases
-
-### :muscle: "Make my AI actually useful for the stack I use"
-
-Add docs for your entire tech stack. Your AI assistant becomes an expert in the exact versions you're using:
-
-```bash
-context add https://github.com/vercel/next.js
-context add https://github.com/prisma/prisma
-context add https://github.com/tailwindlabs/tailwindcss
-```
-
-Now ask things like:
-- *"How do I set up Prisma with Next.js App Router?"*
-- *"What's the Tailwind config for dark mode?"*
-- *"Show me the new Server Actions syntax"*
-
-### :building_construction: "Stop answering the same questions for my team"
-
-Building an internal library? Package your documentation once, share it with your team:
-
-```bash
-# Build docs from your repo
-context add https://github.com/your-company/design-system
-
-# Your whole team can now ask:
-# "How do I use the DataTable component?"
-# "What props does Button accept?"
-```
-
-### :airplane: "Code on flights and in coffee shops"
-
-Context works 100% offline. Download docs once, query forever—no internet required.
-
-### :lock: "Keep proprietary code discussions private"
-
-Cloud documentation services see your queries. Context runs entirely on your machine. Your questions about internal APIs stay internal.
-
----
-
-## Why Context Over Cloud Alternatives?
-
-| | Context7 | Deepcon | **Context** |
-|---|:---:|:---:|:---:|
-| **Price** | $10/month | $8/month | **Free forever** |
-| **Free tier** | 1,000 req/month ¹ | 100 req/month | **Unlimited** |
-| **Rate limits** | 60 req/hour | Throttled | **None** |
-| **Latency** | 100-500ms | 100-300ms | **<10ms** |
-| **Works offline** | :x: | :x: | :white_check_mark: |
-| **Privacy** | Queries sent to cloud | Queries sent to cloud | **100% local** |
-| **Private repos** | $15/1M tokens | :x: | **Free** |
-
-<sub>¹ Context7 reduced free tier from ~6,000 to 1,000 requests/month in January 2026</sub>
-
----
-
-## :zap: Key Features
-
-- **Single tool** - One MCP tool does everything, no multi-step lookups
-- **Token-aware** - Smart relevance filtering, never overwhelms the context window
-- **Dynamic schema** - Available libraries shown in tool definition
-- **Offline-first** - Zero network calls during operation
-- **SQLite + FTS5** - Fast full-text search with stemming
 
 ---
 
@@ -116,28 +45,9 @@ Cloud documentation services see your queries. Context runs entirely on your mac
 npm install -g @neuledge/context
 ```
 
-### 2. Add documentation
+### 2. Connect to your AI agent
 
-```bash
-# From any git repository (GitHub, GitLab, Bitbucket, etc.)
-context add https://github.com/vercel/next.js
-context add https://gitlab.com/org/repo
-context add git@github.com:user/repo.git
-
-# From a local directory
-context add ./my-project
-context add /path/to/docs
-
-# From URL (pre-built package)
-context add https://example.com/react@18.db
-
-# From local file
-context add ./my-package.db
-```
-
-### 3. Configure your AI agent
-
-Context works with any MCP-compatible agent. Choose your setup below:
+Context works with any MCP-compatible agent. Pick yours:
 
 <details>
 <summary><strong>Claude Code</strong></summary>
@@ -274,21 +184,116 @@ extensions:
 
 </details>
 
-### 4. Start using it
+### 3. Ask your AI anything
 
-That's it! Now just ask your AI agent:
+That's it. Just ask:
 
 > "How do I create middleware in Next.js?"
 
-The agent automatically uses the `get_docs` tool when relevant.
+Your agent searches the [community registry](registry/), downloads the docs, and answers with accurate, version-specific information. Everything happens automatically — no manual `context install` needed for registry packages.
+
+---
+
+## The Community Registry
+
+The registry is what makes Context plug and play. It's a growing collection of **100+ pre-built documentation packages** maintained by the community. Think of it like a package manager, but for AI-ready docs.
+
+**Popular packages available today:**
+
+| Category | Libraries |
+|----------|-----------|
+| **Frameworks** | Next.js, Nuxt, Astro, SvelteKit, Remix, Hono |
+| **React ecosystem** | React, React Router, TanStack Query, Zustand, Redux Toolkit |
+| **Databases & ORMs** | Prisma, Drizzle, Mongoose, TypeORM |
+| **Styling** | Tailwind CSS, shadcn/ui, Styled Components |
+| **Testing** | Vitest, Playwright, Jest, Testing Library |
+| **APIs & Auth** | tRPC, GraphQL, NextAuth.js, Passport |
+| **AI & LLMs** | LangChain, AI SDK, OpenAI, Anthropic SDK |
+
+[Browse the full registry →](registry/)
+
+**Anyone can contribute.** If a library you use isn't listed, [submit a PR](registry/) to add it — your contribution helps every Context user.
+
+---
+
+## Why Local?
+
+Context runs entirely on your machine. Docs are downloaded once and stored as compact SQLite databases in `~/.context/packages/`. After that, everything is local.
+
+- **Fast** — Local SQLite queries return in under 10ms
+- **Offline** — Works on flights, in coffee shops, anywhere
+- **Private** — Your queries never leave your machine
+- **Free** — No subscriptions, no rate limits, no usage caps
+- **Reliable** — No outages, no API changes, no service shutdowns
+
+---
+
+## Beyond the Registry
+
+The registry covers popular open-source libraries, but Context also works with any documentation source. Use `context add` to build packages from private repos, internal libraries, or anything not yet in the registry.
+
+```bash
+# Build from a git repository
+context add https://github.com/your-company/design-system
+
+# Build from a local directory
+context add ./my-project
+
+# Specific version tag
+context add https://github.com/vercel/next.js/tree/v16.0.0
+```
+
+Once built, share packages with your team — they're portable `.db` files that install instantly:
+
+```bash
+# Export a package
+context add ./my-project --name my-lib --pkg-version 2.0 --save ./packages/
+
+# Teammate installs it (no build step needed)
+context add ./packages/my-lib@2.0.db
+```
 
 ---
 
 ## :books: CLI Reference
 
+### `context browse <package>`
+
+Search for packages available on the registry server.
+
+```bash
+# Browse by registry/name
+context browse npm/next
+
+# Output:
+#   npm/next@15.1.3           3.4 MB  The React Framework for the Web
+#   npm/next@15.0.4           3.2 MB  The React Framework for the Web
+#   ...
+#
+#   Found 12 versions. Install with: context install npm/next
+
+# Browse with just a name (defaults to npm)
+context browse react
+```
+
+### `context install <registry/name> [version]`
+
+Download and install a pre-built package from the registry server.
+
+```bash
+# Install latest version
+context install npm/next
+
+# Install a specific version
+context install npm/next 15.0.4
+
+# Install from other registries
+context install pip/django
+```
+
 ### `context add <source>`
 
-Install a documentation package. The source type is auto-detected.
+Build and install a documentation package from source. Use this for libraries not in the registry, or for private/internal docs. The source type is auto-detected.
 
 **From git repository:**
 
@@ -401,7 +406,7 @@ context remove nextjs
 
 ### `context serve`
 
-Start the MCP server (used by Claude Desktop).
+Start the MCP server (used by AI agents).
 
 ```bash
 context serve
@@ -420,145 +425,39 @@ context query 'nextjs@16.0' 'middleware authentication'
 
 ---
 
-## :gear: How It Works
+## :gear: Architecture
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                   Your Machine                      │
-│                                                     │
-│  ┌──────────┐     ┌────────────┐     ┌───────────┐ │
-│  │  Claude  │────▶│ MCP Server │────▶│ ~/.context│ │
-│  │          │     │ (get_docs) │     │  /packages│ │
-│  └──────────┘     └────────────┘     └───────────┘ │
-│                          │                         │
-│                          ▼                         │
-│                   ┌────────────┐                   │
-│                   │   SQLite   │                   │
-│                   │   FTS5     │                   │
-│                   └────────────┘                   │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────┐
+│                     Your Machine                        │
+│                                                         │
+│  ┌──────────┐    ┌──────────────────┐    ┌────────────┐ │
+│  │    AI    │    │   Context MCP    │    │ ~/.context │ │
+│  │  Agent   │───▶│     Server       │───▶│  /packages │ │
+│  │          │    │                  │    └────────────┘ │
+│  └──────────┘    └────────┬─────────┘         │         │
+│                           │            ┌──────────┐     │
+│                           │            │  SQLite  │     │
+│                           │            │   FTS5   │     │
+│                           │            └──────────┘     │
+└───────────────────────────┼─────────────────────────────┘
+                            │ (first use only)
+                            ▼
+                   ┌────────────────┐
+                   │   Community    │
+                   │   Registry     │
+                   └────────────────┘
 ```
 
-**When you add a package:**
+**First time you ask about a library:**
+1. The MCP server searches the community registry
+2. Downloads the pre-built documentation package (a SQLite `.db` file)
+3. Stores it locally in `~/.context/packages/`
 
-1. Repository is cloned (for git URLs) or read (for local directories)
-2. Documentation is parsed and split into sections
-3. Sections are indexed with FTS5 full-text search
-4. The package is stored in `~/.context/packages/`
-
-**When Claude queries:**
-
-1. FTS5 finds relevant sections by keyword matching
-2. Results are filtered by relevance score
-3. Token budget ensures responses stay concise
-4. Claude receives focused, relevant documentation
-
----
-
-## :package: Package Format
-
-Packages are SQLite databases (`.db` files) containing pre-indexed documentation.
-
-```
-~/.context/packages/
-├── nextjs@16.0.db
-├── react@18.db
-└── typescript@5.5.db
-```
-
-You can:
-- Build from any git repository (GitHub, GitLab, Bitbucket, etc.)
-- Build from local directories
-- Download pre-built packages from URLs
-- Share packages via releases or any file host
-
----
-
-## :mortar_board: Tutorial: Create, Share, and Reuse Packages
-
-Documentation packages are portable `.db` files that anyone can build once and reuse everywhere. This tutorial walks through the full workflow.
-
-### Step 1: Create a package from your docs
-
-Build a package from a git repository or a local directory:
-
-```bash
-# From a git repository
-context add https://github.com/your-org/your-library
-
-# From a local directory with docs
-context add ./my-project
-```
-
-Context auto-detects `docs/`, `documentation/`, or `doc/` folders. Override with `--path` if your docs live elsewhere:
-
-```bash
-context add ./my-project --path content/api-reference
-```
-
-Customize the package name and version:
-
-```bash
-context add ./my-project --name my-lib --pkg-version 2.0
-```
-
-### Step 2: Export the package for sharing
-
-Use `--save` to write a copy of the `.db` file you can distribute:
-
-```bash
-# Save to a directory (auto-named as my-lib@2.0.db)
-context add ./my-project --name my-lib --pkg-version 2.0 --save ./packages/
-
-# Save to a specific file path
-context add ./my-project --save ./my-lib-docs.db
-```
-
-You can also export an already-installed package. The `.db` files live in `~/.context/packages/`—just copy the one you need:
-
-```bash
-cp ~/.context/packages/my-lib@2.0.db ./shared-packages/
-```
-
-### Step 3: Share with your team
-
-Share the `.db` file however your team distributes artifacts:
-
-- **Git repository**: Commit the `.db` file to a shared repo or release assets
-- **File host / CDN**: Upload to any HTTP server, S3, or internal CDN
-- **Direct transfer**: Send the file via Slack, email, or shared drive
-
-### Step 4: Reuse a shared package
-
-Teammates install the shared package with a single command:
-
-```bash
-# From a URL (CDN, GitHub release, internal server, etc.)
-context add https://cdn.example.com/my-lib@2.0.db
-
-# From a local file (downloaded or checked into a repo)
-context add ./shared-packages/my-lib@2.0.db
-```
-
-No build step needed—pre-built packages install instantly.
-
-### Putting it all together
-
-A typical team workflow:
-
-```bash
-# Maintainer: build and export the package
-context add https://github.com/your-org/design-system \
-  --name design-system --pkg-version 3.1 --save ./packages/
-
-# Maintainer: upload design-system@3.1.db to your team's file host
-
-# Teammate: install from the shared URL
-context add https://internal-cdn.example.com/design-system@3.1.db
-
-# Everyone: query the docs through any MCP-compatible agent
-# "How do I use the DataTable component?"
-```
+**Every time after:**
+1. FTS5 full-text search finds relevant sections locally
+2. Smart filtering keeps results within token budget
+3. Your AI gets focused, accurate documentation in under 10ms
 
 ---
 
