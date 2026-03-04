@@ -2,8 +2,8 @@ name: Registry Update
 
 on:
   schedule:
-    # Weekly: Monday 6 AM UTC
-    - cron: '0 6 * * 1'
+    # Daily at 6 AM UTC
+    - cron: '0 6 * * *'
   workflow_dispatch:
     inputs:
       since:
@@ -49,7 +49,7 @@ jobs:
           if [ -n "$SINCE" ]; then
             pnpm --filter @neuledge/registry registry publish-all --since "$SINCE"
           elif [ "${{ github.event_name }}" = "schedule" ]; then
-            pnpm --filter @neuledge/registry registry publish-all --since 7
+            pnpm --filter @neuledge/registry registry publish-all --since 2
           else
             pnpm --filter @neuledge/registry registry publish-all
           fi
