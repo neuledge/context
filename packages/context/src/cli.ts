@@ -871,14 +871,15 @@ program
             parsed.name,
           );
 
-          if (results.length === 0) {
+          const latest = results[0];
+          if (!latest) {
             console.error(
               `Error: No packages found for "${pkg}" on the server.`,
             );
             process.exit(1);
           }
 
-          targetVersion = results[0]!.version;
+          targetVersion = latest.version;
         }
 
         console.log(
