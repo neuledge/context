@@ -13,21 +13,23 @@
 
 ---
 
+AI agents are trained on outdated docs. When libraries release new versions, your AI doesn't know — and confidently gives you wrong answers.
+
+```js
+// Your AI, mass-trained on AI SDK v5 docs, will suggest:
+import { Experimental_Agent as Agent, stepCountIs } from 'ai';
+
+// But v6 changed the API entirely:
+import { ToolLoopAgent } from 'ai';
+```
+
+The fix isn't better prompting. It's giving your AI the right docs.
+
 ## How It Works
 
 Context is an MCP server backed by a [community-driven package registry](registry/) with **100+ popular libraries** already built and ready to use. When your AI agent needs documentation, it searches the registry, downloads the right package, and queries it locally — all automatically.
 
 **Install once. Configure once. Then just ask your AI.**
-
-```
-You: "How do I create middleware in Next.js 16?"
-
-AI:  [finds Next.js on the registry → downloads docs → queries locally]
-     "In Next.js 16, create a middleware.ts file in your project root..."
-     (accurate, version-specific answer — no hallucination)
-```
-
-No copy-pasting docs. No stale training data. No manual setup per library.
 
 <p align="center">
   <img src="https://media.githubusercontent.com/media/neuledge/context/main/packages/context/assets/ai-sdk-demo.gif" alt="Context demo" width="800">
