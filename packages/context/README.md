@@ -465,41 +465,33 @@ context query 'nextjs@16.0' 'middleware authentication'
 
 ### Can I use Context with non-JavaScript frameworks like Spring Boot, Django, or Rails?
 
-**Yes!** Context is completely language- and framework-agnostic. It works with any project that has documentation in Markdown (`.md`, `.mdx`, `.qmd`, `.rmd`), AsciiDoc (`.adoc`), or reStructuredText (`.rst`) files. The examples in this README use Next.js and Tailwind CSS, but the tool doesn't care about the programming language—it indexes documentation, not source code.
-
-**Examples from non-JS ecosystems:**
+**Yes!** Context is language-agnostic. It natively supports Markdown (`.md`, `.mdx`), AsciiDoc (`.adoc`), and reStructuredText (`.rst`) — no conversion needed.
 
 ```bash
-# Python - FastAPI (Markdown docs)
+# Python - FastAPI (Markdown)
 context add https://github.com/fastapi/fastapi --path docs/en/docs
 
-# Python - Django (reStructuredText docs — natively supported)
+# Python - Django (reStructuredText)
 context add https://github.com/django/django --path docs
 
-# Java - Spring Boot (AsciiDoc docs — natively supported)
+# Java - Spring Boot (AsciiDoc)
 context add https://github.com/spring-projects/spring-boot --path spring-boot-project/spring-boot-docs/src/docs
 
-# Java - JUnit 5 (AsciiDoc docs)
-context add https://github.com/junit-team/junit5 --path documentation/src/docs/asciidoc
-
-# Rust - The Rust Book (Markdown)
+# Rust - The Rust Book
 context add https://github.com/rust-lang/book --path src
-
-# Go - Hugo (Markdown)
-context add https://github.com/gohugoio/hugoDocs --path content/en
 ```
 
-The key is finding where a project keeps its documentation and pointing Context at it with `--path`.
+Point Context at the docs folder with `--path` and it handles the rest.
 
 ### Can I contribute package definitions for new ecosystems?
 
-The `registry/` directory contains YAML definitions for auto-building documentation packages. It currently has definitions for three ecosystems:
+Yes! The `registry/` directory has YAML definitions organized by package manager:
 
-- **`registry/npm/`** — JavaScript/TypeScript packages (Next.js, React, Tailwind, etc.)
-- **`registry/pip/`** — Python packages (FastAPI, Flask, Django, Pydantic)
-- **`registry/maven/`** — Java packages (Spring Boot, JUnit, Micrometer)
+- **`registry/npm/`** — JavaScript/TypeScript (Next.js, React, Tailwind, etc.)
+- **`registry/pip/`** — Python (FastAPI, Flask, Django, Pydantic)
+- **`registry/maven/`** — Java (Spring Boot, JUnit, Micrometer)
 
-Version discovery is supported for npm, PyPI, and Maven Central. To add a new package, create a YAML definition:
+To add a package, create a YAML file:
 
 ```yaml
 # registry/pip/my-library.yaml
@@ -513,18 +505,10 @@ versions:
       type: git
       url: https://github.com/org/my-library
       docs_path: docs
-      lang: en
     tag_pattern: "v{version}"
 ```
 
-For Maven packages, use `groupId:artifactId` as the name and replace `:` with `_` in the filename:
-
-```yaml
-# registry/maven/com.example_my-lib.yaml
-name: "com.example:my-lib"
-```
-
-See existing definitions in `registry/npm/` for examples. Contributions are welcome!
+Version discovery is supported for npm, PyPI, and Maven Central. See existing definitions for examples.
 
 ---
 
