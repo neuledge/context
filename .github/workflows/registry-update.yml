@@ -10,6 +10,10 @@ on:
         description: 'Only versions published in last N days (leave empty to seed all versions)'
         required: false
         type: string
+      latest:
+        description: 'Only the N most recent minor versions per package (leave empty for all)'
+        required: false
+        type: string
 
 jobs:
   publish:
@@ -45,11 +49,21 @@ jobs:
           REGISTRY_PUBLISH_KEY: ${{ secrets.REGISTRY_PUBLISH_KEY }}
           REGISTRY_SERVER_URL: ${{ vars.REGISTRY_SERVER_URL || 'https://api.context.neuledge.com' }}
         run: |
+          ARGS=""
+
           SINCE="${{ github.event.inputs.since }}"
-          if [ -n "$SINCE" ]; then
-            pnpm --filter @neuledge/registry registry publish-all --since "$SINCE"
-          elif [ "${{ github.event_name }}" = "schedule" ]; then
-            pnpm --filter @neuledge/registry registry publish-all --since 2
-          else
-            pnpm --filter @neuledge/registry registry publish-all
+          LATEST="${{ github.event.inputs.latest }}"
+
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            ARGS="--since 2"
           fi
+
+          # Manual inputs override schedule defaults
+          if [ -n "$SINCE" ]; then
+            ARGS="--since $SINCE"
+          fi
+          if [ -n "$LATEST" ]; then
+            ARGS="$ARGS --latest $LATEST"
+          fi
+
+          pnpm --filter @neuledge/registry registry publish-all $ARGS

@@ -43,7 +43,7 @@ const registryFetchers: Record<string, RegistryFetcher> = {
  */
 export async function discoverVersions(
   definition: PackageDefinition,
-  options: { since?: number } = {},
+  options: { since?: number; latest?: number } = {},
 ): Promise<AvailableVersion[]> {
   // Unversioned definitions always have a single "latest" version
   if (!isVersioned(definition)) {
@@ -86,10 +86,15 @@ export async function discoverVersions(
   // Keep only latest patch per minor version
   const latestPerMinor = deduplicateToLatestPatch(filtered);
 
-  // Sort by semver descending
+  // Sort by semver descending (newest first)
   latestPerMinor.sort((a, b) => compareSemver(b.version, a.version));
 
-  return latestPerMinor.map((v) => ({
+  // Limit to N most recent minor versions per package
+  const limited = options.latest
+    ? latestPerMinor.slice(0, options.latest)
+    : latestPerMinor;
+
+  return limited.map((v) => ({
     name: definition.name,
     registry: definition.registry,
     version: v.version,

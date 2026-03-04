@@ -200,6 +200,10 @@ program
     "--since <days>",
     "Only versions published on registry in last N days (omit to include all)",
   )
+  .option(
+    "--latest <count>",
+    "Only the N most recent minor versions per package",
+  )
   .action(async (opts) => {
     const definitions = listDefinitions(opts.dir);
     mkdirSync(opts.output, { recursive: true });
@@ -211,6 +215,7 @@ program
     for (const def of definitions) {
       const versions = await discoverVersions(def, {
         since: opts.since ? Number(opts.since) : undefined,
+        latest: opts.latest ? Number(opts.latest) : undefined,
       });
 
       for (const ver of versions) {
