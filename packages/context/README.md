@@ -568,34 +568,13 @@ context add https://internal-cdn.example.com/design-system@3.1.db
 
 **Yes!** Context is completely language- and framework-agnostic. It works with any project that has documentation in markdown files (`.md`, `.mdx`, `.qmd`, `.rmd`). The examples in this README use Next.js and Tailwind CSS, but the tool doesn't care about the programming language—it indexes documentation, not source code.
 
-**For Spring Boot / Spring Framework**, the official docs live in the main repository:
-
-```bash
-# Spring Framework reference docs
-context add https://github.com/spring-projects/spring-framework --path framework-docs/modules/ROOT/pages
-
-# Spring Boot reference docs
-context add https://github.com/spring-projects/spring-boot --path spring-boot-project/spring-boot-docs/src/docs/asciidoc
-```
-
-> **Note:** Spring uses AsciiDoc (`.adoc`) rather than Markdown for most of its documentation. Context currently indexes markdown files only. If a project's docs are primarily in AsciiDoc, reStructuredText, or another format, you have a few options:
->
-> 1. **Look for a markdown-based docs site** — many projects maintain a separate website repo with markdown content (e.g., `spring.io` guides)
-> 2. **Convert to markdown first** — use tools like [Pandoc](https://pandoc.org/) to convert `.adoc` or `.rst` files to `.md`, then index the converted folder:
->    ```bash
->    # Convert AsciiDoc files to Markdown
->    find ./spring-docs -name "*.adoc" -exec sh -c 'pandoc "$1" -f asciidoc -t markdown -o "${1%.adoc}.md"' _ {} \;
->
->    # Index the converted docs
->    context add ./spring-docs --name spring-framework --pkg-version 6.2
->    ```
-> 3. **Use the project's markdown content** — many projects have markdown in their README files, guides, or wiki
-
-**Other examples for non-JS ecosystems:**
+**Examples from non-JS ecosystems:**
 
 ```bash
 # Python - FastAPI (docs are in markdown)
 context add https://github.com/fastapi/fastapi --path docs/en/docs
+
+# Python - Django (docs are in reStructuredText — see note below)
 
 # Rust - The Rust Book
 context add https://github.com/rust-lang/book --path src
@@ -604,7 +583,41 @@ context add https://github.com/rust-lang/book --path src
 context add https://github.com/gohugoio/hugoDocs --path content/en
 ```
 
-The key is finding where the project keeps its markdown documentation and pointing Context at it with `--path` if needed.
+The key is finding where a project keeps its markdown documentation and pointing Context at it with `--path`.
+
+> **What about projects that don't use Markdown?**
+>
+> Some frameworks (e.g., Spring Boot uses AsciiDoc, Django uses reStructuredText) don't write docs in Markdown. You have a few options:
+>
+> 1. **Look for a markdown-based docs site** — many projects maintain a separate website repo with markdown content
+> 2. **Convert to markdown first** — use tools like [Pandoc](https://pandoc.org/) to convert `.adoc` or `.rst` files to `.md`, then index the converted folder:
+>    ```bash
+>    # Example: convert AsciiDoc files to Markdown, then index
+>    find ./spring-docs -name "*.adoc" -exec sh -c \
+>      'pandoc "$1" -f asciidoc -t markdown -o "${1%.adoc}.md"' _ {} \;
+>    context add ./spring-docs --name spring-boot --pkg-version 3.4
+>    ```
+> 3. **Use the project's markdown content** — many projects have markdown in their README files, guides, or wiki
+
+### Can I contribute package definitions for new ecosystems?
+
+The `registry/` directory contains YAML definitions for auto-building documentation packages. Currently it has definitions for npm packages (`registry/npm/`), but the architecture supports any package manager.
+
+To add support for a new ecosystem (e.g., Maven, PyPI, Cargo), create a YAML definition:
+
+```yaml
+# registry/maven/spring-boot.yaml
+name: spring-boot
+description: "Spring Boot makes it easy to create production-grade Spring-based applications"
+repository: https://github.com/spring-projects/spring-boot
+
+source:
+  type: git
+  url: https://github.com/spring-projects/spring-boot
+  docs_path: spring-boot-project/spring-boot-docs/src/docs
+```
+
+See existing definitions in `registry/npm/` for examples. Contributions are welcome!
 
 ---
 
