@@ -1,0 +1,12 @@
+name: fastapi
+description: "Modern, fast web framework for building APIs with Python"
+repository: https://github.com/fastapi/fastapi
+
+versions:
+  - min_version: "0.100.0"
+    source:
+      type: git
+      url: https://github.com/fastapi/fastapi
+      docs_path: docs/en/docs
+      lang: en
+    tag_pattern: "{version}"

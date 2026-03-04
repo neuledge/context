@@ -116,7 +116,10 @@ export function loadDefinition(
     ? relative(managerDir, filePath).replace(/\.yaml$/, "")
     : basename(filePath, ".yaml");
 
-  if (parsed.name !== expectedName) {
+  // Allow filesystem-safe encoding: colons in names are replaced with underscores
+  // in filenames (e.g., "org.springframework.boot:spring-boot" → "org.springframework.boot_spring-boot.yaml")
+  const normalizedName = parsed.name.replace(/:/g, "_");
+  if (parsed.name !== expectedName && normalizedName !== expectedName) {
     throw new Error(
       `Definition name "${parsed.name}" doesn't match filename "${expectedName}.yaml"`,
     );

@@ -1,0 +1,12 @@
+name: "org.springframework.boot:spring-boot"
+description: "Spring Boot makes it easy to create production-grade Spring-based applications"
+repository: https://github.com/spring-projects/spring-boot
+
+versions:
+  - min_version: "3.0.0"
+    source:
+      type: git
+      url: https://github.com/spring-projects/spring-boot
+      docs_path: spring-boot-project/spring-boot-docs/src/docs
+      lang: en
+    tag_pattern: "v{version}"

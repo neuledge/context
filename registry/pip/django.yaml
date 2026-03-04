@@ -1,0 +1,12 @@
+name: django
+description: "High-level Python web framework for rapid development"
+repository: https://github.com/django/django
+
+versions:
+  - min_version: "4.0"
+    source:
+      type: git
+      url: https://github.com/django/django
+      docs_path: docs
+      lang: en
+    tag_pattern: "{version}"

@@ -1,5 +1,5 @@
 /**
- * Version discovery from package registry APIs (npm, pip).
+ * Version discovery from package registry APIs (npm, pip, maven).
  *
  * Queries public registry APIs to find available versions,
  * filters to defined ranges, and deduplicates to latest-patch-per-minor.
@@ -29,6 +29,7 @@ interface VersionInfo {
 const registryFetchers: Record<string, RegistryFetcher> = {
   npm: fetchNpmVersions,
   pip: fetchPipVersions,
+  maven: fetchMavenVersions,
 };
 
 /**
@@ -141,6 +142,42 @@ async function fetchPipVersions(packageName: string): Promise<VersionInfo[]> {
   return Object.entries(releases).map(([version, files]) => ({
     version,
     publishedAt: files[0]?.upload_time_iso_8601,
+  }));
+}
+
+/**
+ * Fetch versions from Maven Central using the search API.
+ * Package name format: "groupId:artifactId" (e.g., "org.springframework.boot:spring-boot").
+ */
+async function fetchMavenVersions(packageName: string): Promise<VersionInfo[]> {
+  const [groupId, artifactId] = packageName.split(":");
+  if (!groupId || !artifactId) {
+    throw new Error(
+      `Invalid Maven package name "${packageName}": expected "groupId:artifactId"`,
+    );
+  }
+
+  const query = `g:${groupId}+AND+a:${artifactId}`;
+  const res = await fetch(
+    `https://search.maven.org/solrsearch/select?q=${query}&core=gav&rows=200&wt=json`,
+  );
+  if (!res.ok) {
+    throw new Error(`Maven Central returned ${res.status} for ${packageName}`);
+  }
+
+  const data = (await res.json()) as {
+    response?: {
+      docs?: Array<{ v?: string; timestamp?: number }>;
+    };
+  };
+
+  const docs = data.response?.docs ?? [];
+
+  return docs.map((doc) => ({
+    version: doc.v ?? "",
+    publishedAt: doc.timestamp
+      ? new Date(doc.timestamp).toISOString()
+      : undefined,
   }));
 }
 

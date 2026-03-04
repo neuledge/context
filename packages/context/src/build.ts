@@ -1,6 +1,6 @@
 /**
  * Build utilities for generating documentation packages.
- * Parses markdown/MDX files and chunks them by section.
+ * Parses markdown/MDX, AsciiDoc, and reStructuredText files and chunks them by section.
  */
 
 import type { Content, Heading, Root, Yaml } from "mdast";
@@ -312,7 +312,7 @@ export function parseMarkdown(source: string, filePath: string): ParsedDoc {
     filePath
       .split("/")
       .pop()
-      ?.replace(/\.mdx?$/, "") ||
+      ?.replace(/\.(md|mdx|qmd|rmd|adoc|rst)$/, "") ||
     "Untitled";
 
   // Remove frontmatter and JSX import statements from source for extraction
@@ -417,4 +417,310 @@ export function parseMarkdown(source: string, filePath: string): ParsedDoc {
     frontmatter,
     sections,
   };
+}
+
+/**
+ * Extract AsciiDoc attributes (key-value metadata at the top of the file).
+ * Format: `:key: value` lines at the document start.
+ */
+function extractAsciidocAttributes(source: string): DocFrontmatter {
+  const attrs: Record<string, string> = {};
+  for (const line of source.split("\n")) {
+    const match = line.match(/^:([a-zA-Z_-]+):\s*(.*)$/);
+    if (match?.[1] && match[2] !== undefined) {
+      attrs[match[1]] = match[2].trim();
+    } else if (line.trim() === "" && Object.keys(attrs).length > 0) {
+      break; // End of attribute block
+    } else if (!line.startsWith(":") && line.trim() !== "") {
+      break; // Non-attribute content
+    }
+  }
+  return {
+    title: attrs.doctitle || attrs["document-title"],
+    description: attrs.description,
+  };
+}
+
+/**
+ * Parse an AsciiDoc file and extract sections.
+ * Chunks on level-1 headings (== Heading), which are equivalent to markdown h2.
+ */
+export function parseAsciidoc(source: string, filePath: string): ParsedDoc {
+  const attrs = extractAsciidocAttributes(source);
+
+  // Extract document title from `= Title` (level-0 heading) or attributes
+  const titleMatch = source.match(/^= (.+)$/m);
+  const docTitle =
+    attrs.title ||
+    titleMatch?.[1]?.trim() ||
+    filePath
+      .split("/")
+      .pop()
+      ?.replace(/\.adoc$/, "") ||
+    "Untitled";
+
+  const lines = source.split("\n");
+  const sections: DocSection[] = [];
+  let currentH2: string | null = null;
+  let currentContent: string[] = [];
+
+  for (const line of lines) {
+    // Skip attribute lines at the very top
+    if (!currentH2 && /^:[a-zA-Z_-]+:/.test(line)) continue;
+
+    // Level-1 heading (== Section) — equivalent to markdown h2
+    const h2Match = line.match(/^== (.+)$/);
+    if (h2Match?.[1]) {
+      // Flush previous section
+      if (currentH2) {
+        flushSection(
+          sections,
+          currentContent.join("\n"),
+          filePath,
+          docTitle,
+          currentH2,
+        );
+      }
+      currentH2 = h2Match[1].trim();
+      currentContent = [];
+      continue;
+    }
+
+    // Skip the document title line (= Title)
+    if (/^= .+$/.test(line) && !currentH2) continue;
+
+    // Accumulate content
+    if (!currentH2 && line.trim()) {
+      currentH2 = "Introduction";
+    }
+    if (currentH2) {
+      currentContent.push(line);
+    }
+  }
+
+  // Flush last section
+  if (currentH2) {
+    flushSection(
+      sections,
+      currentContent.join("\n"),
+      filePath,
+      docTitle,
+      currentH2,
+    );
+  }
+
+  return {
+    path: filePath,
+    frontmatter: { title: docTitle, description: attrs.description },
+    sections,
+  };
+}
+
+/**
+ * Detect RST heading underline characters and their hierarchy.
+ * RST determines heading level by the order underline characters first appear.
+ */
+function detectRstHeadingLevel(
+  charOrder: string[],
+  underlineChar: string,
+): number {
+  let idx = charOrder.indexOf(underlineChar);
+  if (idx === -1) {
+    charOrder.push(underlineChar);
+    idx = charOrder.length - 1;
+  }
+  return idx;
+}
+
+/**
+ * Parse a reStructuredText file and extract sections.
+ * RST headings are text lines followed by underline characters (=, -, ~, ^, etc.).
+ * Chunks on the second heading level encountered (equivalent to markdown h2).
+ */
+export function parseRestructuredText(
+  source: string,
+  filePath: string,
+): ParsedDoc {
+  // Extract RST field-list metadata (`:key: value` at the top)
+  const frontmatter: DocFrontmatter = {};
+  const metaMatch = source.match(/^\.\. meta::\s*\n((?:\s+:[^\n]+\n?)*)/m);
+  if (metaMatch?.[1]) {
+    const titleLine = metaMatch[1].match(/:title:\s*(.+)/i);
+    const descLine = metaMatch[1].match(/:description:\s*(.+)/i);
+    if (titleLine?.[1]) frontmatter.title = titleLine[1].trim();
+    if (descLine?.[1]) frontmatter.description = descLine[1].trim();
+  }
+
+  const lines = source.split("\n");
+  const charOrder: string[] = [];
+  let h2Level = -1; // Will be set to the second unique heading level seen
+
+  // First pass: detect heading levels to find what maps to "h2"
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i] ?? "";
+    const prevLine = lines[i - 1] ?? "";
+    if (
+      prevLine.trim().length > 0 &&
+      /^([=\-~^"+`#:.'_*!$%&,;<>?@\\|/(){}[\]])\1{2,}$/.test(line) &&
+      line.length >= prevLine.trim().length
+    ) {
+      const level = detectRstHeadingLevel(charOrder, line[0] as string);
+      if (h2Level === -1 && level > 0) {
+        h2Level = level;
+      }
+    }
+  }
+  // If only one heading level was found, treat it as h2
+  if (h2Level === -1 && charOrder.length > 0) {
+    h2Level = 0;
+  }
+
+  // Reset for second pass
+  charOrder.length = 0;
+
+  // Determine docTitle
+  let docTitle: string | undefined = frontmatter.title;
+  // Check if the first heading is a title (level 0)
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i] ?? "";
+    const prevLine = lines[i - 1] ?? "";
+    if (
+      prevLine.trim().length > 0 &&
+      /^([=\-~^"+`#:.'_*!$%&,;<>?@\\|/(){}[\]])\1{2,}$/.test(line) &&
+      line.length >= prevLine.trim().length
+    ) {
+      detectRstHeadingLevel(charOrder, line[0] as string);
+      if (!docTitle) {
+        docTitle = prevLine.trim();
+      }
+      break;
+    }
+  }
+  charOrder.length = 0;
+
+  if (!docTitle) {
+    docTitle =
+      filePath
+        .split("/")
+        .pop()
+        ?.replace(/\.rst$/, "") || "Untitled";
+  }
+
+  // Second pass: extract sections
+  const sections: DocSection[] = [];
+  let currentH2: string | null = null;
+  let currentContent: string[] = [];
+  let skipNextLine = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    if (skipNextLine) {
+      skipNextLine = false;
+      continue;
+    }
+
+    const line = lines[i] ?? "";
+    const nextLine = lines[i + 1] ?? "";
+
+    // Check if this line is a heading (next line is underline)
+    if (
+      line.trim().length > 0 &&
+      /^([=\-~^"+`#:.'_*!$%&,;<>?@\\|/(){}[\]])\1{2,}$/.test(nextLine) &&
+      nextLine.length >= line.trim().length
+    ) {
+      const level = detectRstHeadingLevel(charOrder, nextLine[0] as string);
+
+      if (level === h2Level) {
+        // Flush previous section
+        if (currentH2) {
+          flushSection(
+            sections,
+            currentContent.join("\n"),
+            filePath,
+            docTitle,
+            currentH2,
+          );
+        }
+        currentH2 = line.trim();
+        currentContent = [];
+        skipNextLine = true;
+        continue;
+      } else if (level < h2Level) {
+        // This is the document title or higher — skip this heading
+        skipNextLine = true;
+        continue;
+      }
+      // Lower-level headings (h3+) are included as content
+    }
+
+    // Accumulate content
+    if (!currentH2 && line.trim()) {
+      // Skip metadata blocks
+      if (line.startsWith(".. ") || line.startsWith("   :")) continue;
+      currentH2 = "Introduction";
+    }
+    if (currentH2) {
+      currentContent.push(line);
+    }
+  }
+
+  // Flush last section
+  if (currentH2) {
+    flushSection(
+      sections,
+      currentContent.join("\n"),
+      filePath,
+      docTitle,
+      currentH2,
+    );
+  }
+
+  return {
+    path: filePath,
+    frontmatter: { title: docTitle, description: frontmatter.description },
+    sections,
+  };
+}
+
+/** Flush accumulated content into sections, handling chunking and filtering. */
+function flushSection(
+  sections: DocSection[],
+  rawContent: string,
+  docPath: string,
+  docTitle: string,
+  sectionTitle: string,
+): void {
+  const content = rawContent.trim();
+  if (!content || isTableOfContents(sectionTitle, content)) return;
+
+  const tokens = estimateTokens(content);
+  if (tokens < MIN_CHUNK_TOKENS) return;
+
+  if (tokens > MAX_CHUNK_TOKENS) {
+    sections.push(
+      ...splitAtParagraphs(content, docPath, docTitle, sectionTitle),
+    );
+  } else {
+    sections.push({
+      docPath,
+      docTitle,
+      sectionTitle,
+      content,
+      tokens,
+      hasCode: hasCodeBlock(content),
+    });
+  }
+}
+
+/**
+ * Parse a document file, auto-detecting format from file extension.
+ * Supports: Markdown (.md, .mdx, .qmd, .rmd), AsciiDoc (.adoc), reStructuredText (.rst)
+ */
+export function parseDocument(source: string, filePath: string): ParsedDoc {
+  if (filePath.endsWith(".adoc")) {
+    return parseAsciidoc(source, filePath);
+  }
+  if (filePath.endsWith(".rst")) {
+    return parseRestructuredText(source, filePath);
+  }
+  return parseMarkdown(source, filePath);
 }

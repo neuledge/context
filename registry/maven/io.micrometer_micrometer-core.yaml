@@ -1,0 +1,12 @@
+name: "io.micrometer:micrometer-core"
+description: "Application observability facade for the most popular observability tools"
+repository: https://github.com/micrometer-metrics/micrometer
+
+versions:
+  - min_version: "1.10.0"
+    source:
+      type: git
+      url: https://github.com/micrometer-metrics/micrometer
+      docs_path: docs/modules/ROOT/pages
+      lang: en
+    tag_pattern: "v{version}"

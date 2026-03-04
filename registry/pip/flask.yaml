@@ -1,0 +1,12 @@
+name: flask
+description: "Lightweight WSGI web application framework for Python"
+repository: https://github.com/pallets/flask
+
+versions:
+  - min_version: "2.0.0"
+    source:
+      type: git
+      url: https://github.com/pallets/flask
+      docs_path: docs
+      lang: en
+    tag_pattern: "{version}"

@@ -566,55 +566,63 @@ context add https://internal-cdn.example.com/design-system@3.1.db
 
 ### Can I use Context with non-JavaScript frameworks like Spring Boot, Django, or Rails?
 
-**Yes!** Context is completely language- and framework-agnostic. It works with any project that has documentation in markdown files (`.md`, `.mdx`, `.qmd`, `.rmd`). The examples in this README use Next.js and Tailwind CSS, but the tool doesn't care about the programming language—it indexes documentation, not source code.
+**Yes!** Context is completely language- and framework-agnostic. It works with any project that has documentation in Markdown (`.md`, `.mdx`, `.qmd`, `.rmd`), AsciiDoc (`.adoc`), or reStructuredText (`.rst`) files. The examples in this README use Next.js and Tailwind CSS, but the tool doesn't care about the programming language—it indexes documentation, not source code.
 
 **Examples from non-JS ecosystems:**
 
 ```bash
-# Python - FastAPI (docs are in markdown)
+# Python - FastAPI (Markdown docs)
 context add https://github.com/fastapi/fastapi --path docs/en/docs
 
-# Python - Django (docs are in reStructuredText — see note below)
+# Python - Django (reStructuredText docs — natively supported)
+context add https://github.com/django/django --path docs
 
-# Rust - The Rust Book
+# Java - Spring Boot (AsciiDoc docs — natively supported)
+context add https://github.com/spring-projects/spring-boot --path spring-boot-project/spring-boot-docs/src/docs
+
+# Java - JUnit 5 (AsciiDoc docs)
+context add https://github.com/junit-team/junit5 --path documentation/src/docs/asciidoc
+
+# Rust - The Rust Book (Markdown)
 context add https://github.com/rust-lang/book --path src
 
-# Go - Hugo (docs in markdown)
+# Go - Hugo (Markdown)
 context add https://github.com/gohugoio/hugoDocs --path content/en
 ```
 
-The key is finding where a project keeps its markdown documentation and pointing Context at it with `--path`.
-
-> **What about projects that don't use Markdown?**
->
-> Some frameworks (e.g., Spring Boot uses AsciiDoc, Django uses reStructuredText) don't write docs in Markdown. You have a few options:
->
-> 1. **Look for a markdown-based docs site** — many projects maintain a separate website repo with markdown content
-> 2. **Convert to markdown first** — use tools like [Pandoc](https://pandoc.org/) to convert `.adoc` or `.rst` files to `.md`, then index the converted folder:
->    ```bash
->    # Example: convert AsciiDoc files to Markdown, then index
->    find ./spring-docs -name "*.adoc" -exec sh -c \
->      'pandoc "$1" -f asciidoc -t markdown -o "${1%.adoc}.md"' _ {} \;
->    context add ./spring-docs --name spring-boot --pkg-version 3.4
->    ```
-> 3. **Use the project's markdown content** — many projects have markdown in their README files, guides, or wiki
+The key is finding where a project keeps its documentation and pointing Context at it with `--path`.
 
 ### Can I contribute package definitions for new ecosystems?
 
-The `registry/` directory contains YAML definitions for auto-building documentation packages. Currently it has definitions for npm packages (`registry/npm/`), but the architecture supports any package manager.
+The `registry/` directory contains YAML definitions for auto-building documentation packages. It currently has definitions for three ecosystems:
 
-To add support for a new ecosystem (e.g., Maven, PyPI, Cargo), create a YAML definition:
+- **`registry/npm/`** — JavaScript/TypeScript packages (Next.js, React, Tailwind, etc.)
+- **`registry/pip/`** — Python packages (FastAPI, Flask, Django, Pydantic)
+- **`registry/maven/`** — Java packages (Spring Boot, JUnit, Micrometer)
+
+Version discovery is supported for npm, PyPI, and Maven Central. To add a new package, create a YAML definition:
 
 ```yaml
-# registry/maven/spring-boot.yaml
-name: spring-boot
-description: "Spring Boot makes it easy to create production-grade Spring-based applications"
-repository: https://github.com/spring-projects/spring-boot
+# registry/pip/my-library.yaml
+name: my-library
+description: "Short description of the library"
+repository: https://github.com/org/my-library
 
-source:
-  type: git
-  url: https://github.com/spring-projects/spring-boot
-  docs_path: spring-boot-project/spring-boot-docs/src/docs
+versions:
+  - min_version: "2.0.0"
+    source:
+      type: git
+      url: https://github.com/org/my-library
+      docs_path: docs
+      lang: en
+    tag_pattern: "v{version}"
+```
+
+For Maven packages, use `groupId:artifactId` as the name and replace `:` with `_` in the filename:
+
+```yaml
+# registry/maven/com.example_my-lib.yaml
+name: "com.example:my-lib"
 ```
 
 See existing definitions in `registry/npm/` for examples. Contributions are welcome!

@@ -1,7 +1,14 @@
 // Public API
 
 // Build utilities
-export { type DocSection, type ParsedDoc, parseMarkdown } from "./build.js";
+export {
+  type DocSection,
+  type ParsedDoc,
+  parseAsciidoc,
+  parseDocument,
+  parseMarkdown,
+  parseRestructuredText,
+} from "./build.js";
 // Config
 export {
   type Config,

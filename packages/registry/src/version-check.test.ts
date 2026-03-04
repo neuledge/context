@@ -100,6 +100,43 @@ describe("discoverVersions", () => {
     expect(versions.map((v) => v.version)).toEqual(["2.1.0"]);
   });
 
+  it("fetches maven versions and filters to defined ranges", async () => {
+    const mavenDef: VersionedDefinition = {
+      ...mockDefinition,
+      name: "org.springframework.boot:spring-boot",
+      registry: "maven",
+    };
+
+    const mockFetch = vi.mocked(fetch);
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        response: {
+          docs: [
+            { v: "1.0.0", timestamp: 1704067200000 },
+            { v: "1.1.0", timestamp: 1706745600000 },
+            { v: "2.0.0", timestamp: 1709251200000 },
+            { v: "2.1.0", timestamp: 1711929600000 },
+            { v: "3.0.0-M1", timestamp: 1714521600000 },
+          ],
+        },
+      }),
+    } as Response);
+
+    const versions = await discoverVersions(mavenDef);
+
+    // Should exclude: 3.0.0-M1 (prerelease)
+    expect(versions.map((v) => v.version)).toEqual([
+      "2.1.0",
+      "2.0.0",
+      "1.1.0",
+      "1.0.0",
+    ]);
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("search.maven.org"),
+    );
+  });
+
   it("throws for unsupported registry", async () => {
     const def = { ...mockDefinition, registry: "cargo" };
     await expect(discoverVersions(def)).rejects.toThrow(

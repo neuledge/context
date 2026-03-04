@@ -107,6 +107,35 @@ versions:
     );
   });
 
+  it("parses a Maven definition with colon-to-underscore filename", () => {
+    const yaml = `
+name: "org.springframework.boot:spring-boot"
+description: "Spring Boot"
+repository: https://github.com/spring-projects/spring-boot
+versions:
+  - min_version: "3.0.0"
+    source:
+      type: git
+      url: https://github.com/spring-projects/spring-boot
+      docs_path: spring-boot-project/spring-boot-docs/src/docs
+    tag_pattern: "v{version}"
+`;
+    const mavenDir = join(tempDir, "maven");
+    mkdirSync(mavenDir);
+    writeFileSync(
+      join(mavenDir, "org.springframework.boot_spring-boot.yaml"),
+      yaml,
+    );
+
+    const def = loadDefinition(
+      join(mavenDir, "org.springframework.boot_spring-boot.yaml"),
+    );
+
+    expect(def.name).toBe("org.springframework.boot:spring-boot");
+    expect(def.registry).toBe("maven");
+    expect(isVersioned(def)).toBe(true);
+  });
+
   it("throws on invalid YAML", () => {
     const npmDir = join(tempDir, "npm");
     mkdirSync(npmDir);

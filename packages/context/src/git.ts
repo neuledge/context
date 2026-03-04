@@ -111,7 +111,14 @@ const FIXTURE_SUFFIXES = ["expect", "test", "spec"];
 /**
  * Documentation file extensions to include in search.
  */
-const DOCUMENTATION_EXTENSIONS = [".md", ".mdx", ".qmd", ".rmd"];
+const DOCUMENTATION_EXTENSIONS = [
+  ".md",
+  ".mdx",
+  ".qmd",
+  ".rmd",
+  ".adoc",
+  ".rst",
+];
 
 /**
  * Directories to ignore during markdown indexing.

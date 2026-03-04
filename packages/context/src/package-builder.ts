@@ -5,7 +5,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, unlinkSync } from "node:fs";
 import Database from "better-sqlite3";
-import { type DocSection, parseMarkdown } from "./build.js";
+import { type DocSection, parseDocument } from "./build.js";
 
 /**
  * Generate a content hash for section deduplication.
@@ -97,7 +97,7 @@ export function buildPackage(
 
     for (const file of files) {
       try {
-        const parsed = parseMarkdown(file.content, file.path);
+        const parsed = parseDocument(file.content, file.path);
         for (const section of parsed.sections) {
           // Deduplicate sections with identical content (ignore titles)
           const hash = contentHash(section.content);

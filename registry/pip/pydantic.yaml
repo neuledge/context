@@ -1,0 +1,12 @@
+name: pydantic
+description: "Data validation using Python type annotations"
+repository: https://github.com/pydantic/pydantic
+
+versions:
+  - min_version: "2.0"
+    source:
+      type: git
+      url: https://github.com/pydantic/pydantic
+      docs_path: docs
+      lang: en
+    tag_pattern: "v{version}"

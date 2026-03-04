@@ -1,0 +1,12 @@
+name: "org.junit.jupiter:junit-jupiter"
+description: "JUnit Jupiter is the next generation testing framework for Java"
+repository: https://github.com/junit-team/junit5
+
+versions:
+  - min_version: "5.9.0"
+    source:
+      type: git
+      url: https://github.com/junit-team/junit5
+      docs_path: documentation/src/docs/asciidoc
+      lang: en
+    tag_pattern: "r{version}"
