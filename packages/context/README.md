@@ -432,8 +432,8 @@ context query 'nextjs@16.0' 'middleware authentication'
 │                     Your Machine                        │
 │                                                         │
 │  ┌──────────┐    ┌──────────────────┐    ┌────────────┐ │
-│  │    AI    │    │   Context MCP   │    │ ~/.context │ │
-│  │  Agent   │───▶│     Server      │───▶│  /packages │ │
+│  │    AI    │    │   Context MCP    │    │ ~/.context │ │
+│  │  Agent   │───▶│     Server       │───▶│  /packages │ │
 │  │          │    │                  │    └────────────┘ │
 │  └──────────┘    └────────┬─────────┘         │         │
 │                           │            ┌──────────┐     │
@@ -445,7 +445,7 @@ context query 'nextjs@16.0' 'middleware authentication'
                             ▼
                    ┌────────────────┐
                    │   Community    │
-                   │   Registry    │
+                   │   Registry     │
                    └────────────────┘
 ```
 
