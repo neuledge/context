@@ -24,17 +24,17 @@ You're building with Next.js 16, and your AI assistant confidently suggests code
 
 ## The Solution
 
-Context connects your AI assistant directly to up-to-date documentation—locally, instantly, and privately.
+Context connects your AI assistant directly to up-to-date documentation—locally, instantly, and privately. With 100+ popular npm packages pre-built in the [community registry](registry/), your agent finds and downloads the right docs automatically.
 
 ```
 You: "How do I create middleware in Next.js 16?"
 
-AI:  [automatically queries local docs]
+AI:  [searches registry → downloads Next.js docs → queries locally]
      "In Next.js 16, create a middleware.ts file in your project root..."
      [accurate, version-specific answer]
 ```
 
-No copy-pasting. No hallucinations about deprecated APIs. No waiting for cloud lookups.
+No copy-pasting. No hallucinations about deprecated APIs. No manual setup.
 
 <p align="center">
   <img src="https://media.githubusercontent.com/media/neuledge/context/main/packages/context/assets/ai-sdk-demo.gif" alt="Context demo" width="800">
@@ -46,18 +46,13 @@ No copy-pasting. No hallucinations about deprecated APIs. No waiting for cloud l
 
 ### :muscle: "Make my AI actually useful for the stack I use"
 
-Add docs for your entire tech stack. Your AI assistant becomes an expert in the exact versions you're using:
+Just ask your AI assistant. For 100+ popular libraries, docs are downloaded automatically from the community registry:
 
-```bash
-context add https://github.com/vercel/next.js
-context add https://github.com/prisma/prisma
-context add https://github.com/tailwindlabs/tailwindcss
-```
-
-Now ask things like:
 - *"How do I set up Prisma with Next.js App Router?"*
 - *"What's the Tailwind config for dark mode?"*
 - *"Show me the new Server Actions syntax"*
+
+For libraries not in the registry, add them manually with `context add`.
 
 ### :building_construction: "Stop answering the same questions for my team"
 
@@ -93,6 +88,7 @@ Cloud documentation services see your queries. Context runs entirely on your mac
 | **Works offline** | :x: | :x: | :white_check_mark: |
 | **Privacy** | Queries sent to cloud | Queries sent to cloud | **100% local** |
 | **Private repos** | $15/1M tokens | :x: | **Free** |
+| **Open registry** | :x: | :x: | **100+ packages, anyone can contribute** |
 
 <sub>¹ Context7 reduced free tier from ~6,000 to 1,000 requests/month in January 2026</sub>
 
@@ -100,10 +96,12 @@ Cloud documentation services see your queries. Context runs entirely on your mac
 
 ## :zap: Key Features
 
+- **100+ packages ready to go** - Popular npm libraries pre-built and available instantly via the community registry
+- **Zero config** - Your AI agent discovers and downloads docs on demand, no manual setup needed
 - **Single tool** - One MCP tool does everything, no multi-step lookups
 - **Token-aware** - Smart relevance filtering, never overwhelms the context window
 - **Dynamic schema** - Available libraries shown in tool definition
-- **Offline-first** - Zero network calls during operation
+- **Offline-first** - Zero network calls after download
 - **SQLite + FTS5** - Fast full-text search with stemming
 
 ---
@@ -116,26 +114,7 @@ Cloud documentation services see your queries. Context runs entirely on your mac
 npm install -g @neuledge/context
 ```
 
-### 2. Add documentation
-
-```bash
-# From any git repository (GitHub, GitLab, Bitbucket, etc.)
-context add https://github.com/vercel/next.js
-context add https://gitlab.com/org/repo
-context add git@github.com:user/repo.git
-
-# From a local directory
-context add ./my-project
-context add /path/to/docs
-
-# From URL (pre-built package)
-context add https://example.com/react@18.db
-
-# From local file
-context add ./my-package.db
-```
-
-### 3. Configure your AI agent
+### 2. Configure your AI agent
 
 Context works with any MCP-compatible agent. Choose your setup below:
 
@@ -274,15 +253,15 @@ extensions:
 
 </details>
 
-### 4. Start using it
+### 3. Start using it
 
-That's it! Now just ask your AI agent:
+That's it! Just ask your AI agent:
 
 > "How do I create middleware in Next.js?"
 
-The agent automatically uses the `get_docs` tool when relevant.
+Your agent will automatically search the [community registry](registry/) (100+ npm packages), download the right docs, and give you accurate, version-specific answers. No manual setup needed — everything happens on demand.
 
-**Pre-built packages:** Your AI agent can also discover and download pre-built documentation packages directly, without you running any CLI commands. The MCP server includes `search_packages` and `download_package` tools that let agents find and install packages from the [community registry](SERVER_SPEC.md) on demand.
+Want to add docs for a library that's not in the registry yet? Use `context add` to build from any source (see [CLI Reference](#books-cli-reference)), or [submit a PR](registry/) to add it to the registry for everyone.
 
 ---
 
@@ -475,9 +454,9 @@ Packages are SQLite databases (`.db` files) containing pre-indexed documentation
 ```
 
 You can:
+- **Auto-download** from the [community registry](registry/) — 100+ popular libraries, no setup needed
 - Build from any git repository (GitHub, GitLab, Bitbucket, etc.)
 - Build from local directories
-- Download pre-built packages from URLs
 - Share packages via releases or any file host
 
 ---
