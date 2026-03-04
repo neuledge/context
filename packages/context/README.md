@@ -409,8 +409,21 @@ context remove nextjs
 Start the MCP server (used by AI agents).
 
 ```bash
+# Stdio transport (default, for single-client MCP integrations)
 context serve
+
+# HTTP transport (for multi-client access over the network)
+context serve --http
+context serve --http 3000
+context serve --http 3000 --host 0.0.0.0
 ```
+
+| Option | Description |
+|--------|-------------|
+| `--http [port]` | Start as HTTP server instead of stdio (default port: 8080) |
+| `--host <host>` | Host to bind to (default: 127.0.0.1) |
+
+The HTTP transport uses the [MCP Streamable HTTP](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http) protocol, enabling multiple clients on the local network to connect to a single server instance. The endpoint is available at `http://<host>:<port>/mcp`.
 
 ### `context query <library> <topic>`
 

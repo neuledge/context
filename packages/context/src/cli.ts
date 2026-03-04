@@ -688,7 +688,12 @@ program
 program
   .command("serve")
   .description("Start the MCP server")
-  .action(async () => {
+  .option(
+    "--http [port]",
+    "Start as HTTP server instead of stdio (default port: 8080)",
+  )
+  .option("--host <host>", "Host to bind to (default: 127.0.0.1)")
+  .action(async (options: { http?: string | true; host?: string }) => {
     const store = new PackageStore();
     loadPackages(store);
 
@@ -703,7 +708,19 @@ program
     }
 
     const server = new ContextServer(store);
-    await server.start();
+
+    if (options.http !== undefined) {
+      const port =
+        typeof options.http === "string"
+          ? Number.parseInt(options.http, 10)
+          : 8080;
+      const host = options.host ?? "127.0.0.1";
+
+      const { port: actualPort } = await server.startHTTP({ port, host });
+      console.error(`Listening on http://${host}:${actualPort}/mcp`);
+    } else {
+      await server.start();
+    }
   });
 
 function formatLibraryName(pkg: PackageInfo): string {

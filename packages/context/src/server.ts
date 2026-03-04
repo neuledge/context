@@ -1,6 +1,8 @@
+import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 import { getServerUrl } from "./config.js";
 import { downloadPackage, searchPackages } from "./download.js";
@@ -29,19 +31,113 @@ export class ContextServer {
   }
 
   /**
-   * Start the server with stdio transport.
-   * Registers tools and connects.
+   * Register all MCP tools. Called before connecting a transport.
    */
-  async start(): Promise<void> {
+  private registerTools(): void {
     const packages = this.store.list();
     if (packages.length > 0) {
       this.registerGetDocsTool(packages);
     }
     this.registerSearchPackagesTool();
     this.registerDownloadPackageTool();
+  }
+
+  /**
+   * Start the server with stdio transport.
+   * Registers tools and connects.
+   */
+  async start(): Promise<void> {
+    this.registerTools();
 
     const transport = new StdioServerTransport();
     await this.mcp.connect(transport);
+  }
+
+  /**
+   * Start the server with Streamable HTTP transport.
+   * Creates an HTTP server that handles MCP protocol over HTTP,
+   * allowing multiple clients on the network to connect.
+   *
+   * @returns The HTTP server instance and the port it's listening on.
+   */
+  async startHTTP(options: {
+    port: number;
+    host?: string;
+  }): Promise<{ server: ReturnType<typeof createServer>; port: number }> {
+    this.registerTools();
+
+    const host = options.host ?? "127.0.0.1";
+
+    // Track transports by session ID for multi-client support
+    const transports = new Map<string, StreamableHTTPServerTransport>();
+
+    const httpServer = createServer(async (req, res) => {
+      const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
+
+      if (url.pathname !== "/mcp") {
+        res.writeHead(404).end("Not Found");
+        return;
+      }
+
+      // Handle DELETE for session termination
+      if (req.method === "DELETE") {
+        const sessionId = req.headers["mcp-session-id"] as string | undefined;
+        const transport = sessionId ? transports.get(sessionId) : undefined;
+        if (sessionId && transport) {
+          await transport.close();
+          transports.delete(sessionId);
+          res.writeHead(200).end();
+        } else {
+          res.writeHead(404).end("Session not found");
+        }
+        return;
+      }
+
+      // For GET and POST, route to existing transport or create new one
+      const sessionId = req.headers["mcp-session-id"] as string | undefined;
+
+      if (sessionId && transports.has(sessionId)) {
+        // Existing session
+        await transports.get(sessionId)?.handleRequest(req, res);
+        return;
+      }
+
+      if (sessionId && !transports.has(sessionId)) {
+        // Invalid session ID
+        res.writeHead(404).end("Session not found");
+        return;
+      }
+
+      // New session (no session ID header) — create a new transport.
+      // Pre-generate the session ID so we can store the transport before
+      // handleRequest (which may keep an SSE stream open indefinitely).
+      const newSessionId = crypto.randomUUID();
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => newSessionId,
+      });
+
+      transport.onclose = () => {
+        transports.delete(newSessionId);
+      };
+
+      transports.set(newSessionId, transport);
+
+      // Each new transport gets its own ContextServer sharing the same store
+      const sessionCtx = new ContextServer(this.store);
+      sessionCtx.registerTools();
+
+      await sessionCtx.mcp.connect(transport);
+      await transport.handleRequest(req, res);
+    });
+
+    return new Promise((resolve) => {
+      httpServer.listen(options.port, host, () => {
+        const addr = httpServer.address();
+        const actualPort =
+          typeof addr === "object" && addr ? addr.port : options.port;
+        resolve({ server: httpServer, port: actualPort });
+      });
+    });
   }
 
   /** Access the underlying McpServer for testing. */
