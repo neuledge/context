@@ -61,6 +61,40 @@ Returns an empty array `[]` when no packages match. Results are sorted by versio
 | `description` | string? | Short description |
 | `size` | number? | `.db` file size in bytes |
 
+### Get package metadata
+
+```
+GET /packages/<registry>/<name>/<version>
+```
+
+Check if a package version exists and return its metadata. Used by the publish pipeline for idempotency (skip already-published versions) and by unversioned packages to compare `source_commit`.
+
+**Response `200 OK`:**
+
+```json
+{
+  "registry": "npm",
+  "name": "nextjs",
+  "version": "15.1.0",
+  "source_commit": "abc1234"
+}
+```
+
+**Response fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `registry` | string | Package manager |
+| `name` | string | Package name |
+| `version` | string | Semver version or `"latest"` |
+| `source_commit` | string? | Git SHA for unversioned packages |
+
+**Response `404 Not Found`:**
+
+```json
+{ "error": "Package not found" }
+```
+
 ### Download package
 
 ```
@@ -79,6 +113,27 @@ Download the `.db` file.
 ```json
 { "error": "Package not found" }
 ```
+
+### Publish package (authenticated)
+
+```
+POST /packages/<registry>/<name>/<version>
+Authorization: Bearer <key>
+Content-Type: application/octet-stream
+Body: raw .db file
+```
+
+Upload a new documentation package. Requires a valid API key.
+
+**Response `200 OK`** — Package published successfully.
+
+**Response `401 Unauthorized`:**
+
+```json
+{ "error": "Invalid or missing authorization" }
+```
+
+**Response `409 Conflict`** — Package version already exists (optional; servers may also allow overwrites).
 
 ## Package format (`.db` file)
 
@@ -123,6 +178,7 @@ CREATE VIRTUAL TABLE chunks_fts USING fts5(
 |-----|-------------|
 | `description` | Short package description |
 | `source_url` | URL of the source repository |
+| `source_commit` | Git commit SHA (used for unversioned packages to detect changes) |
 
 ## Error format
 
@@ -141,6 +197,8 @@ Servers may implement rate limiting. When rate-limited, respond with:
 
 ## Implementation notes
 
-- Path parameters (`registry`, `name`, `version`) should be URL-decoded. They contain only alphanumeric characters, hyphens, dots, and `@` signs.
+- Path parameters (`registry`, `name`, `version`) should be URL-decoded. They contain alphanumeric characters, hyphens, dots, `@` signs, and `/` (for scoped packages like `@trpc/server`).
+- Clients URL-encode path parameters with `encodeURIComponent()`. Servers must decode accordingly (e.g., `%40trpc%2Fserver` → `@trpc/server`).
 - The server is responsible for storage. Files can be stored on disk, S3, or any blob store.
 - The server should serve `.db` files with `Content-Length` so clients can show download progress.
+- The publish endpoint requires authentication. The mechanism (API key, OAuth, etc.) is server-specific. The default Neuledge server uses Bearer token authentication.
