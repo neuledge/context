@@ -478,7 +478,7 @@ context query 'nextjs@16.0' 'middleware authentication'
 
 ### Can I use Context with non-JavaScript frameworks like Spring Boot, Django, or Rails?
 
-**Yes!** Context is language-agnostic. It natively supports Markdown (`.md`, `.mdx`), AsciiDoc (`.adoc`), and reStructuredText (`.rst`) — no conversion needed.
+**Yes!** Context is language-agnostic. It natively supports Markdown (`.md`, `.mdx`), plain text (`.txt`), AsciiDoc (`.adoc`), and reStructuredText (`.rst`) — no conversion needed.
 
 ```bash
 # Python - FastAPI (Markdown)
@@ -503,6 +503,7 @@ Yes! The `registry/` directory has YAML definitions organized by package manager
 - **`registry/npm/`** — JavaScript/TypeScript (Next.js, React, Tailwind, etc.)
 - **`registry/pip/`** — Python (FastAPI, Flask, Django, Pydantic)
 - **`registry/maven/`** — Java (Spring Boot, JUnit, Micrometer)
+- **`registry/python/`** — Python language docs (official docs archives)
 
 To add a package, create a YAML file:
 
@@ -522,6 +523,16 @@ versions:
 ```
 
 Version discovery is supported for npm, PyPI, and Maven Central. See existing definitions for examples.
+
+For docs distributed as ZIP archives (for example official doc snapshots), use an unversioned ZIP source:
+
+```yaml
+name: python
+description: "Python language documentation"
+source:
+  type: zip
+  url: https://docs.python.org/3/archives/python-3.14-docs-text.zip
+```
 
 ---
 

@@ -13,6 +13,10 @@
  * - **Unversioned**: top-level `source` field, no version ranges.
  *   Used when docs live in a separate repo without version tags (e.g., drizzle-orm).
  *   Always builds from the default branch with version label "latest".
+ *
+ * Source types:
+ * - `git`: clone a repository and read docs files from it.
+ * - `zip`: download a ZIP archive and read docs files from it.
  */
 
 import { readdirSync, readFileSync } from "node:fs";
@@ -20,12 +24,21 @@ import { basename, dirname, join, relative } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod/v4";
 
-const SourceSchema = z.object({
+const GitSourceSchema = z.object({
   type: z.literal("git"),
   url: z.url(),
   docs_path: z.string().optional(),
   lang: z.string().default("en"),
 });
+
+const ZipSourceSchema = z.object({
+  type: z.literal("zip"),
+  url: z.url(),
+  docs_path: z.string().optional(),
+  lang: z.string().default("en"),
+});
+
+const SourceSchema = z.union([GitSourceSchema, ZipSourceSchema]);
 
 const VersionEntrySchema = z.object({
   min_version: z.string(),
@@ -113,7 +126,10 @@ export function loadDefinition(
   // e.g., npm/@trpc/server.yaml → @trpc/server
   // e.g., npm/next.yaml → next
   const expectedName = managerDir
-    ? relative(managerDir, filePath).replace(/\.yaml$/, "")
+    ? normalizeDefinitionPath(relative(managerDir, filePath)).replace(
+        /\.yaml$/,
+        "",
+      )
     : basename(filePath, ".yaml");
 
   // Allow filesystem-safe encoding: colons in names are replaced with underscores
@@ -129,6 +145,10 @@ export function loadDefinition(
     ...parsed,
     registry,
   } as PackageDefinition;
+}
+
+function normalizeDefinitionPath(path: string): string {
+  return path.replace(/\\/g, "/");
 }
 
 /**

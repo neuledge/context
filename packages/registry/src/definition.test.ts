@@ -322,6 +322,28 @@ source:
     expect(def.source.lang).toBe("en");
   });
 
+  it("parses an unversioned ZIP source definition", () => {
+    const yaml = `
+name: python
+description: "Python language documentation"
+source:
+  type: zip
+  url: https://docs.python.org/3/archives/python-3.14-docs-text.zip
+`;
+    const pythonDir = join(tempDir, "python");
+    mkdirSync(pythonDir);
+    writeFileSync(join(pythonDir, "python.yaml"), yaml);
+
+    const def = loadDefinition(join(pythonDir, "python.yaml"));
+
+    expect(def.name).toBe("python");
+    expect(def.registry).toBe("python");
+    expect(isVersioned(def)).toBe(false);
+    if (isVersioned(def)) throw new Error("expected unversioned");
+    expect(def.source.type).toBe("zip");
+    expect(def.source.lang).toBe("en");
+  });
+
   it("rejects definition with both versions and source", () => {
     const yaml = `
 name: bad
