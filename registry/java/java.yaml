@@ -1,0 +1,7 @@
+name: java
+description: "Java SE documentation"
+repository: https://docs.oracle.com/en/java/javase/25/
+
+source:
+  type: zip
+  url: https://download.oracle.com/otn_software/java/jdk/25.0.2+10/b1e0dfa218384cb9959bdcb897162d4e/jdk-25.0.2_doc-all.zip

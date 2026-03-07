@@ -3,6 +3,7 @@ dist
 dist-packages
 dist-test
 node_modules
+.pnpm-store
 .turbo
 
 # system specific

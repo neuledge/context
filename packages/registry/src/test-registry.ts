@@ -151,7 +151,7 @@ async function buildDefinition(
 
   if (!isVersioned(def)) {
     console.log(`Building ${def.registry}/${def.name}@latest...`);
-    return buildUnversioned(def, outputDir);
+    return await buildUnversioned(def, outputDir);
   }
 
   let version = requestedVersion;
@@ -177,7 +177,7 @@ async function buildDefinition(
   }
 
   console.log(`Building ${def.registry}/${def.name}@${version}...`);
-  return buildFromDefinition(def, version, outputDir);
+  return await buildFromDefinition(def, version, outputDir);
 }
 
 /**

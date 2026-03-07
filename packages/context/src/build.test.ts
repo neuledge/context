@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   parseAsciidoc,
   parseDocument,
+  parseHtml,
   parseMarkdown,
   parseRestructuredText,
 } from "./build.js";
@@ -303,6 +304,37 @@ This section contains only plain text without any code blocks or examples.
 
     expect(result.sections[0].hasCode).toBe(true);
     expect(result.sections[1].hasCode).toBe(false);
+  });
+});
+
+describe("parseHtml", () => {
+  it("extracts title and sections from html headings", () => {
+    const source = `<html>
+<head><title>Python docs</title></head>
+<body>
+  <h1>Python Documentation contents<a class="headerlink" href="#python-documentation-contents" title="Link to this heading"></a></h1>
+  <p>Intro paragraph.</p>
+  <h2>8.5. The "with" statement<a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
+  <p>The with statement is used to wrap the execution of a block.</p>
+  <h2>8.6. The match statement</h2>
+  <p>Structural pattern matching.</p>
+</body>
+</html>`;
+
+    const result = parseHtml(source, "docs/reference/compound_stmts.html");
+
+    expect(result.frontmatter.title).toBe("Python Documentation contents");
+    expect(result.sections).toHaveLength(2);
+    expect(result.sections[0]?.sectionTitle).toBe('8.5. The "with" statement');
+    expect(result.sections[0]?.content).toContain("with statement is used");
+    expect(result.sections[1]?.sectionTitle).toBe("8.6. The match statement");
+  });
+
+  it("is used by parseDocument for html files", () => {
+    const source =
+      "<h1>Doc</h1><h2>Section</h2><p>This section has enough content for indexing.</p>";
+    const result = parseDocument(source, "docs/test.html");
+    expect(result.sections[0]?.sectionTitle).toBe("Section");
   });
 });
 
