@@ -60,7 +60,8 @@ interface ZipEntry {
 }
 
 const ZIP_DOC_EXTENSIONS = [
-  ".txt",
+  ".html",
+  ".htm",
   ".md",
   ".mdx",
   ".qmd",

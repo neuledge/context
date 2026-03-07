@@ -328,7 +328,7 @@ name: python
 description: "Python language documentation"
 source:
   type: zip
-  url: https://docs.python.org/3/archives/python-3.14-docs-text.zip
+  url: https://docs.python.org/3/archives/python-3.14-docs-html.zip
 `;
     const pythonDir = join(tempDir, "python");
     mkdirSync(pythonDir);

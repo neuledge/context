@@ -1,6 +1,6 @@
 /**
  * Build utilities for generating documentation packages.
- * Parses markdown/MDX, AsciiDoc, and reStructuredText files and chunks them by section.
+ * Parses markdown/MDX, HTML, AsciiDoc, and reStructuredText files and chunks them by section.
  */
 
 import type { Content, Heading, Root, Yaml } from "mdast";
@@ -681,6 +681,118 @@ export function parseRestructuredText(
   };
 }
 
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x27;/gi, "'")
+    .replace(/&#x2F;/gi, "/")
+    .replace(/&#(\d+);/g, (_, num) => String.fromCharCode(Number(num)));
+}
+
+function stripHtml(text: string): string {
+  const withoutTags = text
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|section|article|li|ul|ol|pre|table|tr|td|th)>/gi, "\n")
+    .replace(/<[^>]+>/g, " ");
+
+  const decoded = decodeHtmlEntities(withoutTags);
+  return decoded.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+interface HtmlHeading {
+  level: number;
+  title: string;
+  start: number;
+  end: number;
+}
+
+function extractHtmlHeadings(source: string): HtmlHeading[] {
+  const headings: HtmlHeading[] = [];
+  const headingRegex = /<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi;
+
+  for (const match of source.matchAll(headingRegex)) {
+    const full = match[0];
+    const levelRaw = match[1];
+    const inner = match[2];
+    const start = match.index;
+    if (!full || !levelRaw || !inner || start == null) continue;
+
+    const title = stripHtml(inner).replace(/\s+/g, " ").trim();
+    if (!title) continue;
+
+    headings.push({
+      level: Number(levelRaw),
+      title,
+      start,
+      end: start + full.length,
+    });
+  }
+
+  return headings;
+}
+
+/**
+ * Parse an HTML file and extract sections.
+ * Uses h2 headings when available, otherwise falls back to h1.
+ */
+export function parseHtml(source: string, filePath: string): ParsedDoc {
+  const headings = extractHtmlHeadings(source);
+  const h1 = headings.find((h) => h.level === 1);
+  const titleTag = source.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1];
+  const docTitle =
+    h1?.title ||
+    (titleTag ? stripHtml(titleTag).replace(/\s+/g, " ").trim() : undefined) ||
+    filePath
+      .split("/")
+      .pop()
+      ?.replace(/\.(html|htm)$/, "") ||
+    "Untitled";
+
+  const sectionLevel = headings.some((h) => h.level === 2) ? 2 : 1;
+  const sectionHeadings = headings.filter((h) => h.level === sectionLevel);
+  const sections: DocSection[] = [];
+
+  if (sectionHeadings.length === 0) {
+    flushSection(sections, stripHtml(source), filePath, docTitle, "Introduction");
+    return {
+      path: filePath,
+      frontmatter: { title: docTitle },
+      sections,
+    };
+  }
+
+  for (let i = 0; i < sectionHeadings.length; i++) {
+    const heading = sectionHeadings[i];
+    if (!heading) continue;
+
+    const next = sectionHeadings[i + 1];
+    const contentStart = heading.end;
+    const contentEnd = next?.start ?? source.length;
+    const sectionHtml = source.slice(contentStart, contentEnd);
+
+    flushSection(
+      sections,
+      stripHtml(sectionHtml),
+      filePath,
+      docTitle,
+      heading.title,
+    );
+  }
+
+  return {
+    path: filePath,
+    frontmatter: { title: docTitle },
+    sections,
+  };
+}
+
 /** Flush accumulated content into sections, handling chunking and filtering. */
 function flushSection(
   sections: DocSection[],
@@ -713,9 +825,12 @@ function flushSection(
 
 /**
  * Parse a document file, auto-detecting format from file extension.
- * Supports: Markdown (.md, .mdx, .qmd, .rmd), AsciiDoc (.adoc), reStructuredText (.rst)
+ * Supports: Markdown (.md, .mdx, .qmd, .rmd), HTML (.html, .htm), AsciiDoc (.adoc), reStructuredText (.rst)
  */
 export function parseDocument(source: string, filePath: string): ParsedDoc {
+  if (filePath.endsWith(".html") || filePath.endsWith(".htm")) {
+    return parseHtml(source, filePath);
+  }
   if (filePath.endsWith(".adoc")) {
     return parseAsciidoc(source, filePath);
   }

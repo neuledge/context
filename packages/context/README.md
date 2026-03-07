@@ -478,7 +478,7 @@ context query 'nextjs@16.0' 'middleware authentication'
 
 ### Can I use Context with non-JavaScript frameworks like Spring Boot, Django, or Rails?
 
-**Yes!** Context is language-agnostic. It natively supports Markdown (`.md`, `.mdx`), plain text (`.txt`), AsciiDoc (`.adoc`), and reStructuredText (`.rst`) — no conversion needed.
+**Yes!** Context is language-agnostic. It natively supports Markdown (`.md`, `.mdx`), HTML (`.html`, `.htm`), AsciiDoc (`.adoc`), and reStructuredText (`.rst`) — no conversion needed.
 
 ```bash
 # Python - FastAPI (Markdown)
@@ -531,7 +531,7 @@ name: python
 description: "Python language documentation"
 source:
   type: zip
-  url: https://docs.python.org/3/archives/python-3.14-docs-text.zip
+  url: https://docs.python.org/3/archives/python-3.14-docs-html.zip
 ```
 
 ---
