@@ -1,0 +1,7 @@
+name: python
+description: "Python language documentation"
+repository: https://github.com/python/cpython
+
+source:
+  type: zip
+  url: https://docs.python.org/3/archives/python-3.14-docs-text.zip
