@@ -13,7 +13,11 @@ import {
   buildUnversioned,
   getHeadCommit,
 } from "./build.js";
-import { isVersioned, listDefinitions } from "./definition.js";
+import {
+  isVersioned,
+  isZipVersionEntry,
+  listDefinitions,
+} from "./definition.js";
 import { checkPackageExists, publishPackage } from "./publish.js";
 import { discoverVersions } from "./version-check.js";
 
@@ -41,10 +45,12 @@ program
     for (const def of definitions) {
       if (isVersioned(def)) {
         const ranges = def.versions
-          .map(
-            (v) =>
-              `${v.min_version}${v.max_version ? `-${v.max_version}` : "+"}`,
-          )
+          .map((v) => {
+            if (isZipVersionEntry(v)) {
+              return v.versions.join(", ");
+            }
+            return `${v.min_version}${v.max_version ? `-${v.max_version}` : "+"}`;
+          })
           .join(", ");
         console.log(`${def.registry}/${def.name}  [${ranges}]`);
       } else {
@@ -88,7 +94,7 @@ program
   .description("Build a .db package for a specific version")
   .option("--dir <path>", "Registry directory", DEFAULT_REGISTRY_DIR)
   .option("--output <path>", "Output directory", "./dist-packages")
-  .action((name, version, opts) => {
+  .action(async (name, version, opts) => {
     const def = findDefinition(opts.dir, name);
     mkdirSync(opts.output, { recursive: true });
 
@@ -99,7 +105,7 @@ program
         );
       }
       console.log(`Building ${def.registry}/${def.name}@${version}...`);
-      const result = buildFromDefinition(def, version, opts.output);
+      const result = await buildFromDefinition(def, version, opts.output);
       console.log(
         `Built: ${result.path} (${result.sectionCount} sections, ${result.totalTokens} tokens)`,
       );
@@ -107,7 +113,7 @@ program
       console.log(
         `Building ${def.registry}/${def.name}@latest (unversioned)...`,
       );
-      const result = buildUnversioned(def, opts.output);
+      const result = await buildUnversioned(def, opts.output);
       console.log(
         `Built: ${result.path} (${result.sectionCount} sections, ${result.totalTokens} tokens)`,
       );
@@ -148,7 +154,7 @@ program
       }
 
       console.log(`Building ${def.registry}/${def.name}@${version}...`);
-      const result = buildFromDefinition(def, version, opts.output);
+      const result = await buildFromDefinition(def, version, opts.output);
       console.log(
         `Built: ${result.path} (${result.sectionCount} sections, ${result.totalTokens} tokens)`,
       );
@@ -163,7 +169,7 @@ program
         def.name,
         "latest",
       );
-      if (existing?.source_commit) {
+      if (existing?.source_commit && def.source.type === "git") {
         const currentCommit = getHeadCommit(def.source.url);
         if (currentCommit === existing.source_commit) {
           console.log(
@@ -176,7 +182,7 @@ program
       console.log(
         `Building ${def.registry}/${def.name}@latest (unversioned)...`,
       );
-      const result = buildUnversioned(def, opts.output);
+      const result = await buildUnversioned(def, opts.output);
       console.log(
         `Built: ${result.path} (${result.sectionCount} sections, ${result.totalTokens} tokens)`,
       );
@@ -234,7 +240,11 @@ program
             }
 
             console.log(`Building ${id}...`);
-            const result = buildFromDefinition(def, ver.version, opts.output);
+            const result = await buildFromDefinition(
+              def,
+              ver.version,
+              opts.output,
+            );
             console.log(
               `  Built (${result.sectionCount} sections, ${result.totalTokens} tokens)`,
             );
@@ -257,7 +267,7 @@ program
               def.name,
               "latest",
             );
-            if (existing?.source_commit) {
+            if (existing?.source_commit && def.source.type === "git") {
               const currentCommit = getHeadCommit(def.source.url);
               if (currentCommit === existing.source_commit) {
                 skipped++;
@@ -266,7 +276,7 @@ program
             }
 
             console.log(`Building ${id}...`);
-            const result = buildUnversioned(def, opts.output);
+            const result = await buildUnversioned(def, opts.output);
             console.log(
               `  Built (${result.sectionCount} sections, ${result.totalTokens} tokens)`,
             );

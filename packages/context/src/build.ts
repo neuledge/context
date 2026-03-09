@@ -8,6 +8,7 @@ import remarkFrontmatter from "remark-frontmatter";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 import { parse as parseYaml } from "yaml";
+import { parseHtml } from "./html.js";
 
 export interface DocFrontmatter {
   title?: string;
@@ -713,9 +714,13 @@ function flushSection(
 
 /**
  * Parse a document file, auto-detecting format from file extension.
- * Supports: Markdown (.md, .mdx, .qmd, .rmd), AsciiDoc (.adoc), reStructuredText (.rst)
+ * Supports: Markdown (.md, .mdx, .qmd, .rmd), AsciiDoc (.adoc),
+ * reStructuredText (.rst), HTML (.html, .htm)
  */
 export function parseDocument(source: string, filePath: string): ParsedDoc {
+  if (filePath.endsWith(".html") || filePath.endsWith(".htm")) {
+    return parseHtml(source, filePath);
+  }
   if (filePath.endsWith(".adoc")) {
     return parseAsciidoc(source, filePath);
   }

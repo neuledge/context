@@ -13,6 +13,10 @@
  * - **Unversioned**: top-level `source` field, no version ranges.
  *   Used when docs live in a separate repo without version tags (e.g., drizzle-orm).
  *   Always builds from the default branch with version label "latest".
+ *
+ * Source types:
+ * - **git**: Clone a git repository at a specific tag.
+ * - **zip**: Download a ZIP archive from a URL. Supports {version} placeholder.
  */
 
 import { readdirSync, readFileSync } from "node:fs";
@@ -20,19 +24,43 @@ import { basename, dirname, join, relative } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod/v4";
 
-const SourceSchema = z.object({
+const GitSourceSchema = z.object({
   type: z.literal("git"),
   url: z.url(),
   docs_path: z.string().optional(),
   lang: z.string().default("en"),
 });
 
-const VersionEntrySchema = z.object({
+const ZipSourceSchema = z.object({
+  type: z.literal("zip"),
+  url: z.string(), // supports {version} placeholder
+  docs_path: z.string().optional(), // also supports {version}
+  lang: z.string().default("en"),
+});
+
+const SourceSchema = z.discriminatedUnion("type", [
+  GitSourceSchema,
+  ZipSourceSchema,
+]);
+
+// Git version entry: semver range matching
+const GitVersionEntrySchema = z.object({
   min_version: z.string(),
   max_version: z.string().optional(),
-  source: SourceSchema,
+  source: GitSourceSchema,
   tag_pattern: z.string().default("v{version}"),
 });
+
+// Zip version entry: explicit version list with URL template
+const ZipVersionEntrySchema = z.object({
+  versions: z.array(z.string()).min(1),
+  source: ZipSourceSchema,
+});
+
+const VersionEntrySchema = z.union([
+  GitVersionEntrySchema,
+  ZipVersionEntrySchema,
+]);
 
 // A definition has either `versions` (versioned) or `source` (unversioned), not both.
 const DefinitionFileSchema = z
@@ -57,9 +85,27 @@ const DefinitionFileSchema = z
     }
   });
 
+export type GitSource = z.infer<typeof GitSourceSchema>;
+export type ZipSource = z.infer<typeof ZipSourceSchema>;
 export type Source = z.infer<typeof SourceSchema>;
+export type GitVersionEntry = z.infer<typeof GitVersionEntrySchema>;
+export type ZipVersionEntry = z.infer<typeof ZipVersionEntrySchema>;
 export type VersionEntry = z.infer<typeof VersionEntrySchema>;
 export type DefinitionFile = z.infer<typeof DefinitionFileSchema>;
+
+/** Type guard for git version entries (have min_version). */
+export function isGitVersionEntry(
+  entry: VersionEntry,
+): entry is GitVersionEntry {
+  return "min_version" in entry;
+}
+
+/** Type guard for zip version entries (have versions array). */
+export function isZipVersionEntry(
+  entry: VersionEntry,
+): entry is ZipVersionEntry {
+  return "versions" in entry;
+}
 
 interface BaseDefinition {
   name: string;
@@ -167,8 +213,9 @@ export function listDefinitions(registryDir: string): PackageDefinition[] {
 
 /**
  * Find the first version entry that matches a given version.
- * Ranges are evaluated top-to-bottom; first match wins.
- * A version matches if: min_version <= version (< max_version if set).
+ * For git entries: ranges are evaluated top-to-bottom; first match wins.
+ *   A version matches if: min_version <= version (< max_version if set).
+ * For zip entries: exact match against the versions array.
  * Only applicable to versioned definitions.
  */
 export function resolveVersionEntry(
@@ -176,6 +223,9 @@ export function resolveVersionEntry(
   version: string,
 ): VersionEntry | undefined {
   return definition.versions.find((entry) => {
+    if (isZipVersionEntry(entry)) {
+      return entry.versions.includes(version);
+    }
     if (compareSemver(version, entry.min_version) < 0) return false;
     if (entry.max_version && compareSemver(version, entry.max_version) >= 0)
       return false;
@@ -189,6 +239,13 @@ export function resolveVersionEntry(
  */
 export function constructTag(tagPattern: string, version: string): string {
   return tagPattern.replace("{version}", version);
+}
+
+/**
+ * Replace {version} placeholder in a URL or path template.
+ */
+export function resolveUrl(template: string, version: string): string {
+  return template.replaceAll("{version}", version);
 }
 
 /**

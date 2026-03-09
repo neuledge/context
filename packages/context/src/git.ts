@@ -118,6 +118,8 @@ const DOCUMENTATION_EXTENSIONS = [
   ".rmd",
   ".adoc",
   ".rst",
+  ".html",
+  ".htm",
 ];
 
 /**
