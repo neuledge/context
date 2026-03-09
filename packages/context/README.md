@@ -104,20 +104,21 @@ Or use **Settings > Developer > Edit Config** to add the server through the UI.
 <details>
 <summary><strong>OpenAI Codex</strong></summary>
 
+Either use the CLI
+
 ```bash
 codex mcp add context -- context serve
 ```
 
-Add to `~/.codex/config.toml` (global) or `.codex/config.toml` (project-specific):
+Or add to `~/.codex/config.toml` (global) or `.codex/config.toml` (project-specific):
 
 ```toml
 [mcp_servers.context]
 command = "context"
 args = ["serve"]
-startup_timeout_ms = 20_000
 ```
 
-Or use **Settings > Developer > Edit Config** to add the server through the UI.
+Restart OpenAI Codex to apply changes.
 
 </details>
 
