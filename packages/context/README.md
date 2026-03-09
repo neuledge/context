@@ -260,7 +260,8 @@ context add ./packages/my-lib@2.0.db
 Run Context as a containerized HTTP server for multi-client or Kubernetes deployments:
 
 ```bash
-docker build -t context:local .
+# Run from the repository root (required for the monorepo lockfile)
+docker build -t context:local -f packages/context/Dockerfile .
 docker run --rm -p 8080:8080 context:local
 ```
 
