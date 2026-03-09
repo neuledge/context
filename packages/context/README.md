@@ -102,6 +102,26 @@ Or use **Settings > Developer > Edit Config** to add the server through the UI.
 </details>
 
 <details>
+<summary><strong>OpenAI Codex</strong></summary>
+
+```bash
+codex mcp add context -- context serve
+```
+
+Add to `~/.codex/config.toml` (global) or `.codex/config.toml` (project-specific):
+
+```toml
+[mcp_servers.context]
+command = "context"
+args = ["serve"]
+startup_timeout_ms = 20_000
+```
+
+Or use **Settings > Developer > Edit Config** to add the server through the UI.
+
+</details>
+
+<details>
 <summary><strong>VS Code (GitHub Copilot)</strong></summary>
 
 > Requires VS Code 1.102+ with GitHub Copilot
