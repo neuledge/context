@@ -255,6 +255,19 @@ context add ./packages/my-lib@2.0.db
 
 ---
 
+## :whale: Docker
+
+Run Context as a containerized HTTP server for multi-client or Kubernetes deployments:
+
+```bash
+docker build -t context:local .
+docker run --rm -p 8080:8080 context:local
+```
+
+The container starts Context with HTTP transport on port 8080, accessible at `http://localhost:8080/mcp`. The image uses a multi-stage build with `node:22-bookworm-slim` for native module compatibility.
+
+---
+
 ## :books: CLI Reference
 
 ### `context browse <package>`
