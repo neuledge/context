@@ -1,5 +1,11 @@
 # @neuledge/context
 
+## 0.5.0
+
+### Minor Changes
+
+- [#42](https://github.com/neuledge/context/pull/42) [`dc6f246`](https://github.com/neuledge/context/commit/dc6f24608a817531fbc116f1c7c11d4c1128b5f5) Thanks [@moshest](https://github.com/moshest)! - Add HTML document parsing support (.html, .htm files) using turndown for HTML-to-Markdown conversion
+
 ## 0.4.0
 
 ### Minor Changes
