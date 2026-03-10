@@ -1,0 +1,20 @@
+name: Changeset Check
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  changeset-check:
+    name: Changeset Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for changeset
+        uses: changesets/bot@v1
