@@ -36,10 +36,20 @@ import {
   sortTagsForSelection,
   type TagInfo,
 } from "./git.js";
+import {
+  GET_DOCS_TOPIC_DESCRIPTION,
+  NO_DOCUMENTATION_FOUND_MESSAGE,
+  SEARCH_PACKAGES_NAME_DESCRIPTION,
+} from "./guidance.js";
 import { buildPackage } from "./package-builder.js";
 import { type SearchResult, search } from "./search.js";
 import { ContextServer } from "./server.js";
-import { type PackageInfo, PackageStore, readPackageInfo } from "./store.js";
+import {
+  getPackageFileName,
+  type PackageInfo,
+  PackageStore,
+  readPackageInfo,
+} from "./store.js";
 
 type SourceType = "file" | "url" | "git" | "local-dir";
 
@@ -146,7 +156,7 @@ function savePackageCopy(
     statSync(resolvedSavePath).isDirectory()
   ) {
     // Save to directory with standard name
-    destPath = join(resolvedSavePath, `${packageName}@${version}.db`);
+    destPath = join(resolvedSavePath, getPackageFileName(packageName, version));
   } else if (savePath.endsWith(".db")) {
     // Use exact path
     destPath = resolvedSavePath;
@@ -158,7 +168,7 @@ function savePackageCopy(
   } else {
     // Treat as directory, create it
     mkdirSync(resolvedSavePath, { recursive: true });
-    destPath = join(resolvedSavePath, `${packageName}@${version}.db`);
+    destPath = join(resolvedSavePath, getPackageFileName(packageName, version));
   }
 
   copyFileSync(sourcePath, destPath);
@@ -204,7 +214,7 @@ function addFromFile(source: string, options: { save?: string }): void {
 
   // Copy to data directory
   ensureDataDir();
-  const destName = `${info.name}@${info.version}.db`;
+  const destName = getPackageFileName(info.name, info.version);
   const destPath = join(DATA_DIR, destName);
 
   if (resolve(sourcePath) !== destPath) {
@@ -247,7 +257,7 @@ async function addFromUrl(
     console.log(`✓ Validated package`);
 
     // Move to final location
-    const destName = `${info.name}@${info.version}.db`;
+    const destName = getPackageFileName(info.name, info.version);
     const destPath = join(DATA_DIR, destName);
 
     // Remove old version if it exists
@@ -470,7 +480,10 @@ async function addFromGitClone(
 
     // Build the package
     ensureDataDir();
-    const outputPath = join(DATA_DIR, `${packageName}@${versionLabel}.db`);
+    const outputPath = join(
+      DATA_DIR,
+      getPackageFileName(packageName, versionLabel),
+    );
 
     console.log(`Building package...`);
     const result = buildPackage(outputPath, files, {
@@ -544,7 +557,10 @@ async function addFromLocalDir(
 
   // Build the package
   ensureDataDir();
-  const outputPath = join(DATA_DIR, `${packageName}@${versionLabel}.db`);
+  const outputPath = join(
+    DATA_DIR,
+    getPackageFileName(packageName, versionLabel),
+  );
 
   console.log(`Building package...`);
   const result = buildPackage(outputPath, files, {
@@ -734,7 +750,7 @@ function formatSearchResult(result: SearchResult): string {
         library: result.library,
         version: result.version,
         results: [],
-        message: "No documentation found. Try different keywords.",
+        message: NO_DOCUMENTATION_FOUND_MESSAGE,
       },
       null,
       2,
@@ -756,7 +772,7 @@ program
   .command("query")
   .description("Query documentation from an installed package")
   .argument("<library>", "Package name with version (e.g., nextjs@15.0)")
-  .argument("<topic>", "Search query (e.g., 'middleware authentication')")
+  .argument("<topic>", GET_DOCS_TOPIC_DESCRIPTION)
   .action((library: string, topic: string) => {
     const store = new PackageStore();
     loadPackages(store);
@@ -816,7 +832,10 @@ export function parseRegistryPackage(input: string): {
 program
   .command("browse")
   .description("Search for packages available on the registry server")
-  .argument("<package>", 'Package to search for (e.g., "npm/next" or "next")')
+  .argument(
+    "<package>",
+    `${SEARCH_PACKAGES_NAME_DESCRIPTION} or registry/name (e.g., "npm/next")`,
+  )
   .option(
     "--server <name>",
     "Server name from config (uses default if omitted)",

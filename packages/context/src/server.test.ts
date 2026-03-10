@@ -6,6 +6,10 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type Database from "better-sqlite3";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  MISSING_PACKAGE_GUIDANCE,
+  NO_DOCUMENTATION_FOUND_MESSAGE,
+} from "./guidance.js";
 import { search } from "./search.js";
 import { ContextServer } from "./server.js";
 import { PackageStore, readPackageInfo } from "./store.js";
@@ -29,6 +33,32 @@ describe("ContextServer", () => {
 
     expect(serverInfo._serverInfo.name).toBe("context");
     expect(serverInfo._serverInfo.version).toMatch(/^\d+\.\d+\.\d+/);
+  });
+
+  it("registers get_docs even when no packages are installed", async () => {
+    const ctx = new ContextServer(new PackageStore());
+    const { server, port } = await ctx.startHTTP({ port: 0 });
+
+    const client = new Client({ name: "test-client", version: "1.0.0" });
+    const transport = new StreamableHTTPClientTransport(
+      new URL(`http://127.0.0.1:${port}/mcp`),
+    );
+
+    try {
+      await client.connect(transport);
+
+      const tools = await client.listTools();
+      const toolNames = tools.tools.map((tool) => tool.name);
+      expect(toolNames).toContain("get_docs");
+      expect(toolNames).toContain("search_packages");
+      expect(toolNames).toContain("download_package");
+
+      const getDocs = tools.tools.find((tool) => tool.name === "get_docs");
+      expect(JSON.stringify(getDocs)).toContain("search_packages");
+    } finally {
+      await client.close().catch(() => {});
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   });
 });
 
@@ -149,6 +179,41 @@ describe("ContextServer integration", () => {
     expect(store.list()).toHaveLength(1);
     expect(store.list()[0]?.name).toBe("nextjs");
   });
+
+  it("returns missing-package guidance when get_docs is called for an unknown library", () => {
+    const store = new PackageStore();
+    const ctx = new ContextServer(store) as unknown as {
+      handleGetDocs: (
+        library: string,
+        topic: string,
+      ) => { content: { type: "text"; text: string }[] };
+    };
+
+    const result = ctx.handleGetDocs("missing-lib@1.0.0", "middleware");
+    const text = result.content[0]?.text;
+    expect(text).toBeDefined();
+
+    const parsed = JSON.parse(text ?? "");
+    expect(parsed.error).toBe("Package not found: missing-lib@1.0.0");
+    expect(parsed.message).toBe(MISSING_PACKAGE_GUIDANCE);
+  });
+
+  it("returns first-run guidance when get_docs is called before any packages are installed", () => {
+    const ctx = new ContextServer(new PackageStore()) as unknown as {
+      handleGetDocs: (
+        library: string,
+        topic: string,
+      ) => { content: { type: "text"; text: string }[] };
+    };
+
+    const result = ctx.handleGetDocs("nextjs@15.0", "middleware");
+    const text = result.content[0]?.text;
+    expect(text).toBeDefined();
+
+    const parsed = JSON.parse(text ?? "");
+    expect(parsed.error).toBe("Package not found: nextjs@15.0");
+    expect(parsed.message).toBe(MISSING_PACKAGE_GUIDANCE);
+  });
 });
 
 describe("ContextServer HTTP transport", () => {
@@ -244,6 +309,37 @@ describe("ContextServer HTTP transport", () => {
     expect(tools2.tools.map((t) => t.name)).toContain("get_docs");
   });
 
+  it("exposes short-query and registry workflow guidance in tool metadata", async () => {
+    const client = new Client({ name: "test-client", version: "1.0.0" });
+    clients.push(client);
+    const transport = new StreamableHTTPClientTransport(
+      new URL(`http://127.0.0.1:${port}/mcp`),
+    );
+
+    await client.connect(transport);
+
+    const tools = await client.listTools();
+    const getDocs = tools.tools.find((tool) => tool.name === "get_docs");
+    const searchPackages = tools.tools.find(
+      (tool) => tool.name === "search_packages",
+    );
+
+    expect(getDocs).toBeDefined();
+    expect(searchPackages).toBeDefined();
+
+    const getDocsText = JSON.stringify(getDocs);
+    const searchPackagesText = JSON.stringify(searchPackages);
+
+    expect(getDocsText).toContain("Search terms are all matched together");
+    expect(getDocsText).toContain(
+      "extra words will narrow but can also eliminate results",
+    );
+    expect(getDocsText).toContain("search_packages");
+    expect(searchPackagesText).toContain("Use short package names like");
+    expect(searchPackagesText).toContain("download_package");
+    expect(searchPackagesText).toContain("context add");
+  });
+
   it("returns tool results via HTTP transport", async () => {
     const client = new Client({ name: "test-client", version: "1.0.0" });
     clients.push(client);
@@ -263,6 +359,27 @@ describe("ContextServer HTTP transport", () => {
     const parsed = JSON.parse(text ?? "");
     expect(parsed.library).toBe("nextjs@15.0");
     expect(parsed.results.length).toBeGreaterThan(0);
+  });
+
+  it("returns actionable no-results guidance through get_docs", async () => {
+    const client = new Client({ name: "test-client", version: "1.0.0" });
+    clients.push(client);
+    const transport = new StreamableHTTPClientTransport(
+      new URL(`http://127.0.0.1:${port}/mcp`),
+    );
+
+    await client.connect(transport);
+
+    const result = await client.callTool({
+      name: "get_docs",
+      arguments: { library: "nextjs@15.0", topic: "graphql federation" },
+    });
+
+    const text = (result.content as { type: string; text: string }[])[0]?.text;
+    expect(text).toBeDefined();
+    const parsed = JSON.parse(text ?? "");
+    expect(parsed.results).toEqual([]);
+    expect(parsed.message).toBe(NO_DOCUMENTATION_FOUND_MESSAGE);
   });
 
   it("returns 404 for non-MCP paths", async () => {

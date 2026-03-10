@@ -6,6 +6,16 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { z } from "zod";
 import { getServerUrl } from "./config.js";
 import { downloadPackage, searchPackages } from "./download.js";
+import {
+  DOWNLOAD_PACKAGE_DESCRIPTION,
+  GET_DOCS_DESCRIPTION,
+  GET_DOCS_LIBRARY_DESCRIPTION,
+  GET_DOCS_TOPIC_DESCRIPTION,
+  MISSING_PACKAGE_GUIDANCE,
+  NO_DOCUMENTATION_FOUND_MESSAGE,
+  SEARCH_PACKAGES_DESCRIPTION,
+  SEARCH_PACKAGES_NAME_DESCRIPTION,
+} from "./guidance.js";
 import { type SearchResult, search } from "./search.js";
 import type { PackageInfo, PackageStore } from "./store.js";
 
@@ -35,9 +45,7 @@ export class ContextServer {
    */
   private registerTools(): void {
     const packages = this.store.list();
-    if (packages.length > 0) {
-      this.registerGetDocsTool(packages);
-    }
+    this.registerGetDocsTool(packages);
     this.registerSearchPackagesTool();
     this.registerDownloadPackageTool();
   }
@@ -145,23 +153,31 @@ export class ContextServer {
     return this.mcp;
   }
 
-  private registerGetDocsTool(packages: PackageInfo[]): void {
-    const libraryEnum = packages.map(formatLibraryName);
+  /**
+   * Always expose get_docs so first-run agents can discover the registry-first
+   * workflow instead of failing because the tool is absent.
+   */
+  private buildGetDocsLibrarySchema(
+    packages: PackageInfo[],
+  ): z.ZodType<string> {
+    if (packages.length === 0) {
+      return z.string().describe(GET_DOCS_LIBRARY_DESCRIPTION);
+    }
 
+    const libraryEnum = packages.map(formatLibraryName);
+    return z
+      .enum(libraryEnum as [string, ...string[]])
+      .describe(GET_DOCS_LIBRARY_DESCRIPTION);
+  }
+
+  private registerGetDocsTool(packages: PackageInfo[]): void {
     this.getDocsRegistration = this.mcp.registerTool(
       "get_docs",
       {
-        description:
-          "Provides the latest official documentation for installed libraries. Use this as your primary reference when working with library APIs - it contains current, version-specific information that may be more accurate than training data or web searches. Covers API signatures, usage patterns, and best practices. Instant local lookup, no network needed.",
+        description: GET_DOCS_DESCRIPTION,
         inputSchema: {
-          library: z
-            .enum(libraryEnum as [string, ...string[]])
-            .describe("The library to search (name@version)"),
-          topic: z
-            .string()
-            .describe(
-              "What you need help with (e.g., 'middleware authentication', 'server components')",
-            ),
+          library: this.buildGetDocsLibrarySchema(packages),
+          topic: z.string().describe(GET_DOCS_TOPIC_DESCRIPTION),
         },
       },
       async ({ library, topic }) => {
@@ -177,22 +193,12 @@ export class ContextServer {
   private refreshGetDocsTool(): void {
     const packages = this.store.list();
 
-    if (packages.length === 0) return;
-
-    const libraryEnum = packages.map(formatLibraryName);
-
     if (this.getDocsRegistration) {
       // Update existing tool with new enum
       this.getDocsRegistration.update({
         paramsSchema: {
-          library: z
-            .enum(libraryEnum as [string, ...string[]])
-            .describe("The library to search (name@version)"),
-          topic: z
-            .string()
-            .describe(
-              "What you need help with (e.g., 'middleware authentication', 'server components')",
-            ),
+          library: this.buildGetDocsLibrarySchema(packages),
+          topic: z.string().describe(GET_DOCS_TOPIC_DESCRIPTION),
         },
         callback: async ({
           library,
@@ -223,7 +229,10 @@ export class ContextServer {
         content: [
           {
             type: "text",
-            text: JSON.stringify({ error: `Package not found: ${library}` }),
+            text: JSON.stringify({
+              error: `Package not found: ${library}`,
+              message: MISSING_PACKAGE_GUIDANCE,
+            }),
           },
         ],
       };
@@ -257,15 +266,12 @@ export class ContextServer {
     this.mcp.registerTool(
       "search_packages",
       {
-        description:
-          "Search for documentation packages available on the registry server. Use this to discover libraries you can download for offline documentation access.",
+        description: SEARCH_PACKAGES_DESCRIPTION,
         inputSchema: {
           registry: z
             .string()
             .describe('Package registry (e.g., "npm", "pip", "cargo", "go")'),
-          name: z
-            .string()
-            .describe('Package name to search for (e.g., "react", "next")'),
+          name: z.string().describe(SEARCH_PACKAGES_NAME_DESCRIPTION),
           version: z
             .string()
             .optional()
@@ -319,8 +325,7 @@ export class ContextServer {
     this.mcp.registerTool(
       "download_package",
       {
-        description:
-          "Download and install a documentation package from the registry server. Once installed, the package becomes available through the get_docs tool for instant offline documentation lookup.",
+        description: DOWNLOAD_PACKAGE_DESCRIPTION,
         inputSchema: {
           registry: z
             .string()
@@ -396,7 +401,7 @@ function formatSearchResult(result: SearchResult): string {
       library: result.library,
       version: result.version,
       results: [],
-      message: "No documentation found. Try different keywords.",
+      message: NO_DOCUMENTATION_FOUND_MESSAGE,
     });
   }
 
