@@ -8,6 +8,7 @@
 import {
   compareSemver,
   isVersioned,
+  isZipVersionEntry,
   type PackageDefinition,
   resolveVersionEntry,
 } from "./definition.js";
@@ -59,6 +60,22 @@ export async function discoverVersions(
 
   const fetcher = registryFetchers[definition.registry];
   if (!fetcher) {
+    // For registries without API fetchers (e.g., python, java),
+    // extract versions from zip version entries directly
+    const explicitVersions: AvailableVersion[] = [];
+    for (const entry of definition.versions) {
+      if (isZipVersionEntry(entry)) {
+        for (const v of entry.versions) {
+          explicitVersions.push({
+            name: definition.name,
+            registry: definition.registry,
+            version: v,
+          });
+        }
+      }
+    }
+    if (explicitVersions.length > 0) return explicitVersions;
+
     throw new Error(`Unsupported registry: ${definition.registry}`);
   }
 

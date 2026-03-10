@@ -36,6 +36,7 @@ export {
   parseGitUrl,
   readLocalDocsFiles,
 } from "./git.js";
+export { parseHtml } from "./html.js";
 export {
   type BuildResult,
   buildPackage,

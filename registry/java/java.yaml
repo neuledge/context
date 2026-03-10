@@ -1,0 +1,11 @@
+name: java
+description: "Java SE official documentation (Oracle JDK)"
+
+versions:
+  - versions: ["25.0.2"]
+    source:
+      type: zip
+      url: "https://download.oracle.com/otn_software/java/jdk/25.0.2+10/b1e0dfa218384cb9959bdcb897162d4e/jdk-25.0.2_doc-all.zip"
+      docs_path: "docs/api"
+      exclude_paths:
+        - "**/*-index.html"

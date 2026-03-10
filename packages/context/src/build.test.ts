@@ -5,6 +5,7 @@ import {
   parseMarkdown,
   parseRestructuredText,
 } from "./build.js";
+import { parseHtml } from "./html.js";
 
 describe("parseMarkdown", () => {
   it("extracts frontmatter title and description", () => {
@@ -437,5 +438,92 @@ Content for the restructuredtext parser to process and include.
 
     const result = parseDocument(source, "docs/test.rst");
     expect(result.frontmatter.title).toBe("Title");
+  });
+
+  it("dispatches .html files to parseHtml", () => {
+    const source = `<html>
+<head><title>HTML Doc</title></head>
+<body>
+<h1>HTML Doc</h1>
+<h2>First Section</h2>
+<p>Content in the first section of the HTML document for testing.</p>
+</body>
+</html>`;
+
+    const result = parseDocument(source, "docs/test.html");
+    expect(result.sections.length).toBeGreaterThanOrEqual(1);
+    expect(result.sections[0].sectionTitle).toBe("First Section");
+  });
+
+  it("dispatches .htm files to parseHtml", () => {
+    const source = `<html>
+<body>
+<h1>Title</h1>
+<h2>Section</h2>
+<p>Content for the htm parser to process and include in the output.</p>
+</body>
+</html>`;
+
+    const result = parseDocument(source, "docs/test.htm");
+    expect(result.sections[0].sectionTitle).toBe("Section");
+  });
+});
+
+describe("parseHtml", () => {
+  it("extracts h1 as doc title and h2 as section boundaries", () => {
+    const source = `<html>
+<head><title>API Reference</title></head>
+<body>
+<h1>API Reference</h1>
+<h2>Authentication</h2>
+<p>Use API keys to authenticate your requests to the service.</p>
+<h2>Endpoints</h2>
+<p>The following endpoints are available for interacting with the API.</p>
+</body>
+</html>`;
+
+    const result = parseHtml(source, "docs/api.html");
+    expect(result.sections).toHaveLength(2);
+    expect(result.sections[0].sectionTitle).toBe("Authentication");
+    expect(result.sections[1].sectionTitle).toBe("Endpoints");
+  });
+
+  it("strips script, style, nav, and footer elements", () => {
+    const source = `<html>
+<head>
+<style>body { color: red; }</style>
+<script>alert('hi')</script>
+</head>
+<body>
+<nav><a href="/">Home</a></nav>
+<h1>Doc</h1>
+<h2>Content</h2>
+<p>This is the actual content that should be preserved in the output.</p>
+<footer>Copyright 2024</footer>
+</body>
+</html>`;
+
+    const result = parseHtml(source, "docs/test.html");
+    expect(result.sections).toHaveLength(1);
+    const content = result.sections[0].content;
+    expect(content).not.toContain("alert");
+    expect(content).not.toContain("color: red");
+    expect(content).not.toContain("Copyright");
+    expect(content).toContain("actual content");
+  });
+
+  it("preserves code blocks", () => {
+    const source = `<html>
+<body>
+<h1>Guide</h1>
+<h2>Example</h2>
+<pre><code>const x = 1;
+console.log(x);</code></pre>
+</body>
+</html>`;
+
+    const result = parseHtml(source, "docs/guide.html");
+    expect(result.sections[0].content).toContain("const x = 1");
+    expect(result.sections[0].hasCode).toBe(true);
   });
 });

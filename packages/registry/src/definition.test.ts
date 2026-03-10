@@ -6,8 +6,10 @@ import {
   compareSemver,
   constructTag,
   isVersioned,
+  isZipVersionEntry,
   listDefinitions,
   loadDefinition,
+  resolveUrl,
   resolveVersionEntry,
   type VersionedDefinition,
 } from "./definition.js";
@@ -373,5 +375,122 @@ description: "No source"
 
     expect(isVersioned(drizzle)).toBe(false);
     expect(isVersioned(next)).toBe(true);
+  });
+});
+
+describe("zip source definitions", () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), "zip-test-"));
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it("parses a zip source definition with versions list", () => {
+    const yaml = `
+name: python
+description: "Python official docs"
+repository: https://github.com/python/cpython
+versions:
+  - versions: ["3.14", "3.13"]
+    source:
+      type: zip
+      url: "https://docs.python.org/3/archives/python-{version}-docs-html.zip"
+      docs_path: "python-{version}-docs-html"
+`;
+    const pythonDir = join(tempDir, "python");
+    mkdirSync(pythonDir);
+    writeFileSync(join(pythonDir, "python.yaml"), yaml);
+
+    const def = loadDefinition(join(pythonDir, "python.yaml"));
+
+    expect(def.name).toBe("python");
+    expect(def.registry).toBe("python");
+    expect(isVersioned(def)).toBe(true);
+    if (!isVersioned(def)) throw new Error("expected versioned");
+    expect(def.versions).toHaveLength(1);
+    expect(isZipVersionEntry(def.versions[0])).toBe(true);
+    if (isZipVersionEntry(def.versions[0])) {
+      expect(def.versions[0].versions).toEqual(["3.14", "3.13"]);
+      expect(def.versions[0].source.type).toBe("zip");
+    }
+  });
+
+  it("parses exclude_paths in zip source", () => {
+    const yaml = `
+name: python
+description: "Python official docs"
+repository: https://github.com/python/cpython
+versions:
+  - versions: ["3.14"]
+    source:
+      type: zip
+      url: "https://docs.python.org/3/archives/python-{version}-docs-html.zip"
+      docs_path: "python-{version}-docs-html"
+      exclude_paths:
+        - "whatsnew/**"
+        - "changelog.html"
+`;
+    const pythonDir = join(tempDir, "python");
+    mkdirSync(pythonDir);
+    writeFileSync(join(pythonDir, "python.yaml"), yaml);
+
+    const def = loadDefinition(join(pythonDir, "python.yaml"));
+
+    expect(isVersioned(def)).toBe(true);
+    if (!isVersioned(def)) throw new Error("expected versioned");
+    if (isZipVersionEntry(def.versions[0])) {
+      expect(def.versions[0].source.exclude_paths).toEqual([
+        "whatsnew/**",
+        "changelog.html",
+      ]);
+    }
+  });
+
+  it("resolves zip version entry by exact match", () => {
+    const def: VersionedDefinition = {
+      name: "python",
+      registry: "python",
+      versions: [
+        {
+          versions: ["3.14", "3.13", "3.12"],
+          source: {
+            type: "zip" as const,
+            url: "https://docs.python.org/3/archives/python-{version}-docs-html.zip",
+            lang: "en",
+          },
+        },
+      ],
+    };
+
+    expect(resolveVersionEntry(def, "3.14")).toBeDefined();
+    expect(resolveVersionEntry(def, "3.13")).toBeDefined();
+    expect(resolveVersionEntry(def, "3.11")).toBeUndefined();
+  });
+});
+
+describe("resolveUrl", () => {
+  it("replaces {version} in URL template", () => {
+    expect(
+      resolveUrl(
+        "https://docs.python.org/3/archives/python-{version}-docs-html.zip",
+        "3.14",
+      ),
+    ).toBe("https://docs.python.org/3/archives/python-3.14-docs-html.zip");
+  });
+
+  it("replaces multiple {version} occurrences", () => {
+    expect(resolveUrl("prefix-{version}/sub-{version}", "1.0")).toBe(
+      "prefix-1.0/sub-1.0",
+    );
+  });
+
+  it("returns unchanged string when no placeholder", () => {
+    expect(resolveUrl("https://example.com/docs.zip", "1.0")).toBe(
+      "https://example.com/docs.zip",
+    );
   });
 });

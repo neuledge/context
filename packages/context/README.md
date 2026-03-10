@@ -513,7 +513,7 @@ context query 'nextjs@16.0' 'middleware authentication'
 
 ### Can I use Context with non-JavaScript frameworks like Spring Boot, Django, or Rails?
 
-**Yes!** Context is language-agnostic. It natively supports Markdown (`.md`, `.mdx`), AsciiDoc (`.adoc`), and reStructuredText (`.rst`) — no conversion needed.
+**Yes!** Context is language-agnostic. It natively supports Markdown (`.md`, `.mdx`), AsciiDoc (`.adoc`), reStructuredText (`.rst`), and HTML — no conversion needed.
 
 ```bash
 # Python - FastAPI (Markdown)
@@ -539,7 +539,9 @@ Yes! The `registry/` directory has YAML definitions organized by package manager
 - **`registry/pip/`** — Python (FastAPI, Flask, Django, Pydantic)
 - **`registry/maven/`** — Java (Spring Boot, JUnit, Micrometer)
 
-To add a package, create a YAML file:
+To add a package, create a YAML file. Two source types are supported:
+
+**Git source** — clone a repo at a version tag:
 
 ```yaml
 # registry/pip/my-library.yaml
@@ -554,6 +556,24 @@ versions:
       url: https://github.com/org/my-library
       docs_path: docs
     tag_pattern: "v{version}"
+```
+
+**ZIP source** — download HTML docs from a URL (supports `{version}` placeholder):
+
+```yaml
+# registry/python/python.yaml
+name: python
+description: "Python programming language official documentation"
+
+versions:
+  - versions: ["3.14", "3.13", "3.12"]
+    source:
+      type: zip
+      url: "https://docs.python.org/3/archives/python-{version}-docs-html.zip"
+      docs_path: "python-{version}-docs-html"
+      exclude_paths:
+        - "whatsnew/**"
+        - "changelog.html"
 ```
 
 Version discovery is supported for npm, PyPI, and Maven Central. See existing definitions for examples.

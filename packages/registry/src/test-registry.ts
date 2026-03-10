@@ -18,6 +18,7 @@ import {
 } from "./build.js";
 import {
   compareSemver,
+  isGitVersionEntry,
   isVersioned,
   listDefinitions,
   type PackageDefinition,
@@ -151,7 +152,7 @@ async function buildDefinition(
 
   if (!isVersioned(def)) {
     console.log(`Building ${def.registry}/${def.name}@latest...`);
-    return buildUnversioned(def, outputDir);
+    return await buildUnversioned(def, outputDir);
   }
 
   let version = requestedVersion;
@@ -177,7 +178,7 @@ async function buildDefinition(
   }
 
   console.log(`Building ${def.registry}/${def.name}@${version}...`);
-  return buildFromDefinition(def, version, outputDir);
+  return await buildFromDefinition(def, version, outputDir);
 }
 
 /**
@@ -187,7 +188,8 @@ async function buildDefinition(
 function findLatestVersionFromGit(entries: VersionEntry[]): string | undefined {
   let latest: string | undefined;
 
-  for (const entry of entries) {
+  const gitEntries = entries.filter(isGitVersionEntry);
+  for (const entry of gitEntries) {
     const tags = listRemoteTags(entry.source.url, entry.tag_pattern);
 
     for (const tag of tags) {
