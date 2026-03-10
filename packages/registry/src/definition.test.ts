@@ -419,6 +419,37 @@ versions:
     }
   });
 
+  it("parses exclude_paths in zip source", () => {
+    const yaml = `
+name: python
+description: "Python official docs"
+repository: https://github.com/python/cpython
+versions:
+  - versions: ["3.14"]
+    source:
+      type: zip
+      url: "https://docs.python.org/3/archives/python-{version}-docs-html.zip"
+      docs_path: "python-{version}-docs-html"
+      exclude_paths:
+        - "whatsnew/**"
+        - "changelog.html"
+`;
+    const pythonDir = join(tempDir, "python");
+    mkdirSync(pythonDir);
+    writeFileSync(join(pythonDir, "python.yaml"), yaml);
+
+    const def = loadDefinition(join(pythonDir, "python.yaml"));
+
+    expect(isVersioned(def)).toBe(true);
+    if (!isVersioned(def)) throw new Error("expected versioned");
+    if (isZipVersionEntry(def.versions[0])) {
+      expect(def.versions[0].source.exclude_paths).toEqual([
+        "whatsnew/**",
+        "changelog.html",
+      ]);
+    }
+  });
+
   it("resolves zip version entry by exact match", () => {
     const def: VersionedDefinition = {
       name: "python",

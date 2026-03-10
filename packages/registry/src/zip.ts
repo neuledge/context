@@ -19,6 +19,28 @@ const DOCUMENTATION_EXTENSIONS = [
   ".htm",
 ];
 
+/**
+ * Common auto-generated HTML files that are navigation indexes or
+ * boilerplate rather than useful documentation content.
+ * Matched against the filename (basename) of each entry.
+ */
+const IGNORED_FILES = new Set([
+  // Javadoc auto-generated indexes
+  "allpackages-index.html",
+  "allclasses-index.html",
+  "index-all.html",
+  "constant-values.html",
+  "serialized-form.html",
+  "deprecated-list.html",
+  "help-doc.html",
+  "overview-tree.html",
+  // Common navigation/generated pages
+  "genindex.html",
+  "search.html",
+  "searchindex.js",
+  "py-modindex.html",
+]);
+
 interface ZipEntry {
   path: string;
   compressedSize: number;
@@ -30,10 +52,11 @@ interface ZipEntry {
 /**
  * Download a ZIP file from a URL and extract documentation files.
  * Optionally filters to a specific subdirectory within the archive.
+ * Supports exclude patterns (glob-style with * wildcards) to skip unwanted files.
  */
 export async function downloadAndExtractZip(
   url: string,
-  options?: { docsPath?: string },
+  options?: { docsPath?: string; excludePaths?: string[] },
 ): Promise<Array<{ path: string; content: string }>> {
   const response = await fetch(url);
   if (!response.ok) {
@@ -45,6 +68,7 @@ export async function downloadAndExtractZip(
 
   const files: Array<{ path: string; content: string }> = [];
   const docsPath = options?.docsPath;
+  const excludePatterns = options?.excludePaths?.map(compileGlob);
 
   for (const entry of entries) {
     // Skip directories
@@ -57,15 +81,35 @@ export async function downloadAndExtractZip(
     const ext = getExtension(entry.path);
     if (!DOCUMENTATION_EXTENSIONS.includes(ext)) continue;
 
-    const content = extractEntry(buffer, entry);
     const relativePath = docsPath
       ? entry.path.slice(docsPath.length + 1)
       : entry.path;
 
+    // Skip default ignored files (by basename)
+    const basename = relativePath.split("/").pop() ?? "";
+    if (IGNORED_FILES.has(basename)) continue;
+
+    // Apply custom exclude patterns against relative path
+    if (excludePatterns?.some((re) => re.test(relativePath))) continue;
+
+    const content = extractEntry(buffer, entry);
     files.push({ path: relativePath, content });
   }
 
   return files;
+}
+
+/**
+ * Compile a simple glob pattern to a RegExp.
+ * Supports * (any chars except /) and ** (any chars including /).
+ */
+function compileGlob(pattern: string): RegExp {
+  const escaped = pattern
+    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*\*/g, "\0")
+    .replace(/\*/g, "[^/]*")
+    .replace(/\0/g, ".*");
+  return new RegExp(`^${escaped}$`);
 }
 
 /** Get lowercase file extension including the dot. */

@@ -8,3 +8,9 @@ versions:
       type: zip
       url: "https://docs.python.org/3/archives/python-{version}-docs-html.zip"
       docs_path: "python-{version}-docs-html"
+      exclude_paths:
+        - "whatsnew/**"
+        - "changelog.html"
+        - "deprecations/**"
+        - "installing/**"
+        - "distributing/**"

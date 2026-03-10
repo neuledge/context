@@ -35,6 +35,7 @@ const ZipSourceSchema = z.object({
   type: z.literal("zip"),
   url: z.string(), // supports {version} placeholder
   docs_path: z.string().optional(), // also supports {version}
+  exclude_paths: z.array(z.string()).optional(), // glob patterns to exclude
   lang: z.string().default("en"),
 });
 

@@ -92,7 +92,10 @@ export async function buildFromDefinition(
     ? resolveUrl(entry.source.docs_path, version)
     : undefined;
 
-  const files = await downloadAndExtractZip(url, { docsPath });
+  const files = await downloadAndExtractZip(url, {
+    docsPath,
+    excludePaths: entry.source.exclude_paths,
+  });
 
   if (files.length === 0) {
     throw new Error(`No documentation files found in ZIP from ${url}`);
@@ -133,6 +136,7 @@ export async function buildUnversioned(
   if (source.type === "zip") {
     const files = await downloadAndExtractZip(source.url, {
       docsPath: source.docs_path,
+      excludePaths: source.exclude_paths,
     });
 
     if (files.length === 0) {
