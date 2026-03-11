@@ -17,7 +17,9 @@ export interface PackageInfo extends PackageMeta {
 
 /** Create a filesystem-safe filename for an installed package database. */
 export function getPackageFileName(name: string, version: string): string {
-  return `${encodeURIComponent(name)}@${encodeURIComponent(version)}.db`;
+  const safeName = name.replaceAll("/", "__");
+  const safeVersion = version.replaceAll("/", "__");
+  return `${safeName}@${safeVersion}.db`;
 }
 
 /**
