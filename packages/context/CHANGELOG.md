@@ -4,7 +4,7 @@
 
 ### Patch Changes
 
-- [#47](https://github.com/neuledge/context/pull/47) [`5907850`](https://github.com/neuledge/context/commit/59078502ee8a226d525db43bc18d65a02e14695a) Thanks [@moshest](https://github.com/moshest)! - Improve MCP guidance for concise `get_docs` queries and the registry-first install workflow. Fix scoped package installs (e.g., `@tanstack/react-query`) by sanitizing `/` in filenames.
+- [#47](https://github.com/neuledge/context/pull/47) [`5907850`](https://github.com/neuledge/context/commit/59078502ee8a226d525db43bc18d65a02e14695a) Thanks [@notanobject](https://github.com/notanobject)! - Improve MCP guidance for concise `get_docs` queries and the registry-first install workflow. Fix scoped package installs (e.g., `@tanstack/react-query`) by sanitizing `/` in filenames.
 
 ## 0.5.0
 
