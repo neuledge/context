@@ -90,7 +90,10 @@ export async function downloadPackage(
     const info = readPackageInfo(tempPath);
 
     // Move to final location
-    const destPath = join(DATA_DIR, getPackageFileName(info.name, info.version));
+    const destPath = join(
+      DATA_DIR,
+      getPackageFileName(info.name, info.version),
+    );
 
     if (existsSync(destPath)) {
       unlinkSync(destPath);
