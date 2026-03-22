@@ -41,6 +41,7 @@ import {
   NO_DOCUMENTATION_FOUND_MESSAGE,
   SEARCH_PACKAGES_NAME_DESCRIPTION,
 } from "./guidance.js";
+import { fetchLlmsTxt, parseLlmsTxt } from "./llmstxt.js";
 import { buildPackage } from "./package-builder.js";
 import { type SearchResult, search } from "./search.js";
 import { ContextServer } from "./server.js";
@@ -51,7 +52,7 @@ import {
   readPackageInfo,
 } from "./store.js";
 
-type SourceType = "file" | "url" | "git" | "local-dir";
+type SourceType = "file" | "url" | "git" | "local-dir" | "llmstxt";
 
 /** Detect the type of source based on the input string. */
 export function detectSourceType(source: string): SourceType {
@@ -586,6 +587,92 @@ async function addFromLocalDir(
   warnIfLowDocs(result.sectionCount, packageName);
 }
 
+/**
+ * Install a package from a project's llms.txt/llms-full.txt.
+ * Fetches both files, parses them through the markdown pipeline, and builds a .context package.
+ */
+async function addFromLlmsTxt(
+  source: string,
+  options: { name?: string; save?: string },
+): Promise<void> {
+  // Normalize: strip /llms.txt suffix if provided
+  const baseUrl = source.replace(/\/llms\.txt\/?$/, "");
+
+  console.log(`Fetching llms.txt from ${baseUrl}...`);
+
+  const llmsSource = await fetchLlmsTxt(baseUrl);
+  const hasFull = llmsSource.full !== undefined;
+
+  console.log(`✓ Fetched llms.txt${hasFull ? " + llms-full.txt" : ""}`);
+
+  // Parse the content
+  const parsedDocs = parseLlmsTxt(llmsSource);
+  const totalSections = parsedDocs.reduce(
+    (sum, doc) => sum + doc.sections.length,
+    0,
+  );
+
+  if (totalSections === 0) {
+    throw new Error(
+      "No parseable content found in llms.txt. The file may be empty or malformed.",
+    );
+  }
+
+  console.log(
+    `✓ Parsed ${parsedDocs.length} file(s), ${totalSections} section(s)`,
+  );
+
+  // Flatten all sections into MarkdownFile entries for the package builder
+  const files: { path: string; content: string }[] = [];
+  for (const doc of parsedDocs) {
+    for (const section of doc.sections) {
+      files.push({
+        path: `${doc.path}#${section.sectionTitle
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/(^-|-$)/g, "")}`,
+        content: section.content,
+      });
+    }
+  }
+
+  // Determine package name from the base URL hostname or option
+  const hostname = new URL(baseUrl).hostname.replace(/^www\./, "");
+  const packageName =
+    options.name ?? (hostname.split(".").slice(0, -1).join(".") || hostname);
+  const versionLabel = "latest";
+
+  // Build the package
+  ensureDataDir();
+  const outputPath = join(
+    DATA_DIR,
+    getPackageFileName(packageName, versionLabel),
+  );
+
+  console.log("Building package...");
+  const result = buildPackage(outputPath, files, {
+    name: packageName,
+    version: versionLabel,
+    sourceUrl: baseUrl,
+  });
+
+  console.log(`✓ Built package: ${packageName}@${versionLabel}`);
+  console.log(`✓ Saved to ${outputPath}`);
+
+  // Save to custom path if specified
+  if (options.save) {
+    savePackageCopy(outputPath, options.save, packageName, versionLabel);
+  }
+
+  const sizeBytes = statSync(outputPath).size;
+
+  console.log(
+    `\nInstalled: ${packageName}@${versionLabel} (${formatBytes(sizeBytes)}, ${result.sectionCount} sections)`,
+  );
+
+  warnIfLowDocs(result.sectionCount, packageName);
+}
+
 program
   .command("add")
   .description(
@@ -604,6 +691,10 @@ program
     "--lang <code>",
     "Language filter: 'all' for all languages, or ISO code (e.g., 'en', 'de')",
   )
+  .option(
+    "--llmstxt",
+    "Fetch llms.txt/llms-full.txt from the URL instead of downloading a .db file",
+  )
   .action(
     async (
       source: string,
@@ -614,9 +705,19 @@ program
         name?: string;
         save?: string;
         lang?: string;
+        llmstxt?: boolean;
       },
     ) => {
       try {
+        // Handle --llmstxt flag: bypass normal source detection
+        if (options.llmstxt) {
+          await addFromLlmsTxt(source, {
+            name: options.name,
+            save: options.save,
+          });
+          return;
+        }
+
         const sourceType = detectSourceType(source);
 
         // Map pkgVersion to version for internal use
