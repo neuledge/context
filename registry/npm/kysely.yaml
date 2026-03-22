@@ -3,7 +3,14 @@ description: "Type-safe TypeScript SQL query builder"
 repository: https://github.com/kysely-org/kysely
 
 versions:
+  - min_version: "0.28.3"
+    source:
+      type: git
+      url: https://github.com/kysely-org/kysely
+      docs_path: site/docs
+    tag_pattern: "v{version}"
   - min_version: "0.26.0"
+    max_version: "0.28.3"
     source:
       type: git
       url: https://github.com/kysely-org/kysely

@@ -3,10 +3,21 @@ description: "Python programming language official documentation"
 repository: https://github.com/python/cpython
 
 versions:
-  - versions: ["3.14", "3.13", "3.12"]
+  - versions: ["3.14"]
     source:
       type: zip
       url: "https://docs.python.org/3/archives/python-{version}-docs-html.zip"
+      docs_path: "python-{version}-docs-html"
+      exclude_paths:
+        - "whatsnew/**"
+        - "changelog.html"
+        - "deprecations/**"
+        - "installing/**"
+        - "distributing/**"
+  - versions: ["3.13", "3.12"]
+    source:
+      type: zip
+      url: "https://docs.python.org/{version}/archives/python-{version}-docs-html.zip"
       docs_path: "python-{version}-docs-html"
       exclude_paths:
         - "whatsnew/**"
