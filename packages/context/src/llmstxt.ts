@@ -1,14 +1,10 @@
 /**
  * llms.txt source adapter for building documentation packages.
  *
- * Fetches a project's llms.txt and optionally llms-full.txt from a base URL,
- * then feeds the markdown content through the existing parseDocument pipeline.
+ * Fetches a project's llms.txt and optionally llms-full.txt from a base URL.
  *
  * See: https://llmstxt.org/
  */
-
-import type { ParsedDoc } from "./build.js";
-import { parseDocument } from "./build.js";
 
 export interface LlmsTxtSource {
   /** Raw content of llms.txt (the structured index). */
@@ -47,28 +43,4 @@ export async function fetchLlmsTxt(baseUrl: string): Promise<LlmsTxtSource> {
   }
 
   return { index, full, baseUrl: normalizedBase };
-}
-
-/**
- * Parse llms.txt content into a ParsedDoc using the existing markdown pipeline.
- *
- * When llms-full.txt is available, it is used as the primary content source
- * (it contains the complete documentation). The index is parsed separately
- * so its section metadata is also captured.
- *
- * When only llms.txt (the index) is available, it is parsed directly —
- * providing a structured overview of the project's documentation.
- */
-export function parseLlmsTxt(source: LlmsTxtSource): ParsedDoc[] {
-  const docs: ParsedDoc[] = [];
-
-  // Always parse the index
-  docs.push(parseDocument(source.index, "llms.txt"));
-
-  // If llms-full.txt is available, parse it as the complete documentation
-  if (source.full) {
-    docs.push(parseDocument(source.full, "llms-full.txt"));
-  }
-
-  return docs;
 }
