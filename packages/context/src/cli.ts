@@ -41,7 +41,8 @@ import {
   NO_DOCUMENTATION_FOUND_MESSAGE,
   SEARCH_PACKAGES_NAME_DESCRIPTION,
 } from "./guidance.js";
-import { buildPackage } from "./package-builder.js";
+import { fetchLlmsTxt } from "./llmstxt.js";
+import { type MarkdownFile, buildPackage } from "./package-builder.js";
 import { type SearchResult, search } from "./search.js";
 import { ContextServer } from "./server.js";
 import {
@@ -630,7 +631,89 @@ program
             addFromFile(source, internalOptions);
             break;
           case "url":
-            await addFromUrl(source, internalOptions);
+            {
+              // Auto-detect llms.txt: try a HEAD request to <url>/llms.txt
+              const normalizedUrl = source.replace(/\/+$/, "");
+              let hasLlmsTxt = false;
+              try {
+                const headRes = await fetch(`${normalizedUrl}/llms.txt`, {
+                  method: "HEAD",
+                });
+                hasLlmsTxt = headRes.ok;
+              } catch {
+                // Network error or other issue — fall through to .db download
+              }
+
+              if (hasLlmsTxt) {
+                // Note: --lang is not forwarded here. llms.txt content is a
+                // pre-formatted index, not a directory of markdown files, so
+                // language filtering (used by readLocalDocsFiles) does not apply.
+                console.log(`Detected llms.txt at ${normalizedUrl}/llms.txt`);
+
+                console.log(`Fetching llms.txt from ${normalizedUrl}...`);
+                const llmsSource = await fetchLlmsTxt(normalizedUrl);
+                const hasFull = llmsSource.full !== undefined;
+                console.log(
+                  `✓ Fetched llms.txt${hasFull ? " + llms-full.txt" : ""}`,
+                );
+
+                // Build MarkdownFile[] from raw content (no double-parsing)
+                const files: MarkdownFile[] = [
+                  { path: "llms.txt", content: llmsSource.index },
+                ];
+                if (llmsSource.full) {
+                  files.push({
+                    path: "llms-full.txt",
+                    content: llmsSource.full,
+                  });
+                }
+
+                // Determine package name from hostname
+                const hostname = new URL(normalizedUrl).hostname.replace(
+                  /^www\./,
+                  "",
+                );
+                const packageName =
+                  options.name ??
+                  (hostname.split(".").slice(0, -1).join(".") || hostname);
+                const versionLabel = "latest";
+
+                ensureDataDir();
+                const outputPath = join(
+                  DATA_DIR,
+                  getPackageFileName(packageName, versionLabel),
+                );
+
+                console.log("Building package...");
+                const result = buildPackage(outputPath, files, {
+                  name: packageName,
+                  version: versionLabel,
+                  sourceUrl: normalizedUrl,
+                });
+
+                console.log(
+                  `✓ Built package: ${packageName}@${versionLabel}`,
+                );
+                console.log(`✓ Saved to ${outputPath}`);
+
+                if (internalOptions.save) {
+                  savePackageCopy(
+                    outputPath,
+                    internalOptions.save,
+                    packageName,
+                    versionLabel,
+                  );
+                }
+
+                const sizeBytes = statSync(outputPath).size;
+                console.log(
+                  `\nInstalled: ${packageName}@${versionLabel} (${formatBytes(sizeBytes)}, ${result.sectionCount} sections)`,
+                );
+                warnIfLowDocs(result.sectionCount, packageName);
+              } else {
+                await addFromUrl(source, internalOptions);
+              }
+            }
             break;
           case "git":
             await addFromGitClone(source, internalOptions);

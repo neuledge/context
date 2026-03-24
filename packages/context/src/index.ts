@@ -38,6 +38,10 @@ export {
 } from "./git.js";
 export { parseHtml } from "./html.js";
 export {
+  fetchLlmsTxt,
+  type LlmsTxtSource,
+} from "./llmstxt.js";
+export {
   type BuildResult,
   buildPackage,
   type MarkdownFile,
