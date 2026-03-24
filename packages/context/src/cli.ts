@@ -645,6 +645,9 @@ program
               }
 
               if (hasLlmsTxt) {
+                // Note: --lang is not forwarded here. llms.txt content is a
+                // pre-formatted index, not a directory of markdown files, so
+                // language filtering (used by readLocalDocsFiles) does not apply.
                 console.log(`Detected llms.txt at ${normalizedUrl}/llms.txt`);
 
                 console.log(`Fetching llms.txt from ${normalizedUrl}...`);
