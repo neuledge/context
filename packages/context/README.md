@@ -205,6 +205,26 @@ extensions:
 
 </details>
 
+
+<details>
+<summary><strong>OpenCode</strong></summary>
+
+Add to `~/.config/opencode/opencode.json`:
+
+```json
+{
+  "mcp": {
+    "context": {
+      "command": ["context", "serve"],
+      "enabled": true,
+      "type": "local"
+    }
+  }
+}
+```
+
+</details>
+
 ### 3. Ask your AI anything
 
 That's it. Just ask:
