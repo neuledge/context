@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { detectSourceType, parseRegistryPackage } from "./cli.js";
+import {
+  detectSourceType,
+  packageNameFromUrl,
+  parseRegistryPackage,
+  resolveLlmsTxtUrls,
+} from "./cli.js";
 
 describe("detectSourceType", () => {
   describe("file sources", () => {
@@ -145,5 +150,56 @@ describe("parseRegistryPackage", () => {
     expect(parseRegistryPackage("")).toBeNull();
     expect(parseRegistryPackage("/next")).toBeNull();
     expect(parseRegistryPackage("npm/")).toBeNull();
+  });
+});
+
+describe("resolveLlmsTxtUrls", () => {
+  it("returns direct URL when pointing to llms.txt", () => {
+    expect(resolveLlmsTxtUrls("https://example.com/llms.txt")).toEqual([
+      "https://example.com/llms.txt",
+    ]);
+    expect(resolveLlmsTxtUrls("https://example.com/llms-full.txt")).toEqual([
+      "https://example.com/llms-full.txt",
+    ]);
+  });
+
+  it("returns direct URL for subpath llms.txt", () => {
+    expect(resolveLlmsTxtUrls("https://mui.com/material-ui/llms.txt")).toEqual([
+      "https://mui.com/material-ui/llms.txt",
+    ]);
+  });
+
+  it("appends llms-full.txt and llms.txt for bare URLs", () => {
+    expect(resolveLlmsTxtUrls("https://react-aria.adobe.com")).toEqual([
+      "https://react-aria.adobe.com/llms-full.txt",
+      "https://react-aria.adobe.com/llms.txt",
+    ]);
+  });
+
+  it("handles URLs with trailing slash", () => {
+    expect(resolveLlmsTxtUrls("https://react-aria.adobe.com/")).toEqual([
+      "https://react-aria.adobe.com/llms-full.txt",
+      "https://react-aria.adobe.com/llms.txt",
+    ]);
+  });
+
+  it("handles URLs with subpath", () => {
+    expect(resolveLlmsTxtUrls("https://www.prisma.io/docs")).toEqual([
+      "https://www.prisma.io/docs/llms-full.txt",
+      "https://www.prisma.io/docs/llms.txt",
+    ]);
+  });
+});
+
+describe("packageNameFromUrl", () => {
+  it("extracts hostname", () => {
+    expect(packageNameFromUrl("https://react-aria.adobe.com")).toBe(
+      "react-aria.adobe.com",
+    );
+    expect(packageNameFromUrl("https://mui.com/material-ui")).toBe("mui.com");
+  });
+
+  it("strips www prefix", () => {
+    expect(packageNameFromUrl("https://www.prisma.io/docs")).toBe("prisma.io");
   });
 });

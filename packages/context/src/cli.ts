@@ -133,7 +133,7 @@ const LLMS_TXT_PATHS = ["/llms-full.txt", "/llms.txt"];
  * Derive a package name from a website URL.
  * e.g., "https://react-aria.adobe.com" → "react-aria.adobe.com"
  */
-function packageNameFromUrl(url: string): string {
+export function packageNameFromUrl(url: string): string {
   const parsed = new URL(url);
   return parsed.hostname.replace(/^www\./, "");
 }
@@ -143,7 +143,7 @@ function packageNameFromUrl(url: string): string {
  * If the URL already points to a specific llms.txt file, use it directly.
  * Otherwise, try well-known paths from the site root.
  */
-function resolveLlmsTxtUrls(source: string): string[] {
+export function resolveLlmsTxtUrls(source: string): string[] {
   const url = new URL(source);
 
   if (
