@@ -1,4 +1,4 @@
-declare module "sql.js" {
+declare module "sql.js-fts5" {
   interface Statement {
     bind(params?: unknown[]): boolean;
     step(): boolean;
@@ -23,5 +23,12 @@ declare module "sql.js" {
     Database: new (data?: ArrayLike<number>) => Database;
   }
 
-  export default function initSqlJs(): Promise<SqlJsStatic>;
+  interface InitOptions {
+    wasmBinary?: ArrayLike<number>;
+    locateFile?: (filename: string) => string;
+  }
+
+  export default function initSqlJs(
+    options?: InitOptions,
+  ): Promise<SqlJsStatic>;
 }

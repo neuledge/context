@@ -48,7 +48,7 @@
     "ignore": "^7.0.5",
     "remark-frontmatter": "^5.0.0",
     "remark-parse": "^11.0.0",
-    "sql.js": "^1.12.0",
+    "sql.js-fts5": "^1.4.0",
     "unified": "^11.0.5",
     "turndown": "^7.2.0",
     "yaml": "^2.8.2",

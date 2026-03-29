@@ -41,9 +41,9 @@ importers:
       remark-parse:
         specifier: ^11.0.0
         version: 11.0.0
-      sql.js:
-        specifier: ^1.12.0
-        version: 1.14.1
+      sql.js-fts5:
+        specifier: ^1.4.0
+        version: 1.4.0
       turndown:
         specifier: ^7.2.0
         version: 7.2.2
@@ -1719,8 +1719,8 @@ packages:
   sprintf-js@1.0.3:
     resolution: {integrity: sha512-D9cPgkvLlV3t3IzL0D0YLvGA9Ahk4PcvVwUbN0dSGr1aP0Nrt4AEnTUbuGvquEC0mA64Gqt1fzirlRs5ibXx8g==}
 
-  sql.js@1.14.1:
-    resolution: {integrity: sha512-gcj8zBWU5cFsi9WUP+4bFNXAyF1iRpA3LLyS/DP5xlrNzGmPIizUeBggKa8DbDwdqaKwUcTEnChtd2grWo/x/A==}
+  sql.js-fts5@1.4.0:
+    resolution: {integrity: sha512-O9VQo/LSt+cteAbkLJAJIkFMIEg63Quw8OeZjc60qw5JWpZ2JhCB0RHrDvcjWxstixxFx2/GXYYatwrtmue5ww==}
 
   stackback@0.0.2:
     resolution: {integrity: sha512-1XMJE5fQo1jGH6Y/7ebnwPOBEkIEnT4QF32d5R1+VXdXveM0IBMJt8zfaxX1P3QhVwrYe+576+jkANtSS2mBbw==}
@@ -3701,7 +3701,7 @@ snapshots:
 
   sprintf-js@1.0.3: {}
 
-  sql.js@1.14.1: {}
+  sql.js-fts5@1.4.0: {}
 
   stackback@0.0.2: {}
 

@@ -45,9 +45,13 @@ export async function initDatabase(): Promise<void> {
     betterSqlite3Constructor = _require("better-sqlite3");
     backend = "better-sqlite3";
   } catch {
-    const sqlJs = await import("sql.js");
+    const sqlJs = await import("sql.js-fts5");
     const initSqlJs = sqlJs.default;
-    sqlJsApi = await initSqlJs();
+    // Load WASM binary manually — older sql.js-fts5 uses fetch() with a bare
+    // path which fails in newer Node.js versions that require a proper URL.
+    const wasmPath = _require.resolve("sql.js-fts5/dist/sql-wasm.wasm");
+    const wasmBinary = readFileSync(wasmPath);
+    sqlJsApi = await initSqlJs({ wasmBinary });
     backend = "sql.js";
   }
 }
