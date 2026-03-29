@@ -1,5 +1,15 @@
 # @neuledge/context
 
+## 0.6.0
+
+### Minor Changes
+
+- [#56](https://github.com/neuledge/context/pull/56) [`e005274`](https://github.com/neuledge/context/commit/e005274b6baec438836c856a086b04a94565a149) Thanks [@moshest](https://github.com/moshest)! - Add sql.js (WebAssembly) fallback when better-sqlite3 native binaries are unavailable, fixing installation failures on Windows with newer Node.js versions
+
+### Patch Changes
+
+- [#53](https://github.com/neuledge/context/pull/53) [`08991be`](https://github.com/neuledge/context/commit/08991be4fd38506d385de2143106a2586c566b38) Thanks [@MaeuRodrig](https://github.com/MaeuRodrig)! - Update README with OpenCode context setup
+
 ## 0.5.1
 
 ### Patch Changes
