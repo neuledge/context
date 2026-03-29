@@ -271,7 +271,7 @@ Context runs entirely on your machine. Docs are downloaded once and stored as co
 
 ## Beyond the Registry
 
-The registry covers popular open-source libraries, but Context also works with any documentation source. Use `context add` to build packages from private repos, internal libraries, or anything not yet in the registry.
+The registry covers popular open-source libraries, but Context also works with any documentation source. Use `context add` to build packages from private repos, internal libraries, websites with [llms.txt](https://llmstxt.org/), or anything not yet in the registry.
 
 ```bash
 # Build from a git repository
@@ -282,6 +282,9 @@ context add ./my-project
 
 # Specific version tag
 context add https://github.com/vercel/next.js/tree/v16.0.0
+
+# Build from a website's llms.txt
+context add https://svelte.dev
 ```
 
 Once built, share packages with your team — they're portable `.db` files that install instantly:
@@ -401,6 +404,22 @@ context add https://github.com/vercel/next.js --save ./packages/
 
 # Save to a specific file
 context add ./my-docs --save ./my-package.db
+```
+
+**From website ([llms.txt](https://llmstxt.org/)):**
+
+Many websites publish an `llms.txt` file with AI-ready documentation. Context auto-detects and fetches it:
+
+```bash
+# Auto-fetches llms-full.txt or llms.txt from the site
+context add https://svelte.dev
+context add https://mui.com/material-ui
+
+# Direct URL to a specific llms.txt file
+context add https://svelte.dev/docs/svelte/llms.txt
+
+# Custom package name
+context add https://react-aria.adobe.com --name react-aria
 ```
 
 **From URL:**
