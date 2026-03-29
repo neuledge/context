@@ -1,5 +1,11 @@
 # @neuledge/context
 
+## 0.7.0
+
+### Minor Changes
+
+- [#58](https://github.com/neuledge/context/pull/58) [`15a1128`](https://github.com/neuledge/context/commit/15a11282b929aad9722532b15ec2e056b9a8c70b) Thanks [@moshest](https://github.com/moshest)! - Support fetching documentation from websites via llms.txt files. When adding a website URL (e.g., `context add https://react-aria.adobe.com`), automatically tries to fetch `llms-full.txt` then `llms.txt` from the site root.
+
 ## 0.6.0
 
 ### Minor Changes
