@@ -42,7 +42,7 @@ import {
   NO_DOCUMENTATION_FOUND_MESSAGE,
   SEARCH_PACKAGES_NAME_DESCRIPTION,
 } from "./guidance.js";
-import { buildPackage } from "./package-builder.js";
+import { buildPackage, type MarkdownFile } from "./package-builder.js";
 import { type SearchResult, search } from "./search.js";
 import { ContextServer } from "./server.js";
 import {
@@ -52,7 +52,7 @@ import {
   readPackageInfo,
 } from "./store.js";
 
-type SourceType = "file" | "url" | "git" | "local-dir";
+type SourceType = "file" | "url" | "git" | "local-dir" | "website";
 
 /** Detect the type of source based on the input string. */
 export function detectSourceType(source: string): SourceType {
@@ -66,9 +66,18 @@ export function detectSourceType(source: string): SourceType {
     return "git";
   }
 
-  // URL: starts with http:// or https:// (for downloading .db files)
+  // URL: starts with http:// or https://
   if (source.startsWith("http://") || source.startsWith("https://")) {
-    return "url";
+    // .db files are direct package downloads
+    if (source.endsWith(".db")) {
+      return "url";
+    }
+    // URLs ending with llms.txt or llms-full.txt are treated as direct website sources
+    if (source.endsWith("/llms.txt") || source.endsWith("/llms-full.txt")) {
+      return "website";
+    }
+    // Other URLs are websites — we'll try to fetch llms.txt from them
+    return "website";
   }
 
   // Local directory: check if path exists and is a directory
@@ -115,6 +124,121 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** Well-known llms.txt file paths to try, in order of preference. */
+const LLMS_TXT_PATHS = ["/llms-full.txt", "/llms.txt"];
+
+/**
+ * Derive a package name from a website URL.
+ * e.g., "https://react-aria.adobe.com" → "react-aria.adobe.com"
+ */
+function packageNameFromUrl(url: string): string {
+  const parsed = new URL(url);
+  return parsed.hostname.replace(/^www\./, "");
+}
+
+/**
+ * Resolve the llms.txt URL to fetch.
+ * If the URL already points to a specific llms.txt file, use it directly.
+ * Otherwise, try well-known paths from the site root.
+ */
+function resolveLlmsTxtUrls(source: string): string[] {
+  const url = new URL(source);
+
+  if (
+    url.pathname.endsWith("/llms.txt") ||
+    url.pathname.endsWith("/llms-full.txt")
+  ) {
+    return [source];
+  }
+
+  // Build base URL (ensure trailing slash handling)
+  const base = url.origin + url.pathname.replace(/\/$/, "");
+  return LLMS_TXT_PATHS.map((path) => `${base}${path}`);
+}
+
+/** Install a package from a website's llms.txt file. */
+async function addFromWebsite(
+  source: string,
+  options: AddFromGitOptions,
+): Promise<void> {
+  const urls = resolveLlmsTxtUrls(source);
+
+  let content: string | null = null;
+  let resolvedUrl: string | null = null;
+
+  for (const url of urls) {
+    console.log(`Trying ${url}...`);
+    try {
+      const response = await fetch(url);
+      if (response.ok) {
+        const text = await response.text();
+        // Sanity check: must have some meaningful content
+        if (text.trim().length > 0) {
+          content = text;
+          resolvedUrl = url;
+          console.log(`✓ Found ${url}`);
+          break;
+        }
+      }
+    } catch {
+      // Network error — continue to next URL
+    }
+  }
+
+  if (!content || !resolvedUrl) {
+    throw new Error(
+      `No llms.txt found at ${source}. Tried:\n${urls.map((u) => `  - ${u}`).join("\n")}\n\nThis website may not provide an llms.txt file. See https://llmstxt.org/ for details.`,
+    );
+  }
+
+  const packageName = options.name ?? packageNameFromUrl(source);
+  const versionLabel = options.version ?? "latest";
+
+  // Parse the content as a single markdown file
+  const files: MarkdownFile[] = [
+    {
+      path: resolvedUrl.endsWith("/llms-full.txt")
+        ? "llms-full.txt"
+        : "llms.txt",
+      content,
+    },
+  ];
+
+  // Build the package
+  ensureDataDir();
+  const outputPath = join(
+    DATA_DIR,
+    getPackageFileName(packageName, versionLabel),
+  );
+
+  console.log(`Building package...`);
+  const result = buildPackage(outputPath, files, {
+    name: packageName,
+    version: versionLabel,
+    sourceUrl: source,
+  });
+
+  if (result.sectionCount === 0) {
+    throw new Error(
+      `No documentation sections could be extracted from ${resolvedUrl}. The file may be empty or in an unsupported format.`,
+    );
+  }
+
+  console.log(`✓ Built package: ${packageName}@${versionLabel}`);
+  console.log(`✓ Saved to ${outputPath}`);
+
+  // Save to custom path if specified
+  if (options.save) {
+    savePackageCopy(outputPath, options.save, packageName, versionLabel);
+  }
+
+  const sizeBytes = statSync(outputPath).size;
+
+  console.log(
+    `\nInstalled: ${packageName}@${versionLabel} (${formatBytes(sizeBytes)}, ${result.sectionCount} sections)`,
+  );
 }
 
 const LOW_DOCS_THRESHOLD = 50;
@@ -590,11 +714,11 @@ async function addFromLocalDir(
 program
   .command("add")
   .description(
-    "Install a documentation package from file, URL, GitHub, git repo, or local directory",
+    "Install a documentation package from file, URL, GitHub, git repo, website (llms.txt), or local directory",
   )
   .argument(
     "<source>",
-    "Package source: local .db file, URL (.db), GitHub URL, git URL, or local directory",
+    "Package source: local .db file, URL (.db), GitHub URL, git URL, website URL (auto-fetches llms.txt), or local directory",
   )
   .option("--tag <tag>", "Git tag to checkout (for git repos)")
   .option("--pkg-version <version>", "Custom version label")
@@ -638,6 +762,9 @@ program
             break;
           case "local-dir":
             await addFromLocalDir(source, internalOptions);
+            break;
+          case "website":
+            await addFromWebsite(source, internalOptions);
             break;
         }
       } catch (err) {

@@ -17,20 +17,42 @@ describe("detectSourceType", () => {
   });
 
   describe("URL sources", () => {
-    it("detects HTTP URLs", () => {
+    it("detects HTTP .db URLs", () => {
       expect(detectSourceType("http://example.com/package.db")).toBe("url");
       expect(detectSourceType("http://cdn.example.com/nextjs@15.db")).toBe(
         "url",
       );
     });
 
-    it("detects HTTPS URLs", () => {
+    it("detects HTTPS .db URLs", () => {
       expect(detectSourceType("https://example.com/package.db")).toBe("url");
       expect(
         detectSourceType(
           "https://github.com/user/repo/releases/download/v1/package.db",
         ),
       ).toBe("url");
+    });
+  });
+
+  describe("website sources", () => {
+    it("detects plain website URLs as website", () => {
+      expect(detectSourceType("https://react-aria.adobe.com")).toBe("website");
+      expect(detectSourceType("https://mui.com/material-ui")).toBe("website");
+      expect(detectSourceType("https://www.prisma.io/docs")).toBe("website");
+    });
+
+    it("detects explicit llms.txt URLs as website", () => {
+      expect(detectSourceType("https://react-aria.adobe.com/llms.txt")).toBe(
+        "website",
+      );
+      expect(
+        detectSourceType("https://mui.com/material-ui/llms-full.txt"),
+      ).toBe("website");
+    });
+
+    it("detects http website URLs as website", () => {
+      expect(detectSourceType("http://example.com")).toBe("website");
+      expect(detectSourceType("http://example.com/docs")).toBe("website");
     });
   });
 
