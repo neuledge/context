@@ -4,8 +4,8 @@
 
 import { createHash } from "node:crypto";
 import { existsSync, unlinkSync } from "node:fs";
-import Database from "better-sqlite3";
 import { type DocSection, parseDocument } from "./build.js";
+import { openDatabase } from "./database.js";
 
 /**
  * Generate a content hash for section deduplication.
@@ -48,7 +48,7 @@ export function buildPackage(
     unlinkSync(outputPath);
   }
 
-  const db = new Database(outputPath);
+  const db = openDatabase(outputPath);
 
   try {
     // Create schema

@@ -20,6 +20,7 @@ const require = createRequire(import.meta.url);
 const { version } = require("../package.json") as { version: string };
 
 import { getServerUrl } from "./config.js";
+import { initDatabase } from "./database.js";
 import { downloadPackage, searchPackages } from "./download.js";
 import {
   checkoutRef,
@@ -945,5 +946,6 @@ const isRunDirectly =
   process.argv[1]?.includes("bin/context");
 
 if (isRunDirectly) {
+  await initDatabase();
   program.parse();
 }

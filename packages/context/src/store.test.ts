@@ -1,8 +1,8 @@
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import Database from "better-sqlite3";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { initDatabase, openDatabase } from "./database.js";
 import { getPackageFileName, PackageStore, readPackageInfo } from "./store.js";
 import { createTestDb, insertChunk, rebuildFtsIndex } from "./test-utils.js";
 
@@ -36,6 +36,10 @@ function createTestPackage(
 }
 
 describe("store", () => {
+  beforeAll(async () => {
+    await initDatabase();
+  });
+
   beforeEach(() => {
     mkdirSync(TEST_DIR, { recursive: true });
   });
@@ -65,7 +69,7 @@ describe("store", () => {
 
     it("throws on missing meta table", () => {
       const path = join(TEST_DIR, "invalid.db");
-      const db = new Database(path);
+      const db = openDatabase(path);
       db.exec("CREATE TABLE foo (id INTEGER)");
       db.close();
 
@@ -74,7 +78,7 @@ describe("store", () => {
 
     it("throws on missing chunks table", () => {
       const path = join(TEST_DIR, "invalid.db");
-      const db = new Database(path);
+      const db = openDatabase(path);
       db.exec("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT)");
       db.close();
 
@@ -83,7 +87,7 @@ describe("store", () => {
 
     it("throws on missing name in meta", () => {
       const path = join(TEST_DIR, "invalid.db");
-      const db = new Database(path);
+      const db = openDatabase(path);
       db.exec(`
         CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
         CREATE TABLE chunks (id INTEGER PRIMARY KEY);

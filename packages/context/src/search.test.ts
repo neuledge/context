@@ -1,16 +1,21 @@
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type Database from "better-sqlite3";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import type { DatabaseConnection } from "./database.js";
+import { initDatabase } from "./database.js";
 import { search } from "./search.js";
 import { createTestDb, insertChunk, rebuildFtsIndex } from "./test-utils.js";
 
 const TEST_DIR = join(tmpdir(), `context-search-test-${Date.now()}`);
 
 describe("search", () => {
-  let db: Database.Database;
+  let db: DatabaseConnection;
   const testPackagePath = join(TEST_DIR, "test.db");
+
+  beforeAll(async () => {
+    await initDatabase();
+  });
 
   beforeEach(() => {
     mkdirSync(TEST_DIR, { recursive: true });

@@ -4,8 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import type Database from "better-sqlite3";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import type { DatabaseConnection } from "./database.js";
+import { initDatabase } from "./database.js";
 import {
   MISSING_PACKAGE_GUIDANCE,
   NO_DOCUMENTATION_FOUND_MESSAGE,
@@ -16,6 +17,10 @@ import { PackageStore, readPackageInfo } from "./store.js";
 import { createTestDb, insertChunk, rebuildFtsIndex } from "./test-utils.js";
 
 describe("ContextServer", () => {
+  beforeAll(async () => {
+    await initDatabase();
+  });
+
   it("creates an MCP server instance", () => {
     const store = new PackageStore();
     const server = new ContextServer(store);
@@ -64,7 +69,7 @@ describe("ContextServer", () => {
 
 describe("ContextServer integration", () => {
   const TEST_DIR = join(tmpdir(), `context-server-int-test-${Date.now()}`);
-  let db: Database.Database;
+  let db: DatabaseConnection;
   const testPackagePath = join(TEST_DIR, "nextjs@15.0.db");
 
   beforeEach(() => {

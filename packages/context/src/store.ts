@@ -1,5 +1,5 @@
 import { statSync } from "node:fs";
-import Database from "better-sqlite3";
+import { type DatabaseConnection, openDatabase } from "./database.js";
 import { getMetaValue, getSectionCount, validatePackageSchema } from "./db.js";
 
 export interface PackageMeta {
@@ -52,16 +52,16 @@ export class PackageStore {
   }
 
   /** Open a package database for searching. */
-  openDb(name: string): Database.Database | null {
+  openDb(name: string): DatabaseConnection | null {
     const pkg = this.packages.get(name);
     if (!pkg) return null;
-    return new Database(pkg.path, { readonly: true });
+    return openDatabase(pkg.path, { readonly: true });
   }
 }
 
 /** Read package info from a database file. */
 export function readPackageInfo(packagePath: string): PackageInfo {
-  const db = new Database(packagePath, { readonly: true });
+  const db = openDatabase(packagePath, { readonly: true });
   try {
     validatePackageSchema(db);
 

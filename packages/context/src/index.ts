@@ -18,6 +18,13 @@ export {
   type ServerConfig,
   saveConfig,
 } from "./config.js";
+// Database
+export {
+  type DatabaseConnection,
+  initDatabase,
+  openDatabase,
+  type Statement,
+} from "./database.js";
 // Download
 export {
   downloadPackage,

@@ -5,6 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 import { getServerUrl } from "./config.js";
+import { initDatabase } from "./database.js";
 import { downloadPackage, searchPackages } from "./download.js";
 import {
   DOWNLOAD_PACKAGE_DESCRIPTION,
@@ -55,6 +56,7 @@ export class ContextServer {
    * Registers tools and connects.
    */
   async start(): Promise<void> {
+    await initDatabase();
     this.registerTools();
 
     const transport = new StdioServerTransport();
@@ -72,6 +74,7 @@ export class ContextServer {
     port: number;
     host?: string;
   }): Promise<{ server: ReturnType<typeof createServer>; port: number }> {
+    await initDatabase();
     this.registerTools();
 
     const host = options.host ?? "127.0.0.1";

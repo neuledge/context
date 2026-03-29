@@ -1,4 +1,4 @@
-import Database from "better-sqlite3";
+import { type DatabaseConnection, openDatabase } from "./database.js";
 
 export interface TestPackageOptions {
   name?: string;
@@ -18,8 +18,8 @@ export interface TestChunk {
 export function createTestDb(
   path: string,
   options: TestPackageOptions = {},
-): Database.Database {
-  const db = new Database(path);
+): DatabaseConnection {
+  const db = openDatabase(path);
 
   db.exec(`
     CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
@@ -47,7 +47,7 @@ export function createTestDb(
   return db;
 }
 
-export function insertChunk(db: Database.Database, chunk: TestChunk): void {
+export function insertChunk(db: DatabaseConnection, chunk: TestChunk): void {
   db.prepare(`
     INSERT INTO chunks (doc_path, doc_title, section_title, content, tokens, has_code)
     VALUES (?, ?, ?, ?, ?, ?)
@@ -61,6 +61,6 @@ export function insertChunk(db: Database.Database, chunk: TestChunk): void {
   );
 }
 
-export function rebuildFtsIndex(db: Database.Database): void {
+export function rebuildFtsIndex(db: DatabaseConnection): void {
   db.exec("INSERT INTO chunks_fts(chunks_fts) VALUES('rebuild')");
 }

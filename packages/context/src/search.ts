@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import type { DatabaseConnection } from "./database.js";
 import { getMetaValue } from "./db.js";
 
 // TODO: Future enhancements for better search quality:
@@ -48,7 +48,7 @@ function buildQuery(topic: string): string {
     .trim();
 }
 
-function searchFts(db: Database.Database, query: string): ChunkMatch[] {
+function searchFts(db: DatabaseConnection, query: string): ChunkMatch[] {
   const ftsQuery = buildQuery(query);
   if (!ftsQuery) return [];
 
@@ -180,7 +180,7 @@ function assembleResults(matches: ChunkMatch[]): DocSnippet[] {
   return results;
 }
 
-export function search(db: Database.Database, topic: string): SearchResult {
+export function search(db: DatabaseConnection, topic: string): SearchResult {
   const name = getMetaValue(db, "name") ?? "unknown";
   const version = getMetaValue(db, "version") ?? "unknown";
 

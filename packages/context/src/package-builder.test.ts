@@ -1,11 +1,15 @@
 import { existsSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import Database from "better-sqlite3";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { initDatabase, openDatabase } from "./database.js";
 import { buildPackage } from "./package-builder.js";
 
 describe("buildPackage", () => {
+  beforeAll(async () => {
+    await initDatabase();
+  });
+
   const testDbPath = join(tmpdir(), `test-package-${Date.now()}.db`);
 
   afterEach(() => {
@@ -46,7 +50,7 @@ Run the install command.
     expect(result.sectionCount).toBeGreaterThan(0);
 
     // Verify database structure
-    const db = new Database(testDbPath, { readonly: true });
+    const db = openDatabase(testDbPath, { readonly: true });
     try {
       // Check metadata
       const name = db
@@ -136,7 +140,7 @@ Run the install command.
     );
 
     // Verify new package
-    const db = new Database(testDbPath, { readonly: true });
+    const db = openDatabase(testDbPath, { readonly: true });
     try {
       const name = db
         .prepare("SELECT value FROM meta WHERE key = ?")
@@ -175,7 +179,7 @@ Run the install command.
     });
 
     // Verify that the shared section is only stored once
-    const db = new Database(testDbPath, { readonly: true });
+    const db = openDatabase(testDbPath, { readonly: true });
     try {
       const sharedSections = db
         .prepare(
@@ -220,7 +224,7 @@ Run the install command.
       version: "1.0.0",
     });
 
-    const db = new Database(testDbPath, { readonly: true });
+    const db = openDatabase(testDbPath, { readonly: true });
     try {
       // Content is identical, so only one should be stored (even though titles differ)
       const sections = db
@@ -253,7 +257,7 @@ Run the install command.
       version: "1.0.0",
     });
 
-    const db = new Database(testDbPath, { readonly: true });
+    const db = openDatabase(testDbPath, { readonly: true });
     try {
       const sections = db
         .prepare("SELECT doc_path FROM chunks WHERE section_title = ?")

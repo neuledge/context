@@ -1,7 +1,7 @@
-import type Database from "better-sqlite3";
+import type { DatabaseConnection } from "./database.js";
 
 export function getMetaValue(
-  db: Database.Database,
+  db: DatabaseConnection,
   key: string,
 ): string | undefined {
   const row = db.prepare("SELECT value FROM meta WHERE key = ?").get(key) as
@@ -10,14 +10,14 @@ export function getMetaValue(
   return row?.value;
 }
 
-export function getSectionCount(db: Database.Database): number {
+export function getSectionCount(db: DatabaseConnection): number {
   const row = db.prepare("SELECT COUNT(*) as count FROM chunks").get() as {
     count: number;
   };
   return row.count;
 }
 
-export function validatePackageSchema(db: Database.Database): void {
+export function validatePackageSchema(db: DatabaseConnection): void {
   const tables = db
     .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
     .all() as { name: string }[];
