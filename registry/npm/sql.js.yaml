@@ -1,0 +1,10 @@
+name: sql.js
+description: "A javascript library to run SQLite on the web"
+repository: https://github.com/sql-js/sql.js
+
+versions:
+  - min_version: "1.0.0"
+    source:
+      type: git
+      url: https://github.com/sql-js/sql.js
+    tag_pattern: "v{version}"

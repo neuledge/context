@@ -1,0 +1,10 @@
+name: smol-toml
+description: "A small, fast, and correct TOML parser and serializer"
+repository: https://github.com/squirrelchat/smol-toml
+
+versions:
+  - min_version: "1.0.0"
+    source:
+      type: git
+      url: https://github.com/squirrelchat/smol-toml
+    tag_pattern: "v{version}"

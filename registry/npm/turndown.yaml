@@ -1,0 +1,10 @@
+name: turndown
+description: "An HTML to Markdown converter written in JavaScript"
+repository: https://github.com/mixmark-io/turndown
+
+versions:
+  - min_version: "1.0.0"
+    source:
+      type: git
+      url: https://github.com/mixmark-io/turndown
+    tag_pattern: "v{version}"

@@ -1,0 +1,10 @@
+name: jsdom
+description: "jsdom is a pure-JavaScript implementation of many web standards"
+repository: https://github.com/jsdom/jsdom
+
+versions:
+  - min_version: "1.0.0"
+    source:
+      type: git
+      url: https://github.com/jsdom/jsdom
+    tag_pattern: "v{version}"
