@@ -169,7 +169,7 @@ Or access via **Windsurf Settings > Cascade > MCP Servers**.
 <details>
 <summary><strong>Zed</strong></summary>
 
-Add to your Zed settings (`cmd+,` or `ctrl+,`):
+Add to your Zed settings (Hit `cmd+,` or `ctrl+,` twice):
 
 ```json
 {
