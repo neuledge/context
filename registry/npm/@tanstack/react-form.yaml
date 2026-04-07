@@ -1,0 +1,11 @@
+name: "@tanstack/react-form"
+description: "Headless UI Form library that makes building more complex and interactive forms easy."
+repository: https://github.com/TanStack/form
+
+versions:
+  - min_version: "1.0.0"
+    source:
+      type: git
+      url: https://github.com/TanStack/form
+      docs_path: docs
+    tag_pattern: "@tanstack/react-form@{version}"
