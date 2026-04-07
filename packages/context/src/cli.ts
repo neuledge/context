@@ -939,22 +939,35 @@ program
   });
 
 /**
- * Parse a "registry/name" string (e.g., "npm/next", "pip/django").
- * Returns { registry, name } or null if the format is invalid.
+ * Parse a "registry/name[@version]" string (e.g., "npm/next",
+ * "pip/django", "npm/next@16.1.7", "npm/@trpc/server@10.0.0").
+ * Returns { registry, name, version? } or null if the format is invalid.
  */
 export function parseRegistryPackage(input: string): {
   registry: string;
   name: string;
+  version?: string;
 } | null {
   // Handle scoped packages: npm/@scope/name → registry=npm, name=@scope/name
   const firstSlash = input.indexOf("/");
   if (firstSlash <= 0) return null;
 
   const registry = input.slice(0, firstSlash);
-  const name = input.slice(firstSlash + 1);
+  let name = input.slice(firstSlash + 1);
   if (!name) return null;
 
-  return { registry, name };
+  // Split off an optional trailing "@version". Use lastIndexOf so scoped
+  // package names like "@trpc/server" aren't mistaken for a version marker.
+  let version: string | undefined;
+  const atIdx = name.lastIndexOf("@");
+  if (atIdx > 0) {
+    const v = name.slice(atIdx + 1);
+    if (v) version = v;
+    name = name.slice(0, atIdx);
+  }
+  if (!name) return null;
+
+  return version ? { registry, name, version } : { registry, name };
 }
 
 program
@@ -972,7 +985,9 @@ program
     try {
       const serverUrl = getServerUrl(options.server);
 
-      // Parse "registry/name" or treat as name-only search
+      // Parse "registry/name[@version]" or treat as name-only search.
+      // The version suffix (if any) is ignored — browse always lists all
+      // available versions for the package.
       const parsed = parseRegistryPackage(pkg);
       const registry = parsed?.registry ?? "npm";
       const name = parsed?.name ?? pkg;
@@ -1024,8 +1039,15 @@ program
           process.exit(1);
         }
 
+        if (parsed.version && versionArg && parsed.version !== versionArg) {
+          console.error(
+            `Error: Conflicting versions: "${parsed.version}" in "${pkg}" and "${versionArg}" as separate argument.`,
+          );
+          process.exit(1);
+        }
+
         const serverUrl = getServerUrl(options.server);
-        let targetVersion = versionArg;
+        let targetVersion = versionArg ?? parsed.version;
 
         // If no version specified, find the latest
         if (!targetVersion) {

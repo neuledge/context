@@ -151,6 +151,34 @@ describe("parseRegistryPackage", () => {
     expect(parseRegistryPackage("/next")).toBeNull();
     expect(parseRegistryPackage("npm/")).toBeNull();
   });
+
+  it("parses inline @version suffix", () => {
+    expect(parseRegistryPackage("npm/next@16.1.7")).toEqual({
+      registry: "npm",
+      name: "next",
+      version: "16.1.7",
+    });
+    expect(parseRegistryPackage("pip/django@4.2.0")).toEqual({
+      registry: "pip",
+      name: "django",
+      version: "4.2.0",
+    });
+  });
+
+  it("parses scoped packages with @version", () => {
+    expect(parseRegistryPackage("npm/@trpc/server@10.0.0")).toEqual({
+      registry: "npm",
+      name: "@trpc/server",
+      version: "10.0.0",
+    });
+  });
+
+  it("ignores empty @version suffix", () => {
+    expect(parseRegistryPackage("npm/next@")).toEqual({
+      registry: "npm",
+      name: "next",
+    });
+  });
 });
 
 describe("resolveLlmsTxtUrls", () => {
