@@ -408,7 +408,7 @@ context add ./my-docs --save ./my-package.db
 
 **From website ([llms.txt](https://llmstxt.org/)):**
 
-Many websites publish an `llms.txt` file with AI-ready documentation. Context auto-detects and fetches it:
+Many websites publish an `llms.txt` file with AI-ready documentation. Context auto-detects and fetches it. When the site only provides `llms.txt` (an index of links rather than the inlined `llms-full.txt`), Context follows each link and fetches the linked document:
 
 ```bash
 # Auto-fetches llms-full.txt or llms.txt from the site

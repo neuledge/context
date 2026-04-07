@@ -42,6 +42,7 @@ import {
   NO_DOCUMENTATION_FOUND_MESSAGE,
   SEARCH_PACKAGES_NAME_DESCRIPTION,
 } from "./guidance.js";
+import { fetchLinkedDocs } from "./llms-txt.js";
 import { buildPackage, type MarkdownFile } from "./package-builder.js";
 import { type SearchResult, search } from "./search.js";
 import { ContextServer } from "./server.js";
@@ -196,15 +197,26 @@ async function addFromWebsite(
   const packageName = options.name ?? packageNameFromUrl(source);
   const versionLabel = options.version ?? "latest";
 
-  // Parse the content as a single markdown file
+  const isFullIndex = resolvedUrl.endsWith("/llms-full.txt");
+
+  // Always include the index itself so the H1/intro content is preserved.
   const files: MarkdownFile[] = [
     {
-      path: resolvedUrl.endsWith("/llms-full.txt")
-        ? "llms-full.txt"
-        : "llms.txt",
+      path: isFullIndex ? "llms-full.txt" : "llms.txt",
       content,
     },
   ];
+
+  // llms.txt is a curated index of links — follow them to fetch the actual
+  // documentation. llms-full.txt already inlines everything, so skip.
+  if (!isFullIndex) {
+    const linkedFiles = await fetchLinkedDocs(content, resolvedUrl, {
+      log: (msg) => {
+        console.log(msg);
+      },
+    });
+    files.push(...linkedFiles);
+  }
 
   // Build the package
   ensureDataDir();
