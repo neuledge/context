@@ -1,5 +1,19 @@
 # @neuledge/context
 
+## 0.8.0
+
+### Minor Changes
+
+- [#66](https://github.com/neuledge/context/pull/66) [`37350b7`](https://github.com/neuledge/context/commit/37350b7d1d5b310ff051329e54b03a8d63af9681) Thanks [@moshest](https://github.com/moshest)! - `context add <website>` now follows the markdown links inside an `llms.txt`
+  index and fetches each linked document, instead of treating the index as the
+  final content. This produces packages with the full documentation rather than
+  just the table of contents. `llms-full.txt` is unchanged. Cross-origin links
+  are skipped by default.
+
+### Patch Changes
+
+- [#65](https://github.com/neuledge/context/pull/65) [`224b62d`](https://github.com/neuledge/context/commit/224b62db0676eccf735ede7e02319dc718e95075) Thanks [@moshest](https://github.com/moshest)! - Fix `context install` to accept the `registry/name@version` shorthand (e.g., `context install npm/next@16.1.7`). Previously the `@version` suffix was treated as part of the package name, causing the install to fail with "No packages found". Scoped packages like `npm/@trpc/server@10.0.0` are also handled correctly.
+
 ## 0.7.0
 
 ### Minor Changes
