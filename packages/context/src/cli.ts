@@ -500,10 +500,10 @@ async function addFromGitClone(
 ): Promise<void> {
   const { url, ref: urlRef } = parseGitUrl(source);
 
-  console.log(`Cloning ${url}...`);
+  // If we have a URL ref (branch or tag), use it during clone
+  console.log(`Cloning ${url}${urlRef ? ` (ref: ${urlRef})` : ""}...`);
 
-  // Clone without checking out a specific ref initially (we'll do it after tag selection)
-  const { tempDir, cleanup } = cloneRepository(url);
+  const { tempDir, cleanup } = cloneRepository(url, urlRef);
 
   try {
     // Determine which tag/ref to use
@@ -513,7 +513,7 @@ async function addFromGitClone(
       // Explicit --tag provided
       selectedTag = options.tag;
     } else if (urlRef) {
-      // Ref was part of the URL (e.g., github.com/user/repo#v1.0.0)
+      // Ref was part of the URL (e.g., github.com/user/repo#v1.0.0 or /tree/branch)
       selectedTag = urlRef;
     } else {
       // Interactive tag selection
@@ -535,8 +535,8 @@ async function addFromGitClone(
       }
     }
 
-    // Checkout the selected tag if specified
-    if (selectedTag) {
+    // Checkout the selected tag if specified and we didn't already clone with it
+    if (selectedTag && selectedTag !== urlRef) {
       console.log(`Checking out ${selectedTag}...`);
       checkoutRef(tempDir, selectedTag);
     }
@@ -1103,6 +1103,7 @@ program
 // Only parse when run directly (not when imported for testing)
 const isRunDirectly =
   process.argv[1]?.endsWith("cli.js") ||
+  process.argv[1]?.endsWith("cli.ts") ||
   process.argv[1]?.endsWith("context") ||
   process.argv[1]?.includes("bin/context");
 
