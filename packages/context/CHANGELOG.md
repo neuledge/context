@@ -1,5 +1,17 @@
 # @neuledge/context
 
+## 0.8.1
+
+### Patch Changes
+
+- [#70](https://github.com/neuledge/context/pull/70) [`5297843`](https://github.com/neuledge/context/commit/529784333baa75c3e74e5c7af57ca0a451e99bb3) Thanks [@moshest](https://github.com/moshest)! - Fix `context add` failing on branch refs (e.g. `/tree/heartbeat`) with a
+  cryptic `Command failed: git checkout ... 2>/dev/null` error. The URL ref
+  is now passed directly to `git clone --branch`, avoiding the broken
+  post-clone checkout path on shallow clones. When `checkoutRef` still runs
+  (e.g. `--tag` or interactive selection), it now falls back to
+  `FETCH_HEAD` for branches and surfaces git's real stderr in thrown errors
+  instead of suppressing it.
+
 ## 0.8.0
 
 ### Minor Changes
