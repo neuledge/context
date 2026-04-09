@@ -500,10 +500,12 @@ async function addFromGitClone(
 ): Promise<void> {
   const { url, ref: urlRef } = parseGitUrl(source);
 
-  console.log(`Cloning ${url}...`);
+  console.log(`Cloning ${url}${urlRef ? ` (ref: ${urlRef})` : ""}...`);
 
-  // Clone without checking out a specific ref initially (we'll do it after tag selection)
-  const { tempDir, cleanup } = cloneRepository(url);
+  // If the URL already specifies a ref (e.g. /tree/branch), clone directly
+  // onto it — that's more reliable than post-clone fetch+checkout, which
+  // doesn't work cleanly for branches on shallow clones.
+  const { tempDir, cleanup } = cloneRepository(url, urlRef);
 
   try {
     // Determine which tag/ref to use
@@ -513,7 +515,8 @@ async function addFromGitClone(
       // Explicit --tag provided
       selectedTag = options.tag;
     } else if (urlRef) {
-      // Ref was part of the URL (e.g., github.com/user/repo#v1.0.0)
+      // Ref was part of the URL (e.g., /tree/branch). Already checked out
+      // via the initial clone, so we only record it for labeling below.
       selectedTag = urlRef;
     } else {
       // Interactive tag selection
@@ -535,8 +538,9 @@ async function addFromGitClone(
       }
     }
 
-    // Checkout the selected tag if specified
-    if (selectedTag) {
+    // Checkout the selected tag if specified — skipped when we already
+    // cloned with it (urlRef case).
+    if (selectedTag && selectedTag !== urlRef) {
       console.log(`Checking out ${selectedTag}...`);
       checkoutRef(tempDir, selectedTag);
     }
