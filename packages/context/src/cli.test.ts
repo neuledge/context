@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   detectSourceType,
+  fetchWebPage,
   packageNameFromUrl,
   parseRegistryPackage,
   resolveLlmsTxtUrls,
+  suggestPackageNameFromUrl,
 } from "./cli.js";
 
 describe("detectSourceType", () => {
@@ -229,5 +231,122 @@ describe("packageNameFromUrl", () => {
 
   it("strips www prefix", () => {
     expect(packageNameFromUrl("https://www.prisma.io/docs")).toBe("prisma.io");
+  });
+});
+
+describe("suggestPackageNameFromUrl", () => {
+  it("returns hostname for domain roots", () => {
+    expect(suggestPackageNameFromUrl("https://overreacted.io/")).toBe(
+      "overreacted.io",
+    );
+    expect(suggestPackageNameFromUrl("https://example.com")).toBe(
+      "example.com",
+    );
+  });
+
+  it("includes sanitized path for specific pages", () => {
+    expect(
+      suggestPackageNameFromUrl(
+        "https://overreacted.io/things-i-dont-know-as-of-2018/",
+      ),
+    ).toBe("overreacted.io-things-i-dont-know-as-of-2018");
+    expect(
+      suggestPackageNameFromUrl("https://example.com/blog/my-first-post"),
+    ).toBe("example.com-blog-my-first-post");
+  });
+
+  it("strips www prefix", () => {
+    expect(
+      suggestPackageNameFromUrl("https://www.example.com/article/hello-world"),
+    ).toBe("example.com-article-hello-world");
+  });
+
+  it("handles paths with special characters", () => {
+    expect(suggestPackageNameFromUrl("https://site.com/a_b.c/d+e")).toBe(
+      "site.com-a-b-c-d-e",
+    );
+  });
+});
+
+describe("fetchWebPage", () => {
+  function makeFetch(
+    responses: Record<
+      string,
+      { body: string; status?: number; contentType?: string }
+    >,
+  ): typeof fetch {
+    return (async (input: string | URL | Request) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const r = responses[url];
+      if (!r) {
+        return new Response("not found", { status: 404 });
+      }
+      return new Response(r.body, {
+        status: r.status ?? 200,
+        headers: { "content-type": r.contentType ?? "text/markdown" },
+      });
+    }) as typeof fetch;
+  }
+
+  it("returns content and isHtml=false for markdown", async () => {
+    const fetchImpl = makeFetch({
+      "https://example.com/post": {
+        body: "# Hello\n\nWorld",
+        contentType: "text/markdown",
+      },
+    });
+    const page = await fetchWebPage("https://example.com/post", fetchImpl);
+    expect(page).not.toBeNull();
+    expect(page?.content).toBe("# Hello\n\nWorld");
+    expect(page?.isHtml).toBe(false);
+  });
+
+  it("returns isHtml=true for HTML responses", async () => {
+    const fetchImpl = makeFetch({
+      "https://example.com/page": {
+        body: "<html><body><h1>Hi</h1></body></html>",
+        contentType: "text/html; charset=utf-8",
+      },
+    });
+    const page = await fetchWebPage("https://example.com/page", fetchImpl);
+    expect(page?.isHtml).toBe(true);
+  });
+
+  it("sniffs HTML when content-type is missing", async () => {
+    const fetchImpl = makeFetch({
+      "https://example.com/page": {
+        body: "<html><body>Hi</body></html>",
+        contentType: "",
+      },
+    });
+    const page = await fetchWebPage("https://example.com/page", fetchImpl);
+    expect(page?.isHtml).toBe(true);
+  });
+
+  it("returns null for PDF content", async () => {
+    const fetchImpl = makeFetch({
+      "https://example.com/paper.pdf": {
+        body: "%PDF-1.4...",
+        contentType: "application/pdf",
+      },
+    });
+    const page = await fetchWebPage("https://example.com/paper.pdf", fetchImpl);
+    expect(page).toBeNull();
+  });
+
+  it("returns null for failed requests", async () => {
+    const fetchImpl = makeFetch({
+      "https://example.com/bad": { body: "error", status: 500 },
+    });
+    const page = await fetchWebPage("https://example.com/bad", fetchImpl);
+    expect(page).toBeNull();
+  });
+
+  it("returns null for empty responses", async () => {
+    const fetchImpl = makeFetch({
+      "https://example.com/empty": { body: "   " },
+    });
+    const page = await fetchWebPage("https://example.com/empty", fetchImpl);
+    expect(page).toBeNull();
   });
 });
