@@ -44,6 +44,23 @@ describe("findAuthForUrl", () => {
   it("returns null for invalid URLs", () => {
     expect(findAuthForUrl({}, "not-a-url")).toBeNull();
   });
+
+  it("stops after one parent domain to avoid overly broad matches", () => {
+    // a.b.example.com should match b.example.com (one parent) but not example.com
+    const auth: AuthConfig = {
+      "b.example.com": { cookies: "specific" },
+      "example.com": { cookies: "too-generic" },
+    };
+    expect(findAuthForUrl(auth, "https://a.b.example.com/page")).toEqual({
+      cookies: "specific",
+    });
+
+    // c.d.example.com should NOT match example.com (two parents away)
+    const auth2: AuthConfig = {
+      "example.com": { cookies: "too-generic" },
+    };
+    expect(findAuthForUrl(auth2, "https://c.d.example.com/page")).toBeNull();
+  });
 });
 
 describe("withPlatformAuth", () => {

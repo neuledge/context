@@ -349,4 +349,38 @@ describe("fetchWebPage", () => {
     const page = await fetchWebPage("https://example.com/empty", fetchImpl);
     expect(page).toBeNull();
   });
+
+  it("returns null when content-length exceeds 10 MB", async () => {
+    const fetchImpl = (async () => {
+      return new Response("<html>big</html>", {
+        status: 200,
+        headers: {
+          "content-type": "text/html",
+          "content-length": "20971520",
+        },
+      });
+    }) as typeof fetch;
+    const page = await fetchWebPage(
+      "https://example.com/huge",
+      fetchImpl,
+      1000,
+    );
+    expect(page).toBeNull();
+  });
+
+  it("returns null on timeout", async () => {
+    const fetchImpl = (async (_input, init) => {
+      return new Promise<Response>((_, reject) => {
+        if (init?.signal?.aborted) {
+          reject(new DOMException("Aborted", "AbortError"));
+          return;
+        }
+        init?.signal?.addEventListener("abort", () => {
+          reject(new DOMException("Aborted", "AbortError"));
+        });
+      });
+    }) as typeof fetch;
+    const page = await fetchWebPage("https://example.com/slow", fetchImpl, 100);
+    expect(page).toBeNull();
+  });
 });

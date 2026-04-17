@@ -7,7 +7,13 @@
  * content automatically.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -22,24 +28,36 @@ export type AuthConfig = Record<string, PlatformAuth>;
 
 const AUTH_PATH = join(homedir(), ".context", "auth.json");
 
+let authCache: AuthConfig | undefined;
+
+/** Clear the in-memory auth cache. Useful in tests. */
+export function clearAuthCache(): void {
+  authCache = undefined;
+}
+
 /** Load auth config from disk. Returns empty object if missing. */
 export function loadAuth(): AuthConfig {
+  if (authCache !== undefined) return authCache;
   try {
     if (existsSync(AUTH_PATH)) {
       const raw = readFileSync(AUTH_PATH, "utf-8");
-      return JSON.parse(raw) as AuthConfig;
+      authCache = JSON.parse(raw) as AuthConfig;
+      return authCache;
     }
   } catch {
     // Ignore parse errors — treat as empty
   }
-  return {};
+  authCache = {};
+  return authCache;
 }
 
 /** Save auth config to disk. */
 export function saveAuth(auth: AuthConfig): void {
   const dir = join(homedir(), ".context");
   mkdirSync(dir, { recursive: true });
-  writeFileSync(AUTH_PATH, JSON.stringify(auth, null, 2), "utf-8");
+  chmodSync(dir, 0o700);
+  writeFileSync(AUTH_PATH, JSON.stringify(auth, null, 2), { mode: 0o600 });
+  authCache = auth;
 }
 
 /**
@@ -59,9 +77,11 @@ export function findAuthForUrl(
     return null;
   }
 
-  // Try exact match, then parent domains
+  // Try exact match, then one immediate parent domain only.
+  // We intentionally stop after one parent to avoid matching public
+  // suffixes like co.uk.
   const parts = hostname.split(".");
-  for (let i = 0; i < parts.length - 1; i++) {
+  for (let i = 0; i < Math.min(2, parts.length - 1); i++) {
     const domain = parts.slice(i).join(".");
     if (auth[domain]) {
       return auth[domain];
