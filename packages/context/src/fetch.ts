@@ -41,3 +41,57 @@ export function buildFetchOptions(
 
   return { headers: baseHeaders, redirect: "follow" };
 }
+
+const DEFAULT_MAX_BYTES = 10 * 1024 * 1024;
+
+/**
+ * Perform a fetch with an AbortController timeout.
+ * Rejects with an AbortError if the request takes longer than timeoutMs.
+ */
+export async function fetchWithTimeout(
+  fetchImpl: typeof fetch,
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetchImpl(url, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Read a fetch Response body as text, capping the total bytes read.
+ * Returns null if the body exceeds maxBytes.
+ */
+export async function readResponseText(
+  response: Response,
+  maxBytes: number = DEFAULT_MAX_BYTES,
+): Promise<string | null> {
+  const reader = response.body?.getReader();
+  if (!reader) return null;
+
+  const decoder = new TextDecoder();
+  let text = "";
+  let bytesRead = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytesRead += value.length;
+      if (bytesRead > maxBytes) return null;
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+    return text;
+  } catch {
+    return null;
+  }
+}

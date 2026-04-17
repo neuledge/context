@@ -23,7 +23,11 @@ import { loadAuth, saveAuth } from "./auth.js";
 import { getServerUrl } from "./config.js";
 import { initDatabase } from "./database.js";
 import { downloadPackage, searchPackages } from "./download.js";
-import { buildFetchOptions } from "./fetch.js";
+import {
+  buildFetchOptions,
+  fetchWithTimeout,
+  readResponseText,
+} from "./fetch.js";
 import {
   checkoutRef,
   cloneRepository,
@@ -172,13 +176,13 @@ export async function fetchWebPage(
   fetchImpl: typeof fetch = fetch,
   timeoutMs: number = 30_000,
 ): Promise<FetchedWebPage | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetchImpl(url, {
-      ...buildFetchOptions(url),
-      signal: controller.signal,
-    });
+    const response = await fetchWithTimeout(
+      fetchImpl,
+      url,
+      buildFetchOptions(url),
+      timeoutMs,
+    );
     if (!response.ok) return null;
 
     const contentLength = response.headers.get("content-length");
@@ -189,8 +193,8 @@ export async function fetchWebPage(
       return null;
     }
 
-    const text = await response.text();
-    if (!text.trim()) return null;
+    const text = await readResponseText(response);
+    if (!text || !text.trim()) return null;
 
     const contentType =
       response.headers.get("content-type")?.toLowerCase() ?? "";
@@ -213,8 +217,6 @@ export async function fetchWebPage(
     return { content: text, isHtml };
   } catch {
     return null;
-  } finally {
-    clearTimeout(timer);
   }
 }
 
