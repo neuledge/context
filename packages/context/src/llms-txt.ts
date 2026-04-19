@@ -10,6 +10,7 @@
  * doesn't need link following.
  */
 
+import { buildFetchOptions, fetchWithTimeout } from "./fetch.js";
 import type { MarkdownFile } from "./package-builder.js";
 
 /** A link extracted from an llms.txt index. */
@@ -86,10 +87,13 @@ async function fetchLink(
   fetchImpl: typeof fetch,
   timeoutMs: number,
 ): Promise<FetchedDoc | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetchImpl(url, { signal: controller.signal });
+    const response = await fetchWithTimeout(
+      fetchImpl,
+      url,
+      buildFetchOptions(url),
+      timeoutMs,
+    );
     if (!response.ok) return null;
 
     const text = await response.text();
@@ -108,8 +112,6 @@ async function fetchLink(
     return { url, file: { path, content: text } };
   } catch {
     return null;
-  } finally {
-    clearTimeout(timer);
   }
 }
 

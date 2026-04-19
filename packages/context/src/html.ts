@@ -21,6 +21,11 @@ for (const tag of [
   "header",
   "noscript",
   "title",
+  "aside",
+  "iframe",
+  "form",
+  "svg",
+  "canvas",
 ]) {
   turndown.remove(tag);
 }

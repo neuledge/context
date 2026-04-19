@@ -19,9 +19,15 @@ import { Command } from "commander";
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json") as { version: string };
 
+import { loadAuth, saveAuth } from "./auth.js";
 import { getServerUrl } from "./config.js";
 import { initDatabase } from "./database.js";
 import { downloadPackage, searchPackages } from "./download.js";
+import {
+  buildFetchOptions,
+  fetchWithTimeout,
+  readResponseText,
+} from "./fetch.js";
 import {
   checkoutRef,
   cloneRepository,
@@ -140,6 +146,81 @@ export function packageNameFromUrl(url: string): string {
 }
 
 /**
+ * Derive a package name from an arbitrary URL, including path.
+ * e.g., "https://overreacted.io/things-i-dont-know-as-of-2018/" → "overreacted.io-things-i-dont-know-as-of-2018"
+ */
+export function suggestPackageNameFromUrl(url: string): string {
+  const parsed = new URL(url);
+  const host = parsed.hostname.replace(/^www\./, "");
+  const path = parsed.pathname.replace(/\/$/, "").replace(/^\//, "");
+  if (!path) return host;
+  const sanitizedPath = path
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  return sanitizedPath ? `${host}-${sanitizedPath}` : host;
+}
+
+export interface FetchedWebPage {
+  content: string;
+  isHtml: boolean;
+}
+
+/**
+ * Fetch a web page and determine if it's HTML.
+ * Returns null on failure or if the content is a known binary type.
+ */
+export async function fetchWebPage(
+  url: string,
+  fetchImpl: typeof fetch = fetch,
+  timeoutMs: number = 30_000,
+): Promise<FetchedWebPage | null> {
+  try {
+    const response = await fetchWithTimeout(
+      fetchImpl,
+      url,
+      buildFetchOptions(url),
+      timeoutMs,
+    );
+    if (!response.ok) return null;
+
+    const contentLength = response.headers.get("content-length");
+    if (
+      contentLength &&
+      Number.parseInt(contentLength, 10) > 10 * 1024 * 1024
+    ) {
+      return null;
+    }
+
+    const text = await readResponseText(response);
+    if (!text || !text.trim()) return null;
+
+    const contentType =
+      response.headers.get("content-type")?.toLowerCase() ?? "";
+
+    // Reject known binary content types
+    if (
+      contentType.includes("application/pdf") ||
+      contentType.startsWith("image/") ||
+      contentType.startsWith("video/") ||
+      contentType.startsWith("audio/")
+    ) {
+      return null;
+    }
+
+    const isHtml =
+      contentType.includes("text/html") ||
+      contentType.includes("application/xhtml") ||
+      (!contentType && /<html[\s>]/i.test(text.slice(0, 1024)));
+
+    return { content: text, isHtml };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Resolve the llms.txt URL to fetch.
  * If the URL already points to a specific llms.txt file, use it directly.
  * Otherwise, try well-known paths from the site root.
@@ -172,7 +253,7 @@ async function addFromWebsite(
   for (const url of urls) {
     console.log(`Trying ${url}...`);
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, buildFetchOptions(url));
       if (response.ok) {
         const text = await response.text();
         // Sanity check: must have some meaningful content
@@ -189,9 +270,59 @@ async function addFromWebsite(
   }
 
   if (!content || !resolvedUrl) {
-    throw new Error(
-      `No llms.txt found at ${source}. Tried:\n${urls.map((u) => `  - ${u}`).join("\n")}\n\nThis website may not provide an llms.txt file. See https://llmstxt.org/ for details.`,
+    // Fallback: fetch the original URL as a single page
+    console.log(`No llms.txt found. Fetching page content directly...`);
+    const page = await fetchWebPage(source);
+    if (!page) {
+      throw new Error(
+        `No llms.txt found at ${source}. Tried:\n${urls.map((u) => `  - ${u}`).join("\n")}\n\nAnd could not fetch the page directly. The site may be unavailable or use an unsupported content type.`,
+      );
+    }
+
+    const packageName = options.name ?? suggestPackageNameFromUrl(source);
+    const versionLabel = options.version ?? "latest";
+
+    const parsedUrl = new URL(source);
+    let path = parsedUrl.pathname.replace(/\/$/, "") || "/index";
+    if (!/\.(md|mdx|html?|adoc|rst|txt)$/i.test(path)) {
+      path += page.isHtml ? ".html" : ".md";
+    }
+    const docPath = parsedUrl.host + path;
+
+    const files: MarkdownFile[] = [{ path: docPath, content: page.content }];
+
+    ensureDataDir();
+    const outputPath = join(
+      DATA_DIR,
+      getPackageFileName(packageName, versionLabel),
     );
+
+    console.log(`Building package...`);
+    const result = buildPackage(outputPath, files, {
+      name: packageName,
+      version: versionLabel,
+      sourceUrl: source,
+    });
+
+    if (result.sectionCount === 0) {
+      throw new Error(
+        `No documentation sections could be extracted from ${source}. The page may be empty or in an unsupported format.`,
+      );
+    }
+
+    console.log(`✓ Built package: ${packageName}@${versionLabel}`);
+    console.log(`✓ Saved to ${outputPath}`);
+
+    if (options.save) {
+      savePackageCopy(outputPath, options.save, packageName, versionLabel);
+    }
+
+    const sizeBytes = statSync(outputPath).size;
+
+    console.log(
+      `\nInstalled: ${packageName}@${versionLabel} (${formatBytes(sizeBytes)}, ${result.sectionCount} sections)`,
+    );
+    return;
   }
 
   const packageName = options.name ?? packageNameFromUrl(source);
@@ -1103,6 +1234,97 @@ program
       }
     },
   );
+
+program
+  .command("auth")
+  .description("Manage per-platform authentication (cookies, headers)")
+  .addCommand(
+    new Command("add")
+      .description("Add or update auth for a domain")
+      .argument(
+        "<domain>",
+        "Domain to authenticate (e.g., medium.com, substack.com)",
+      )
+      .option("--cookies <cookies>", "Cookie string (e.g., 'uid=abc; sid=def')")
+      .option(
+        "--header <header>",
+        "Additional header in 'Key: Value' format (repeatable)",
+        collectHeaders,
+        {},
+      )
+      .action(
+        (
+          domain: string,
+          options: { cookies?: string; header: Record<string, string> },
+        ) => {
+          const auth = loadAuth();
+          auth[domain] = {
+            cookies: options.cookies,
+            headers:
+              Object.keys(options.header).length > 0
+                ? options.header
+                : undefined,
+          };
+          saveAuth(auth);
+          console.log(`✓ Auth saved for ${domain}`);
+        },
+      ),
+  )
+  .addCommand(
+    new Command("list")
+      .description("List configured platform auth entries")
+      .action(() => {
+        const auth = loadAuth();
+        const domains = Object.keys(auth);
+        if (domains.length === 0) {
+          console.log("No platform auth configured.");
+          console.log("Run: context auth add <domain> --cookies <cookies>");
+          return;
+        }
+        console.log("Configured platform auth:\n");
+        for (const domain of domains.sort()) {
+          const entry = auth[domain];
+          if (!entry) continue;
+          const hasCookies = entry.cookies ? "yes" : "no";
+          const headerCount = entry.headers
+            ? Object.keys(entry.headers).length
+            : 0;
+          console.log(
+            `  ${domain.padEnd(24)} cookies: ${hasCookies}  headers: ${headerCount}`,
+          );
+        }
+      }),
+  )
+  .addCommand(
+    new Command("remove")
+      .description("Remove auth for a domain")
+      .argument("<domain>", "Domain to remove auth for")
+      .action((domain: string) => {
+        const auth = loadAuth();
+        if (!auth[domain]) {
+          console.error(`Error: No auth found for ${domain}`);
+          process.exit(1);
+        }
+        delete auth[domain];
+        saveAuth(auth);
+        console.log(`✓ Removed auth for ${domain}`);
+      }),
+  );
+
+/** Collect repeated --header options into a Record. */
+function collectHeaders(
+  value: string,
+  previous: Record<string, string>,
+): Record<string, string> {
+  const sep = value.indexOf(":");
+  if (sep <= 0) {
+    throw new Error(`Invalid header format: "${value}". Use "Key: Value".`);
+  }
+  const key = value.slice(0, sep).trim();
+  const val = value.slice(sep + 1).trim();
+  previous[key] = val;
+  return previous;
+}
 
 // Only parse when run directly (not when imported for testing)
 const isRunDirectly =
