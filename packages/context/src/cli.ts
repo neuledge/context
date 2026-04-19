@@ -23,6 +23,7 @@ import { loadAuth, saveAuth } from "./auth.js";
 import { getServerUrl } from "./config.js";
 import { initDatabase } from "./database.js";
 import { downloadPackage, searchPackages } from "./download.js";
+import { extractArticleMarkdown } from "./extract-html.js";
 import {
   buildFetchOptions,
   fetchWithTimeout,
@@ -163,13 +164,19 @@ export function suggestPackageNameFromUrl(url: string): string {
 }
 
 export interface FetchedWebPage {
+  /** Clean markdown/text content, ready to pass to the package builder. */
   content: string;
-  isHtml: boolean;
+  /** Article title when extracted from HTML (undefined for raw markdown/text). */
+  title?: string;
 }
 
 /**
- * Fetch a web page and determine if it's HTML.
- * Returns null on failure or if the content is a known binary type.
+ * Fetch a web page and return it as markdown-ready content.
+ *
+ * HTML responses are run through defuddle to strip site chrome (nav,
+ * subscribe boxes, comments, recommendation rails) before being
+ * converted to Markdown. Markdown/plain-text responses pass through
+ * unchanged. Returns null on failure or for unsupported binary types.
  */
 export async function fetchWebPage(
   url: string,
@@ -214,7 +221,13 @@ export async function fetchWebPage(
       contentType.includes("application/xhtml") ||
       (!contentType && /<html[\s>]/i.test(text.slice(0, 1024)));
 
-    return { content: text, isHtml };
+    if (isHtml) {
+      const extracted = await extractArticleMarkdown(text, url);
+      if (!extracted) return null;
+      return { content: extracted.markdown, title: extracted.title };
+    }
+
+    return { content: text };
   } catch {
     return null;
   }
@@ -284,8 +297,8 @@ async function addFromWebsite(
 
     const parsedUrl = new URL(source);
     let path = parsedUrl.pathname.replace(/\/$/, "") || "/index";
-    if (!/\.(md|mdx|html?|adoc|rst|txt)$/i.test(path)) {
-      path += page.isHtml ? ".html" : ".md";
+    if (!/\.(md|mdx|adoc|rst|txt)$/i.test(path)) {
+      path += ".md";
     }
     const docPath = parsedUrl.host + path;
 

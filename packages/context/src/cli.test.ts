@@ -288,7 +288,7 @@ describe("fetchWebPage", () => {
     }) as typeof fetch;
   }
 
-  it("returns content and isHtml=false for markdown", async () => {
+  it("returns markdown content unchanged", async () => {
     const fetchImpl = makeFetch({
       "https://example.com/post": {
         body: "# Hello\n\nWorld",
@@ -298,29 +298,52 @@ describe("fetchWebPage", () => {
     const page = await fetchWebPage("https://example.com/post", fetchImpl);
     expect(page).not.toBeNull();
     expect(page?.content).toBe("# Hello\n\nWorld");
-    expect(page?.isHtml).toBe(false);
+    expect(page?.title).toBeUndefined();
   });
 
-  it("returns isHtml=true for HTML responses", async () => {
+  it("extracts HTML responses into clean markdown via defuddle", async () => {
+    const html = `<!DOCTYPE html>
+<html>
+<head><title>Real Article</title></head>
+<body>
+<nav><a href="/">Home</a><a href="/subscribe">Subscribe</a></nav>
+<aside class="subscribe-cta">Subscribe now for $5/month!</aside>
+<article>
+<h1>Real Article</h1>
+<p>This is the main article content that should survive extraction.</p>
+<p>A second paragraph to give defuddle enough signal.</p>
+</article>
+<aside class="recommendations">More from this author</aside>
+<footer>Copyright 2026</footer>
+</body>
+</html>`;
     const fetchImpl = makeFetch({
       "https://example.com/page": {
-        body: "<html><body><h1>Hi</h1></body></html>",
+        body: html,
         contentType: "text/html; charset=utf-8",
       },
     });
     const page = await fetchWebPage("https://example.com/page", fetchImpl);
-    expect(page?.isHtml).toBe(true);
+    expect(page).not.toBeNull();
+    expect(page?.content).toContain("main article content");
+    expect(page?.content).not.toContain("Subscribe now");
+    expect(page?.content).not.toContain("More from this author");
+    expect(page?.title).toBe("Real Article");
   });
 
   it("sniffs HTML when content-type is missing", async () => {
+    const html = `<!DOCTYPE html><html><head><title>T</title></head><body>
+<article><h1>T</h1><p>Some readable body text of reasonable length so defuddle has signal to work with.</p></article>
+</body></html>`;
     const fetchImpl = makeFetch({
       "https://example.com/page": {
-        body: "<html><body>Hi</body></html>",
+        body: html,
         contentType: "",
       },
     });
     const page = await fetchWebPage("https://example.com/page", fetchImpl);
-    expect(page?.isHtml).toBe(true);
+    expect(page).not.toBeNull();
+    expect(page?.content).toContain("readable body text");
   });
 
   it("returns null for PDF content", async () => {
