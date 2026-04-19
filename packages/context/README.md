@@ -422,6 +422,20 @@ context add https://svelte.dev/docs/svelte/llms.txt
 context add https://react-aria.adobe.com --name react-aria
 ```
 
+**From an arbitrary URL (blog posts, articles, raw Markdown):**
+
+If no `llms.txt` is found, Context falls back to fetching the page directly. HTML pages are run through a readability extractor (defuddle) so subscribe CTAs, navigation, and comment widgets don't end up in the package:
+
+```bash
+# A blog post
+context add https://overreacted.io/things-i-dont-know-as-of-2018/
+
+# Raw Markdown from GitHub
+context add https://raw.githubusercontent.com/neuledge/context/main/README.md --name context-readme
+```
+
+For subscriber-only content on platforms you have a paid account for, see [`context auth`](#context-auth) below.
+
 **From URL:**
 
 ```bash
@@ -476,6 +490,24 @@ Remove a package.
 
 ```bash
 context remove nextjs
+```
+
+### `context auth`
+
+Store per-platform cookies or headers so `context add <url>` can fetch subscriber-only content you have a legitimate account for (e.g., a paid Substack or Medium subscription). Credentials are stored in `~/.context/auth.json` with `0600` permissions, and matched by domain (with one level of parent-domain fallback for subdomains).
+
+```bash
+# Store cookies for a domain
+context auth add substack.com --cookies "substack.sid=YOUR_SID"
+
+# Add a custom header too
+context auth add medium.com --cookies "sid=..." --header "x-frontend: web"
+
+# List configured auth
+context auth list
+
+# Remove auth
+context auth remove substack.com
 ```
 
 ### `context serve`

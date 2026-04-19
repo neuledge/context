@@ -171,66 +171,101 @@ export interface FetchedWebPage {
 }
 
 /**
+ * Result of {@link fetchWebPage}. On failure, `reason` describes what
+ * went wrong so callers can surface a useful error to the user.
+ */
+export type FetchWebPageResult =
+  | ({ ok: true } & FetchedWebPage)
+  | { ok: false; reason: string };
+
+/**
  * Fetch a web page and return it as markdown-ready content.
  *
  * HTML responses are run through defuddle to strip site chrome (nav,
  * subscribe boxes, comments, recommendation rails) before being
  * converted to Markdown. Markdown/plain-text responses pass through
- * unchanged. Returns null on failure or for unsupported binary types.
+ * unchanged. On failure, returns `{ ok: false, reason }` with a
+ * human-readable explanation.
  */
 export async function fetchWebPage(
   url: string,
   fetchImpl: typeof fetch = fetch,
   timeoutMs: number = 30_000,
-): Promise<FetchedWebPage | null> {
+): Promise<FetchWebPageResult> {
+  let response: Response;
   try {
-    const response = await fetchWithTimeout(
+    response = await fetchWithTimeout(
       fetchImpl,
       url,
       buildFetchOptions(url),
       timeoutMs,
     );
-    if (!response.ok) return null;
-
-    const contentLength = response.headers.get("content-length");
-    if (
-      contentLength &&
-      Number.parseInt(contentLength, 10) > 10 * 1024 * 1024
-    ) {
-      return null;
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      return { ok: false, reason: `request timed out after ${timeoutMs}ms` };
     }
-
-    const text = await readResponseText(response);
-    if (!text || !text.trim()) return null;
-
-    const contentType =
-      response.headers.get("content-type")?.toLowerCase() ?? "";
-
-    // Reject known binary content types
-    if (
-      contentType.includes("application/pdf") ||
-      contentType.startsWith("image/") ||
-      contentType.startsWith("video/") ||
-      contentType.startsWith("audio/")
-    ) {
-      return null;
-    }
-
-    const isHtml =
-      contentType.includes("text/html") ||
-      contentType.includes("application/xhtml") ||
-      (!contentType && /<html[\s>]/i.test(text.slice(0, 1024)));
-
-    if (isHtml) {
-      const extracted = await extractArticleMarkdown(text, url);
-      if (!extracted) return null;
-      return { content: extracted.markdown, title: extracted.title };
-    }
-
-    return { content: text };
-  } catch {
-    return null;
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, reason: `network error: ${msg}` };
   }
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      reason: `HTTP ${response.status} ${response.statusText}`.trim(),
+    };
+  }
+
+  const contentLength = response.headers.get("content-length");
+  if (contentLength && Number.parseInt(contentLength, 10) > 10 * 1024 * 1024) {
+    return { ok: false, reason: "response exceeds 10 MB size cap" };
+  }
+
+  const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+
+  if (
+    contentType.includes("application/pdf") ||
+    contentType.startsWith("image/") ||
+    contentType.startsWith("video/") ||
+    contentType.startsWith("audio/")
+  ) {
+    return {
+      ok: false,
+      reason: `unsupported content type: ${contentType || "binary"}`,
+    };
+  }
+
+  let text: string | null;
+  try {
+    text = await readResponseText(response);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, reason: `failed to read response body: ${msg}` };
+  }
+
+  if (text === null) {
+    return { ok: false, reason: "response body exceeds 10 MB size cap" };
+  }
+  if (!text.trim()) {
+    return { ok: false, reason: "empty response body" };
+  }
+
+  const isHtml =
+    contentType.includes("text/html") ||
+    contentType.includes("application/xhtml") ||
+    (!contentType && /<html[\s>]/i.test(text.slice(0, 1024)));
+
+  if (isHtml) {
+    const extracted = await extractArticleMarkdown(text, url);
+    if (!extracted) {
+      return {
+        ok: false,
+        reason: "could not extract readable article content from HTML",
+      };
+    }
+    return { ok: true, content: extracted.markdown, title: extracted.title };
+  }
+
+  return { ok: true, content: text };
 }
 
 /**
@@ -286,9 +321,9 @@ async function addFromWebsite(
     // Fallback: fetch the original URL as a single page
     console.log(`No llms.txt found. Fetching page content directly...`);
     const page = await fetchWebPage(source);
-    if (!page) {
+    if (!page.ok) {
       throw new Error(
-        `No llms.txt found at ${source}. Tried:\n${urls.map((u) => `  - ${u}`).join("\n")}\n\nAnd could not fetch the page directly. The site may be unavailable or use an unsupported content type.`,
+        `No llms.txt found at ${source}. Tried:\n${urls.map((u) => `  - ${u}`).join("\n")}\n\nDirect fetch also failed: ${page.reason}.`,
       );
     }
 
