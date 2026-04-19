@@ -1,5 +1,24 @@
 # @neuledge/context
 
+## 0.9.0
+
+### Minor Changes
+
+- [#73](https://github.com/neuledge/context/pull/73) [`92f0a7d`](https://github.com/neuledge/context/commit/92f0a7d121cd92b8802aeaf5488f811c9e8f140d) Thanks [@shivaram19](https://github.com/shivaram19)! - Add support for ingesting arbitrary URLs when `llms.txt` is not found
+
+  - `context add <url>` now falls back to fetching the page directly if `llms.txt` is unavailable, enabling ingestion of blog posts, articles, documentation pages, and raw markdown files
+  - Added `suggestPackageNameFromUrl()` to derive meaningful package names from URL paths
+  - Added `fetchWebPage()` helper with content-type detection and binary rejection
+  - All HTTP fetches now include browser-like headers to bypass basic bot protection
+  - Added per-platform authentication via `context auth add/list/remove` for accessing subscriber-only content with cookies
+  - Auth is stored in `~/.context/auth.json` and matched by domain (with parent-domain fallback for subdomains)
+
+### Patch Changes
+
+- [#75](https://github.com/neuledge/context/pull/75) [`85f787c`](https://github.com/neuledge/context/commit/85f787cad34bb51e120de63780eac1c360f8cc6d) Thanks [@moshest](https://github.com/moshest)! - Use `defuddle` for HTML article extraction when ingesting arbitrary URLs.
+
+  Previously, `context add <url>` passed raw HTML (minus a few stripped tags) to the Markdown pipeline, which left site clutter — subscribe CTAs, related posts, comment widgets — in the final package on platforms like Substack and Medium. The HTML branch now runs through `defuddle` to produce clean Markdown before packaging, and the extracted article title is available for future manifest enrichment.
+
 ## 0.8.1
 
 ### Patch Changes
