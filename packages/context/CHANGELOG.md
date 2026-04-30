@@ -1,5 +1,11 @@
 # @neuledge/context
 
+## 1.0.0
+
+### Major Changes
+
+- [#76](https://github.com/neuledge/context/pull/76) [`eb7d01c`](https://github.com/neuledge/context/commit/eb7d01c4044b30707645af43cd3890c9c1e776d4) Thanks [@moshest](https://github.com/moshest)! - Release v1.0.0
+
 ## 0.9.0
 
 ### Minor Changes
