@@ -13,6 +13,10 @@ FROM node:22-bookworm-slim AS runtime
 
 WORKDIR /app
 
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends git ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
 COPY --from=build /app/packages/context/dist ./dist
 COPY --from=build /app/packages/context/package.json ./package.json
 
