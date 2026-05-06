@@ -1,5 +1,11 @@
 # @neuledge/context
 
+## 1.0.1
+
+### Patch Changes
+
+- [#80](https://github.com/neuledge/context/pull/80) [`b5dd83b`](https://github.com/neuledge/context/commit/b5dd83b453ce861ebc516ae915c847f385d6c0d3) Thanks [@moshest](https://github.com/moshest)! - Install `git` in the Docker runtime image so cloning GitHub URLs works out of the box (fixes `Git clone failed: /bin/sh: 1: git: not found`).
+
 ## 1.0.0
 
 ### Major Changes
