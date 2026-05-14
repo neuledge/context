@@ -5,6 +5,7 @@
  * filters to defined ranges, and deduplicates to latest-patch-per-minor.
  */
 
+import pRetry, { AbortError } from "p-retry";
 import {
   compareSemver,
   isVersioned,
@@ -196,44 +197,26 @@ async function fetchMavenVersions(packageName: string): Promise<VersionInfo[]> {
 }
 
 /**
- * Fetch with retry on transient failures (5xx responses and network errors).
- * Public registries occasionally return 504/503 under load — retrying with
- * exponential backoff turns a flaky CI job into a reliable one.
+ * Public registries occasionally return 504/503 under load. Retry 5xx and
+ * network errors with exponential backoff; 4xx aborts immediately.
  */
-async function fetchWithRetry(
+function fetchWithRetry(
   url: string,
   registryLabel: string,
   packageName: string,
-  maxAttempts = 4,
 ): Promise<Response> {
-  let lastError: unknown;
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    let res: Response | undefined;
-    try {
-      res = await fetch(url);
-    } catch (err) {
-      lastError = err;
-      if (attempt === maxAttempts) throw err;
-      await sleep(2 ** (attempt - 1) * 1000);
-      continue;
-    }
-
-    if (res.ok) return res;
-
-    const error = new Error(
-      `${registryLabel} returned ${res.status} for ${packageName}`,
-    );
-    if (res.status < 500 || attempt === maxAttempts) throw error;
-    lastError = error;
-    await sleep(2 ** (attempt - 1) * 1000);
-  }
-
-  throw lastError;
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return pRetry(
+    async () => {
+      const res = await fetch(url);
+      if (res.ok) return res;
+      const error = new Error(
+        `${registryLabel} returned ${res.status} for ${packageName}`,
+      );
+      if (res.status < 500) throw new AbortError(error);
+      throw error;
+    },
+    { retries: 3 },
+  );
 }
 
 function isPrerelease(version: string): boolean {
