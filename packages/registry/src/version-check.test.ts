@@ -154,6 +154,42 @@ describe("discoverVersions", () => {
     await expect(discoverVersions(mockDefinition)).rejects.toThrow("404");
   });
 
+  it("retries on transient 5xx errors and succeeds", async () => {
+    vi.useFakeTimers();
+    const mockFetch = vi.mocked(fetch);
+    mockFetch
+      .mockResolvedValueOnce({ ok: false, status: 504 } as Response)
+      .mockResolvedValueOnce({ ok: false, status: 503 } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          versions: { "2.0.0": {} },
+          time: { "2.0.0": "2024-01-01T00:00:00Z" },
+        }),
+      } as Response);
+
+    const promise = discoverVersions(mockDefinition);
+    await vi.runAllTimersAsync();
+    const versions = await promise;
+
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+    expect(versions.map((v) => v.version)).toEqual(["2.0.0"]);
+    vi.useRealTimers();
+  });
+
+  it("throws after exhausting retries on persistent 5xx", async () => {
+    vi.useFakeTimers();
+    const mockFetch = vi.mocked(fetch);
+    mockFetch.mockResolvedValue({ ok: false, status: 504 } as Response);
+
+    const promise = discoverVersions(mockDefinition);
+    const assertion = expect(promise).rejects.toThrow("504");
+    await vi.runAllTimersAsync();
+    await assertion;
+    expect(mockFetch).toHaveBeenCalledTimes(4);
+    vi.useRealTimers();
+  });
+
   it("returns 'latest' for unversioned definitions without calling registry", async () => {
     const mockFetch = vi.mocked(fetch);
     const unversioned: UnversionedDefinition = {
