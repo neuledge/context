@@ -1,5 +1,11 @@
 # @neuledge/context
 
+## 1.1.0
+
+### Minor Changes
+
+- [#85](https://github.com/neuledge/context/pull/85) [`1d0a5f6`](https://github.com/neuledge/context/commit/1d0a5f67eab9590f5b8c9d92513c7bc7bc30b66a) Thanks [@moshest](https://github.com/moshest)! - Add `--libs` option to `context serve` for restricting an MCP session to a fixed subset of installed libraries. Each entry can be a name (`react`) or `name@version` (`react@18.3.1`). When set, `search_packages` and `download_package` are hidden so the session is locked to that list — useful for per-project scoping when many packages are installed globally.
+
 ## 1.0.1
 
 ### Patch Changes
