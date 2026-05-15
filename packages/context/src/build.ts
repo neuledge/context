@@ -313,7 +313,7 @@ export function parseMarkdown(source: string, filePath: string): ParsedDoc {
     filePath
       .split("/")
       .pop()
-      ?.replace(/\.(md|mdx|qmd|rmd|adoc|rst)$/, "") ||
+      ?.replace(/\.(md|mdx|mdoc|qmd|rmd|adoc|rst)$/, "") ||
     "Untitled";
 
   // Remove frontmatter and JSX import statements from source for extraction

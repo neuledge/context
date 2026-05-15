@@ -117,6 +117,7 @@ const FIXTURE_SUFFIXES = ["expect", "test", "spec"];
 const DOCUMENTATION_EXTENSIONS = [
   ".md",
   ".mdx",
+  ".mdoc",
   ".qmd",
   ".rmd",
   ".adoc",
