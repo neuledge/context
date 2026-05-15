@@ -1,12 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   detectSourceType,
   fetchWebPage,
   packageNameFromUrl,
+  parseLibSpec,
   parseRegistryPackage,
+  resolveAllowedLibraries,
   resolveLlmsTxtUrls,
   suggestPackageNameFromUrl,
 } from "./cli.js";
+import type { PackageInfo } from "./store.js";
 
 describe("detectSourceType", () => {
   describe("file sources", () => {
@@ -418,5 +421,87 @@ describe("fetchWebPage", () => {
     expect(page.ok).toBe(false);
     if (page.ok) return;
     expect(page.reason).toMatch(/timed out after 100ms/);
+  });
+});
+
+describe("parseLibSpec", () => {
+  it("treats a bare name as no version", () => {
+    expect(parseLibSpec("react")).toEqual({ name: "react" });
+  });
+
+  it("splits on the last @", () => {
+    expect(parseLibSpec("next@15.0.0")).toEqual({
+      name: "next",
+      version: "15.0.0",
+    });
+  });
+
+  it("preserves scoped names without a version", () => {
+    expect(parseLibSpec("@trpc/server")).toEqual({ name: "@trpc/server" });
+  });
+
+  it("splits a scoped name with a version on the last @", () => {
+    expect(parseLibSpec("@trpc/server@11.0.0")).toEqual({
+      name: "@trpc/server",
+      version: "11.0.0",
+    });
+  });
+});
+
+describe("resolveAllowedLibraries", () => {
+  const installed: PackageInfo[] = [
+    {
+      name: "react",
+      version: "18.3.1",
+      path: "/react.db",
+      sizeBytes: 0,
+      sectionCount: 0,
+    },
+    {
+      name: "next",
+      version: "15.0.4",
+      path: "/next.db",
+      sizeBytes: 0,
+      sectionCount: 0,
+    },
+  ];
+
+  it("returns the set of matching names for valid specs", () => {
+    const result = resolveAllowedLibraries(["react", "next@15.0.4"], installed);
+    expect(result).toEqual(new Set(["react", "next"]));
+  });
+
+  it("exits with an error when a name isn't installed", () => {
+    const exit = vi
+      .spyOn(process, "exit")
+      .mockImplementation((() => undefined) as never);
+    const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      resolveAllowedLibraries(["missing"], installed);
+      expect(exit).toHaveBeenCalledWith(1);
+      expect(err.mock.calls.flat().join("\n")).toContain(
+        "missing: not installed",
+      );
+    } finally {
+      exit.mockRestore();
+      err.mockRestore();
+    }
+  });
+
+  it("exits with an error when the pinned version doesn't match", () => {
+    const exit = vi
+      .spyOn(process, "exit")
+      .mockImplementation((() => undefined) as never);
+    const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      resolveAllowedLibraries(["react@17.0.0"], installed);
+      expect(exit).toHaveBeenCalledWith(1);
+      expect(err.mock.calls.flat().join("\n")).toContain(
+        "installed version is 18.3.1",
+      );
+    } finally {
+      exit.mockRestore();
+      err.mockRestore();
+    }
   });
 });

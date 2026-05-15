@@ -65,6 +65,63 @@ describe("ContextServer", () => {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
   });
+
+  it("hides registry tools and filters get_docs when allowedLibraries is set", async () => {
+    const testDir = join(
+      tmpdir(),
+      `context-allowed-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    );
+    mkdirSync(testDir, { recursive: true });
+
+    try {
+      const store = new PackageStore();
+      for (const name of ["alpha", "beta", "gamma"]) {
+        const path = join(testDir, `${name}@1.0.0.db`);
+        const db = createTestDb(path, { name, version: "1.0.0" });
+        insertChunk(db, {
+          docPath: "x.md",
+          docTitle: name,
+          sectionTitle: "intro",
+          content: name,
+          tokens: 1,
+        });
+        rebuildFtsIndex(db);
+        db.close();
+        store.add(readPackageInfo(path));
+      }
+
+      const ctx = new ContextServer(store, {
+        allowedLibraries: new Set(["alpha", "gamma"]),
+      });
+      const { server, port } = await ctx.startHTTP({ port: 0 });
+
+      const client = new Client({ name: "test-client", version: "1.0.0" });
+      const transport = new StreamableHTTPClientTransport(
+        new URL(`http://127.0.0.1:${port}/mcp`),
+      );
+
+      try {
+        await client.connect(transport);
+
+        const tools = await client.listTools();
+        const toolNames = tools.tools.map((t) => t.name);
+        expect(toolNames).toContain("get_docs");
+        expect(toolNames).not.toContain("search_packages");
+        expect(toolNames).not.toContain("download_package");
+
+        const getDocs = tools.tools.find((t) => t.name === "get_docs");
+        const schema = JSON.stringify(getDocs);
+        expect(schema).toContain("alpha@1.0.0");
+        expect(schema).toContain("gamma@1.0.0");
+        expect(schema).not.toContain("beta@1.0.0");
+      } finally {
+        await client.close().catch(() => {});
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+      }
+    } finally {
+      if (existsSync(testDir)) rmSync(testDir, { recursive: true });
+    }
+  });
 });
 
 describe("ContextServer integration", () => {

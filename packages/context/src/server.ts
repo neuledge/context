@@ -23,6 +23,16 @@ import type { PackageInfo, PackageStore } from "./store.js";
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json") as { version: string };
 
+export interface ContextServerOptions {
+  /**
+   * Restrict which installed libraries the agent can see. When set,
+   * `get_docs` only lists these packages and the registry tools
+   * (`search_packages`, `download_package`) are not registered — the session
+   * is locked to a fixed set.
+   */
+  allowedLibraries?: ReadonlySet<string>;
+}
+
 /**
  * MCP server for documentation retrieval.
  * Accepts a PackageStore to provide the get_docs tool.
@@ -30,25 +40,38 @@ const { version } = require("../package.json") as { version: string };
 export class ContextServer {
   private mcp: McpServer;
   private store: PackageStore;
+  private allowedLibraries?: ReadonlySet<string>;
   private getDocsRegistration: ReturnType<McpServer["registerTool"]> | null =
     null;
 
-  constructor(store: PackageStore) {
+  constructor(store: PackageStore, options: ContextServerOptions = {}) {
     this.store = store;
+    this.allowedLibraries = options.allowedLibraries;
     this.mcp = new McpServer({
       name: "context",
       version,
     });
   }
 
+  /** Packages visible to the agent, after applying any --libs filter. */
+  private visiblePackages(): PackageInfo[] {
+    const all = this.store.list();
+    if (!this.allowedLibraries) return all;
+    return all.filter((p) => this.allowedLibraries?.has(p.name));
+  }
+
   /**
    * Register all MCP tools. Called before connecting a transport.
    */
   private registerTools(): void {
-    const packages = this.store.list();
-    this.registerGetDocsTool(packages);
-    this.registerSearchPackagesTool();
-    this.registerDownloadPackageTool();
+    this.registerGetDocsTool(this.visiblePackages());
+
+    // When the session is locked to a fixed library set, registry tools are
+    // hidden so the agent can't expand its scope mid-session.
+    if (!this.allowedLibraries) {
+      this.registerSearchPackagesTool();
+      this.registerDownloadPackageTool();
+    }
   }
 
   /**
@@ -134,7 +157,9 @@ export class ContextServer {
       transports.set(newSessionId, transport);
 
       // Each new transport gets its own ContextServer sharing the same store
-      const sessionCtx = new ContextServer(this.store);
+      const sessionCtx = new ContextServer(this.store, {
+        allowedLibraries: this.allowedLibraries,
+      });
       sessionCtx.registerTools();
 
       await sessionCtx.mcp.connect(transport);
@@ -194,7 +219,7 @@ export class ContextServer {
    * If get_docs doesn't exist yet, register it for the first time.
    */
   private refreshGetDocsTool(): void {
-    const packages = this.store.list();
+    const packages = this.visiblePackages();
 
     if (this.getDocsRegistration) {
       // Update existing tool with new enum
@@ -224,7 +249,7 @@ export class ContextServer {
     library: string,
     topic: string,
   ): { content: { type: "text"; text: string }[] } {
-    const packages = this.store.list();
+    const packages = this.visiblePackages();
     const pkg = packages.find((p) => formatLibraryName(p) === library);
 
     if (!pkg) {

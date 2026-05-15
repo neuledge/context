@@ -511,6 +511,53 @@ function loadPackages(store: PackageStore): void {
   }
 }
 
+/** Parse a `--libs` spec into name (optionally with @version). */
+// Uses lastIndexOf so scoped names like `@trpc/server@1.0.0` split correctly,
+// while a bare scoped name `@trpc/server` (leading `@` only) keeps its name.
+export function parseLibSpec(spec: string): { name: string; version?: string } {
+  const at = spec.lastIndexOf("@");
+  if (at <= 0) return { name: spec };
+  return { name: spec.slice(0, at), version: spec.slice(at + 1) };
+}
+
+/**
+ * Resolve `--libs` specs against installed packages. Exits the process with a
+ * descriptive error if any spec doesn't match an installed package.
+ */
+export function resolveAllowedLibraries(
+  specs: string[],
+  installed: PackageInfo[],
+): Set<string> {
+  const allowed = new Set<string>();
+  const errors: string[] = [];
+
+  for (const raw of specs) {
+    const spec = parseLibSpec(raw);
+    const pkg = installed.find((p) => p.name === spec.name);
+
+    if (!pkg) {
+      errors.push(`  - ${raw}: not installed`);
+      continue;
+    }
+    if (spec.version && pkg.version !== spec.version) {
+      errors.push(
+        `  - ${raw}: installed version is ${pkg.version}, not ${spec.version}`,
+      );
+      continue;
+    }
+    allowed.add(pkg.name);
+  }
+
+  if (errors.length > 0) {
+    console.error("Cannot start --libs session:");
+    for (const e of errors) console.error(e);
+    console.error("Run `context list` to see installed packages.");
+    process.exit(1);
+  }
+
+  return allowed;
+}
+
 const program = new Command()
   .name("context")
   .description("Local-first documentation for AI agents")
@@ -1032,35 +1079,53 @@ program
     "Start as HTTP server instead of stdio (default port: 8080)",
   )
   .option("--host <host>", "Host to bind to (default: 127.0.0.1)")
-  .action(async (options: { http?: string | true; host?: string }) => {
-    const store = new PackageStore();
-    loadPackages(store);
+  .option(
+    "--libs <names...>",
+    "Restrict the session to a fixed set of installed libraries (e.g., react next@15). Hides search_packages and download_package.",
+  )
+  .action(
+    async (options: {
+      http?: string | true;
+      host?: string;
+      libs?: string[];
+    }) => {
+      const store = new PackageStore();
+      loadPackages(store);
 
-    const packages = store.list();
-    if (packages.length > 0) {
-      const names = packages.map((p) => `${p.name}@${p.version}`).join(", ");
-      console.error(`Context MCP Server starting...`);
-      console.error(`Loaded ${packages.length} packages: ${names}`);
-    } else {
-      console.error("Context MCP Server starting...");
-      console.error("No packages installed. Run: context add <package.db>");
-    }
+      const allowedLibraries = options.libs
+        ? resolveAllowedLibraries(options.libs, store.list())
+        : undefined;
 
-    const server = new ContextServer(store);
+      const visible = allowedLibraries
+        ? store.list().filter((p) => allowedLibraries.has(p.name))
+        : store.list();
 
-    if (options.http !== undefined) {
-      const port =
-        typeof options.http === "string"
-          ? Number.parseInt(options.http, 10)
-          : 8080;
-      const host = options.host ?? "127.0.0.1";
+      if (visible.length > 0) {
+        const names = visible.map((p) => `${p.name}@${p.version}`).join(", ");
+        console.error(`Context MCP Server starting...`);
+        const prefix = allowedLibraries ? "Restricted to" : "Loaded";
+        console.error(`${prefix} ${visible.length} packages: ${names}`);
+      } else {
+        console.error("Context MCP Server starting...");
+        console.error("No packages installed. Run: context add <package.db>");
+      }
 
-      const { port: actualPort } = await server.startHTTP({ port, host });
-      console.error(`Listening on http://${host}:${actualPort}/mcp`);
-    } else {
-      await server.start();
-    }
-  });
+      const server = new ContextServer(store, { allowedLibraries });
+
+      if (options.http !== undefined) {
+        const port =
+          typeof options.http === "string"
+            ? Number.parseInt(options.http, 10)
+            : 8080;
+        const host = options.host ?? "127.0.0.1";
+
+        const { port: actualPort } = await server.startHTTP({ port, host });
+        console.error(`Listening on http://${host}:${actualPort}/mcp`);
+      } else {
+        await server.start();
+      }
+    },
+  );
 
 function formatLibraryName(pkg: PackageInfo): string {
   return `${pkg.name}@${pkg.version}`;
