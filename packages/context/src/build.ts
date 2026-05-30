@@ -141,7 +141,15 @@ function extractFrontmatter(tree: Root): DocFrontmatter {
   if (!yamlNode) return {};
 
   try {
-    return parseYaml(yamlNode.value) as DocFrontmatter;
+    // Validate types rather than blindly casting: malformed frontmatter can
+    // parse title/description into non-strings (e.g. a bare value the YAML
+    // parser reads as a map), which later breaks SQLite parameter binding.
+    const data = parseYaml(yamlNode.value) as Record<string, unknown> | null;
+    return {
+      title: typeof data?.title === "string" ? data.title : undefined,
+      description:
+        typeof data?.description === "string" ? data.description : undefined,
+    };
   } catch {
     return {};
   }
