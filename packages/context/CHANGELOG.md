@@ -1,5 +1,13 @@
 # @neuledge/context
 
+## 1.1.1
+
+### Patch Changes
+
+- [#91](https://github.com/neuledge/context/pull/91) [`8248ded`](https://github.com/neuledge/context/commit/8248dedf7158bec85ecaca1469977a7890e9172b) Thanks [@moshest](https://github.com/moshest)! - Ignore non-string `title`/`description` frontmatter values when parsing docs. Previously a frontmatter field that parsed to a non-string (e.g. an object) propagated into the document title and broke package building with "Too few parameter values were provided". Such values now fall back to the derived title instead of crashing the build.
+
+- [#87](https://github.com/neuledge/context/pull/87) [`d84e982`](https://github.com/neuledge/context/commit/d84e982c1d16bdc3d0af612cf5014770c66590e3) Thanks [@moshest](https://github.com/moshest)! - Recognize `.mdoc` (Markdoc) files when scanning a repository for documentation. Sites built on Astro Starlight (e.g. Nx) ship docs in this format, and they were previously skipped.
+
 ## 1.1.0
 
 ### Minor Changes
