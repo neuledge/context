@@ -1,6 +1,6 @@
 {
   "name": "@neuledge/registry",
-  "version": "0.0.11",
+  "version": "0.0.12",
   "private": true,
   "description": "Registry infrastructure for building and publishing context packages",
   "type": "module",

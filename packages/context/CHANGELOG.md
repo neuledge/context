@@ -1,5 +1,11 @@
 # @neuledge/context
 
+## 1.1.2
+
+### Patch Changes
+
+- [#93](https://github.com/neuledge/context/pull/93) [`b33164a`](https://github.com/neuledge/context/commit/b33164a4a5b983a53a49a50fce317200bdec31b5) Thanks [@moshest](https://github.com/moshest)! - Retry git clones on transient network failures (connection timeouts, DNS errors, 5xx) with exponential backoff, so a single network hiccup no longer fails package builds
+
 ## 1.1.1
 
 ### Patch Changes
