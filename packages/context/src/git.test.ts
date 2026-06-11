@@ -1,5 +1,43 @@
 import { describe, expect, it } from "vitest";
-import { findLatestStableVersion, parseMonorepoTag } from "./git.js";
+import {
+  findLatestStableVersion,
+  isTransientGitError,
+  parseMonorepoTag,
+} from "./git.js";
+
+describe("isTransientGitError", () => {
+  it("detects connection failures", () => {
+    expect(
+      isTransientGitError(
+        "fatal: unable to access 'https://github.com/vuejs/docs/': Failed to connect to github.com port 443 after 135337 ms: Couldn't connect to server",
+      ),
+    ).toBe(true);
+  });
+
+  it("detects DNS failures", () => {
+    expect(
+      isTransientGitError(
+        "fatal: unable to access 'https://github.com/x/y/': Could not resolve host: github.com",
+      ),
+    ).toBe(true);
+  });
+
+  it("detects server errors", () => {
+    expect(
+      isTransientGitError("error: The requested URL returned error: 503"),
+    ).toBe(true);
+  });
+
+  it("rejects permanent errors", () => {
+    expect(
+      isTransientGitError("fatal: Remote branch v99.0.0 not found in upstream"),
+    ).toBe(false);
+    expect(isTransientGitError("remote: Repository not found.")).toBe(false);
+    expect(
+      isTransientGitError("fatal: Authentication failed for 'https://...'"),
+    ).toBe(false);
+  });
+});
 
 describe("parseMonorepoTag", () => {
   it("parses plain version tags", () => {

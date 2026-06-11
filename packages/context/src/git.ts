@@ -208,33 +208,79 @@ function extractGitError(error: unknown): string {
 }
 
 /**
+ * Git error patterns that indicate a transient network failure worth
+ * retrying, as opposed to permanent errors (missing ref, repo not found,
+ * auth failure) where retrying just wastes time.
+ */
+const TRANSIENT_GIT_ERROR_PATTERNS = [
+  /could ?not resolve host/i,
+  /failed to connect/i,
+  /connection (timed out|reset|refused)/i,
+  /operation timed out/i,
+  /gnutls recv error/i,
+  /early eof/i,
+  /remote end hung up unexpectedly/i,
+  /rpc failed/i,
+  /returned error: (429|5\d\d)/i,
+];
+
+/**
+ * Check if a git error message looks like a transient network failure.
+ */
+export function isTransientGitError(message: string): boolean {
+  return TRANSIENT_GIT_ERROR_PATTERNS.some((re) => re.test(message));
+}
+
+/**
+ * Synchronous sleep (cloneRepository is sync, so no await available).
+ */
+function sleepSync(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+const CLONE_ATTEMPTS = 3;
+
+/**
  * Clone a git repository to a temporary directory.
+ * Retries transient network failures with exponential backoff (2s, 4s).
  */
 export function cloneRepository(url: string, ref?: string): GitCloneResult {
-  const tempDir = mkdtempSync(join(tmpdir(), "context-git-"));
+  for (let attempt = 1; ; attempt++) {
+    const tempDir = mkdtempSync(join(tmpdir(), "context-git-"));
 
-  try {
-    // Clone with depth 1 for efficiency (shallow clone)
-    const cloneArgs = ["clone", "--depth", "1"];
-    if (ref) {
-      cloneArgs.push("--branch", ref);
+    try {
+      // Clone with depth 1 for efficiency (shallow clone)
+      const cloneArgs = ["clone", "--depth", "1"];
+      if (ref) {
+        cloneArgs.push("--branch", ref);
+      }
+      cloneArgs.push(url, tempDir);
+
+      execSync(`git ${cloneArgs.join(" ")}`, {
+        stdio: ["pipe", "pipe", "pipe"],
+        encoding: "utf-8",
+      });
+
+      return {
+        tempDir,
+        cleanup: () => rmSync(tempDir, { recursive: true, force: true }),
+      };
+    } catch (error) {
+      // Clean up on failure
+      rmSync(tempDir, { recursive: true, force: true });
+
+      const message = extractGitError(error);
+      if (attempt >= CLONE_ATTEMPTS || !isTransientGitError(message)) {
+        throw new Error(`Git clone failed: ${message}`);
+      }
+
+      const delayMs = 2 ** attempt * 1000;
+      console.error(
+        `Clone of ${url} failed (attempt ${attempt}/${CLONE_ATTEMPTS}), retrying in ${delayMs / 1000}s...`,
+      );
+      sleepSync(delayMs);
     }
-    cloneArgs.push(url, tempDir);
-
-    execSync(`git ${cloneArgs.join(" ")}`, {
-      stdio: ["pipe", "pipe", "pipe"],
-      encoding: "utf-8",
-    });
-  } catch (error) {
-    // Clean up on failure
-    rmSync(tempDir, { recursive: true, force: true });
-    throw new Error(`Git clone failed: ${extractGitError(error)}`);
   }
-
-  return {
-    tempDir,
-    cleanup: () => rmSync(tempDir, { recursive: true, force: true }),
-  };
 }
 
 /**
