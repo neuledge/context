@@ -32,6 +32,7 @@ const registryFetchers: Record<string, RegistryFetcher> = {
   npm: fetchNpmVersions,
   pip: fetchPipVersions,
   maven: fetchMavenVersions,
+  hex: fetchHexVersions,
 };
 
 /**
@@ -193,6 +194,29 @@ async function fetchMavenVersions(packageName: string): Promise<VersionInfo[]> {
     publishedAt: doc.timestamp
       ? new Date(doc.timestamp).toISOString()
       : undefined,
+  }));
+}
+
+/**
+ * Fetch versions from Hex.pm API.
+ * Package names are lowercase with underscores (e.g., "phoenix", "phoenix_live_view").
+ */
+async function fetchHexVersions(packageName: string): Promise<VersionInfo[]> {
+  const res = await fetchWithRetry(
+    `https://hex.pm/api/packages/${encodeURIComponent(packageName)}`,
+    `Hex`,
+    packageName,
+  );
+
+  const data = (await res.json()) as {
+    releases?: Array<{ version?: string; inserted_at?: string }>;
+  };
+
+  const releases = data.releases ?? [];
+
+  return releases.map((r) => ({
+    version: r.version ?? "",
+    publishedAt: r.inserted_at,
   }));
 }
 
