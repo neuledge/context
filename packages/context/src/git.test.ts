@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   findLatestStableVersion,
+  isMissingRefError,
   isTransientGitError,
   parseMonorepoTag,
 } from "./git.js";
@@ -36,6 +37,27 @@ describe("isTransientGitError", () => {
     expect(
       isTransientGitError("fatal: Authentication failed for 'https://...'"),
     ).toBe(false);
+  });
+});
+
+describe("isMissingRefError", () => {
+  it("detects a tag not pushed yet (npm ahead of git)", () => {
+    expect(
+      isMissingRefError(
+        "Git clone failed: Cloning into '/tmp/context-git-9itQYk'...\nfatal: Remote branch v4.1.9 not found in upstream origin",
+      ),
+    ).toBe(true);
+  });
+
+  it("detects a missing pathspec/reference on checkout", () => {
+    expect(
+      isMissingRefError("error: pathspec 'v4.1.9' did not match any file(s)"),
+    ).toBe(true);
+  });
+
+  it("rejects transient and unrelated errors", () => {
+    expect(isMissingRefError("Could not resolve host: github.com")).toBe(false);
+    expect(isMissingRefError("remote: Repository not found.")).toBe(false);
   });
 });
 

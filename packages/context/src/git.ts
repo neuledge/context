@@ -232,6 +232,25 @@ export function isTransientGitError(message: string): boolean {
 }
 
 /**
+ * Git error patterns indicating the requested ref (tag/branch) doesn't exist
+ * in the remote. Happens when a registry (e.g. npm) publishes a version before
+ * the matching git tag is pushed — a transient state that self-heals once the
+ * tag lands, so callers can skip rather than hard-fail.
+ */
+const MISSING_REF_GIT_ERROR_PATTERNS = [
+  /remote branch .* not found in upstream/i,
+  /could not find remote (branch|ref)/i,
+  /(pathspec|reference) .* did not match/i,
+];
+
+/**
+ * Check if a git error message indicates the requested ref doesn't exist.
+ */
+export function isMissingRefError(message: string): boolean {
+  return MISSING_REF_GIT_ERROR_PATTERNS.some((re) => re.test(message));
+}
+
+/**
  * Synchronous sleep (cloneRepository is sync, so no await available).
  */
 function sleepSync(ms: number): void {
