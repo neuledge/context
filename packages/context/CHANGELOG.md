@@ -1,5 +1,11 @@
 # @neuledge/context
 
+## 1.2.0
+
+### Minor Changes
+
+- [#96](https://github.com/neuledge/context/pull/96) [`45319fc`](https://github.com/neuledge/context/commit/45319fc6bbf0cb4695c26a221d0fac5dea745682) Thanks [@moshest](https://github.com/moshest)! - Add `isMissingRefError` helper to detect git "ref not found" errors (e.g. when a registry publishes a version before its git tag is pushed)
+
 ## 1.1.2
 
 ### Patch Changes
