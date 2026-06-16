@@ -1,5 +1,5 @@
 /**
- * Version discovery from package registry APIs (npm, pip, maven).
+ * Version discovery from package registry APIs (npm, pip, maven, hex).
  *
  * Queries public registry APIs to find available versions,
  * filters to defined ranges, and deduplicates to latest-patch-per-minor.

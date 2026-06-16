@@ -137,6 +137,33 @@ describe("discoverVersions", () => {
     );
   });
 
+  it("fetches hex versions and filters to defined ranges", async () => {
+    const hexDef: VersionedDefinition = {
+      ...mockDefinition,
+      name: "phoenix",
+      registry: "hex",
+    };
+
+    const mockFetch = vi.mocked(fetch);
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        releases: [
+          { version: "1.7.0", inserted_at: "2024-06-01T00:00:00Z" },
+          { version: "1.6.0", inserted_at: "2024-03-01T00:00:00Z" },
+          { version: "1.5.0", inserted_at: "2024-01-01T00:00:00Z" },
+        ],
+      }),
+    } as Response);
+
+    const versions = await discoverVersions(hexDef);
+
+    expect(versions.map((v) => v.version)).toEqual(["1.7.0", "1.6.0", "1.5.0"]);
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("hex.pm/api/packages/phoenix"),
+    );
+  });
+
   it("throws for unsupported registry", async () => {
     const def = { ...mockDefinition, registry: "cargo" };
     await expect(discoverVersions(def)).rejects.toThrow(
