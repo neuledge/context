@@ -1,0 +1,11 @@
+name: "@tanstack/solid-pacer"
+description: "Utilities for debouncing and throttling functions in Solid."
+repository: https://github.com/TanStack/pacer
+
+versions:
+  - min_version: "0.1.0"
+    source:
+      type: git
+      url: https://github.com/TanStack/pacer
+      docs_path: docs
+    tag_pattern: "@tanstack/solid-pacer@{version}"

@@ -1,0 +1,11 @@
+name: "@tanstack/solid-db"
+description: "Solid integration for @tanstack/db"
+repository: https://github.com/TanStack/db
+
+versions:
+  - min_version: "0.1.0"
+    source:
+      type: git
+      url: https://github.com/TanStack/db
+      docs_path: docs
+    tag_pattern: "@tanstack/solid-db@{version}"

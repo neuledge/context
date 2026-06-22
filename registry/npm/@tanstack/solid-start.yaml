@@ -1,0 +1,11 @@
+name: "@tanstack/solid-start"
+description: "Full-stack framework powered by TanStack Router for Solid applications"
+repository: https://github.com/TanStack/router
+
+versions:
+  - min_version: "1.0.0"
+    source:
+      type: git
+      url: https://github.com/TanStack/router
+      docs_path: docs
+    tag_pattern: "@tanstack/solid-start@{version}"

@@ -1,0 +1,11 @@
+name: "@tanstack/solid-virtual"
+description: "Headless UI for virtualizing scrollable elements in Solid"
+repository: https://github.com/TanStack/virtual
+
+versions:
+  - min_version: "3.0.0"
+    source:
+      type: git
+      url: https://github.com/TanStack/virtual
+      docs_path: docs
+    tag_pattern: "@tanstack/solid-virtual@{version}"

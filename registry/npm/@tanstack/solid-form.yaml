@@ -1,0 +1,11 @@
+name: "@tanstack/solid-form"
+description: "Powerful, type-safe forms for Solid."
+repository: https://github.com/TanStack/form
+
+versions:
+  - min_version: "1.0.0"
+    source:
+      type: git
+      url: https://github.com/TanStack/form
+      docs_path: docs
+    tag_pattern: "@tanstack/solid-form@{version}"

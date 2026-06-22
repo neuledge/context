@@ -1,0 +1,11 @@
+name: "@tanstack/solid-store"
+description: "Framework agnostic type-safe store w/ reactive Solid adapter"
+repository: https://github.com/TanStack/store
+
+versions:
+  - min_version: "0.1.0"
+    source:
+      type: git
+      url: https://github.com/TanStack/store
+      docs_path: docs
+    tag_pattern: "@tanstack/solid-store@{version}"
