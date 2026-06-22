@@ -39,6 +39,7 @@ export {
   extractVersion,
   type GitCloneResult,
   isGitUrl,
+  isMissingRefError,
   type LocalDocsResult,
   parseGitUrl,
   readLocalDocsFiles,

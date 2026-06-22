@@ -408,7 +408,7 @@ context add ./my-docs --save ./my-package.db
 
 **From website ([llms.txt](https://llmstxt.org/)):**
 
-Many websites publish an `llms.txt` file with AI-ready documentation. Context auto-detects and fetches it:
+Many websites publish an `llms.txt` file with AI-ready documentation. Context auto-detects and fetches it. When the site only provides `llms.txt` (an index of links rather than the inlined `llms-full.txt`), Context follows each link and fetches the linked document:
 
 ```bash
 # Auto-fetches llms-full.txt or llms.txt from the site
@@ -421,6 +421,20 @@ context add https://svelte.dev/docs/svelte/llms.txt
 # Custom package name
 context add https://react-aria.adobe.com --name react-aria
 ```
+
+**From an arbitrary URL (blog posts, articles, raw Markdown):**
+
+If no `llms.txt` is found, Context falls back to fetching the page directly. HTML pages are run through a readability extractor (defuddle) so subscribe CTAs, navigation, and comment widgets don't end up in the package:
+
+```bash
+# A blog post
+context add https://overreacted.io/things-i-dont-know-as-of-2018/
+
+# Raw Markdown from GitHub
+context add https://raw.githubusercontent.com/neuledge/context/main/README.md --name context-readme
+```
+
+For subscriber-only content on platforms you have a paid account for, see [`context auth`](#context-auth) below.
 
 **From URL:**
 
@@ -478,6 +492,24 @@ Remove a package.
 context remove nextjs
 ```
 
+### `context auth`
+
+Store per-platform cookies or headers so `context add <url>` can fetch subscriber-only content you have a legitimate account for (e.g., a paid Substack or Medium subscription). Credentials are stored in `~/.context/auth.json` with `0600` permissions, and matched by domain (with one level of parent-domain fallback for subdomains).
+
+```bash
+# Store cookies for a domain
+context auth add substack.com --cookies "substack.sid=YOUR_SID"
+
+# Add a custom header too
+context auth add medium.com --cookies "sid=..." --header "x-frontend: web"
+
+# List configured auth
+context auth list
+
+# Remove auth
+context auth remove substack.com
+```
+
 ### `context serve`
 
 Start the MCP server (used by AI agents).
@@ -490,12 +522,16 @@ context serve
 context serve --http
 context serve --http 3000
 context serve --http 3000 --host 0.0.0.0
+
+# Restrict the session to a subset of installed packages
+context serve --libs react next@15.0.4
 ```
 
 | Option | Description |
 |--------|-------------|
 | `--http [port]` | Start as HTTP server instead of stdio (default port: 8080) |
 | `--host <host>` | Host to bind to (default: 127.0.0.1) |
+| `--libs <names...>` | Restrict the session to a fixed set of installed libraries. Each entry is a name (`react`) or `name@version` (`react@18.3.1`). When set, `search_packages` and `download_package` are hidden so the session is locked to that list. Useful for per-project scoping when you have many packages installed globally. |
 
 The HTTP transport uses the [MCP Streamable HTTP](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http) protocol, enabling multiple clients on the local network to connect to a single server instance. The endpoint is available at `http://<host>:<port>/mcp`.
 

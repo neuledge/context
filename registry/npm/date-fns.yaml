@@ -3,7 +3,17 @@ description: "Modern JavaScript date utility library"
 repository: https://github.com/date-fns/date-fns
 
 versions:
+  # date-fns 4.3.0 moved to a pnpm monorepo layout: the top-level `docs/`
+  # directory was removed and the markdown docs now live at
+  # `pkgs/core/docs/` alongside the `@date-fns/core` package.
+  - min_version: "4.3.0"
+    source:
+      type: git
+      url: https://github.com/date-fns/date-fns
+      docs_path: pkgs/core/docs
+    tag_pattern: "v{version}"
   - min_version: "3.0.0"
+    max_version: "4.3.0"
     source:
       type: git
       url: https://github.com/date-fns/date-fns

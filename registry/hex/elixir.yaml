@@ -1,0 +1,8 @@
+name: elixir
+description: "A dynamic, functional language for building scalable and maintainable applications"
+repository: https://github.com/elixir-lang/elixir
+
+source:
+  type: git
+  url: https://github.com/elixir-lang/elixir
+  docs_path: lib/elixir/pages

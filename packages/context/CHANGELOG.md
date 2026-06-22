@@ -1,5 +1,88 @@
 # @neuledge/context
 
+## 1.2.0
+
+### Minor Changes
+
+- [#96](https://github.com/neuledge/context/pull/96) [`45319fc`](https://github.com/neuledge/context/commit/45319fc6bbf0cb4695c26a221d0fac5dea745682) Thanks [@moshest](https://github.com/moshest)! - Add `isMissingRefError` helper to detect git "ref not found" errors (e.g. when a registry publishes a version before its git tag is pushed)
+
+## 1.1.2
+
+### Patch Changes
+
+- [#93](https://github.com/neuledge/context/pull/93) [`b33164a`](https://github.com/neuledge/context/commit/b33164a4a5b983a53a49a50fce317200bdec31b5) Thanks [@moshest](https://github.com/moshest)! - Retry git clones on transient network failures (connection timeouts, DNS errors, 5xx) with exponential backoff, so a single network hiccup no longer fails package builds
+
+## 1.1.1
+
+### Patch Changes
+
+- [#91](https://github.com/neuledge/context/pull/91) [`8248ded`](https://github.com/neuledge/context/commit/8248dedf7158bec85ecaca1469977a7890e9172b) Thanks [@moshest](https://github.com/moshest)! - Ignore non-string `title`/`description` frontmatter values when parsing docs. Previously a frontmatter field that parsed to a non-string (e.g. an object) propagated into the document title and broke package building with "Too few parameter values were provided". Such values now fall back to the derived title instead of crashing the build.
+
+- [#87](https://github.com/neuledge/context/pull/87) [`d84e982`](https://github.com/neuledge/context/commit/d84e982c1d16bdc3d0af612cf5014770c66590e3) Thanks [@moshest](https://github.com/moshest)! - Recognize `.mdoc` (Markdoc) files when scanning a repository for documentation. Sites built on Astro Starlight (e.g. Nx) ship docs in this format, and they were previously skipped.
+
+## 1.1.0
+
+### Minor Changes
+
+- [#85](https://github.com/neuledge/context/pull/85) [`1d0a5f6`](https://github.com/neuledge/context/commit/1d0a5f67eab9590f5b8c9d92513c7bc7bc30b66a) Thanks [@moshest](https://github.com/moshest)! - Add `--libs` option to `context serve` for restricting an MCP session to a fixed subset of installed libraries. Each entry can be a name (`react`) or `name@version` (`react@18.3.1`). When set, `search_packages` and `download_package` are hidden so the session is locked to that list — useful for per-project scoping when many packages are installed globally.
+
+## 1.0.1
+
+### Patch Changes
+
+- [#80](https://github.com/neuledge/context/pull/80) [`b5dd83b`](https://github.com/neuledge/context/commit/b5dd83b453ce861ebc516ae915c847f385d6c0d3) Thanks [@moshest](https://github.com/moshest)! - Install `git` in the Docker runtime image so cloning GitHub URLs works out of the box (fixes `Git clone failed: /bin/sh: 1: git: not found`).
+
+## 1.0.0
+
+### Major Changes
+
+- [#76](https://github.com/neuledge/context/pull/76) [`eb7d01c`](https://github.com/neuledge/context/commit/eb7d01c4044b30707645af43cd3890c9c1e776d4) Thanks [@moshest](https://github.com/moshest)! - Release v1.0.0
+
+## 0.9.0
+
+### Minor Changes
+
+- [#73](https://github.com/neuledge/context/pull/73) [`92f0a7d`](https://github.com/neuledge/context/commit/92f0a7d121cd92b8802aeaf5488f811c9e8f140d) Thanks [@shivaram19](https://github.com/shivaram19)! - Add support for ingesting arbitrary URLs when `llms.txt` is not found
+
+  - `context add <url>` now falls back to fetching the page directly if `llms.txt` is unavailable, enabling ingestion of blog posts, articles, documentation pages, and raw markdown files
+  - Added `suggestPackageNameFromUrl()` to derive meaningful package names from URL paths
+  - Added `fetchWebPage()` helper with content-type detection and binary rejection
+  - All HTTP fetches now include browser-like headers to bypass basic bot protection
+  - Added per-platform authentication via `context auth add/list/remove` for accessing subscriber-only content with cookies
+  - Auth is stored in `~/.context/auth.json` and matched by domain (with parent-domain fallback for subdomains)
+
+### Patch Changes
+
+- [#75](https://github.com/neuledge/context/pull/75) [`85f787c`](https://github.com/neuledge/context/commit/85f787cad34bb51e120de63780eac1c360f8cc6d) Thanks [@moshest](https://github.com/moshest)! - Use `defuddle` for HTML article extraction when ingesting arbitrary URLs.
+
+  Previously, `context add <url>` passed raw HTML (minus a few stripped tags) to the Markdown pipeline, which left site clutter — subscribe CTAs, related posts, comment widgets — in the final package on platforms like Substack and Medium. The HTML branch now runs through `defuddle` to produce clean Markdown before packaging, and the extracted article title is available for future manifest enrichment.
+
+## 0.8.1
+
+### Patch Changes
+
+- [#70](https://github.com/neuledge/context/pull/70) [`5297843`](https://github.com/neuledge/context/commit/529784333baa75c3e74e5c7af57ca0a451e99bb3) Thanks [@moshest](https://github.com/moshest)! - Fix `context add` failing on branch refs (e.g. `/tree/heartbeat`) with a
+  cryptic `Command failed: git checkout ... 2>/dev/null` error. The URL ref
+  is now passed directly to `git clone --branch`, avoiding the broken
+  post-clone checkout path on shallow clones. When `checkoutRef` still runs
+  (e.g. `--tag` or interactive selection), it now falls back to
+  `FETCH_HEAD` for branches and surfaces git's real stderr in thrown errors
+  instead of suppressing it.
+
+## 0.8.0
+
+### Minor Changes
+
+- [#66](https://github.com/neuledge/context/pull/66) [`37350b7`](https://github.com/neuledge/context/commit/37350b7d1d5b310ff051329e54b03a8d63af9681) Thanks [@moshest](https://github.com/moshest)! - `context add <website>` now follows the markdown links inside an `llms.txt`
+  index and fetches each linked document, instead of treating the index as the
+  final content. This produces packages with the full documentation rather than
+  just the table of contents. `llms-full.txt` is unchanged. Cross-origin links
+  are skipped by default.
+
+### Patch Changes
+
+- [#65](https://github.com/neuledge/context/pull/65) [`224b62d`](https://github.com/neuledge/context/commit/224b62db0676eccf735ede7e02319dc718e95075) Thanks [@moshest](https://github.com/moshest)! - Fix `context install` to accept the `registry/name@version` shorthand (e.g., `context install npm/next@16.1.7`). Previously the `@version` suffix was treated as part of the package name, causing the install to fail with "No packages found". Scoped packages like `npm/@trpc/server@10.0.0` are also handled correctly.
+
 ## 0.7.0
 
 ### Minor Changes

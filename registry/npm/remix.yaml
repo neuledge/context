@@ -3,9 +3,19 @@ description: "Full stack web framework focused on web fundamentals and user expe
 repository: https://github.com/remix-run/remix
 
 versions:
+  # Early releases used a unified "v{version}" git tag.
   - min_version: "1.0.0"
+    max_version: "1.6.5"
     source:
       type: git
       url: https://github.com/remix-run/remix
       docs_path: docs
     tag_pattern: "v{version}"
+  # From 1.6.5 onward the monorepo tags each package, e.g. "remix@2.17.5".
+  # The unified "v{version}" tags stopped at v2.11.1.
+  - min_version: "1.6.5"
+    source:
+      type: git
+      url: https://github.com/remix-run/remix
+      docs_path: docs
+    tag_pattern: "remix@{version}"

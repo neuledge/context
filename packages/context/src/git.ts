@@ -6,7 +6,10 @@
 // - Auto-detect documentation site from README (parse for docs.* or documentation links)
 // - Suggest specific versions when repo has tags (e.g., "context add react --version 18.2.0")
 
-import { execSync } from "node:child_process";
+import {
+  type ExecSyncOptionsWithStringEncoding,
+  execSync,
+} from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   existsSync,
@@ -114,6 +117,7 @@ const FIXTURE_SUFFIXES = ["expect", "test", "spec"];
 const DOCUMENTATION_EXTENSIONS = [
   ".md",
   ".mdx",
+  ".mdoc",
   ".qmd",
   ".rmd",
   ".adoc",
@@ -191,34 +195,111 @@ export function isGitUrl(source: string): boolean {
 }
 
 /**
+ * Extract git's stderr from an execSync error so thrown messages carry a
+ * real diagnostic (e.g. "pathspec 'foo' did not match...") instead of just
+ * "Command failed: git ...".
+ */
+function extractGitError(error: unknown): string {
+  const stderr = (error as { stderr?: Buffer | string }).stderr
+    ?.toString()
+    .trim();
+  if (stderr) return stderr;
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Git error patterns that indicate a transient network failure worth
+ * retrying, as opposed to permanent errors (missing ref, repo not found,
+ * auth failure) where retrying just wastes time.
+ */
+const TRANSIENT_GIT_ERROR_PATTERNS = [
+  /could ?not resolve host/i,
+  /failed to connect/i,
+  /connection (timed out|reset|refused)/i,
+  /operation timed out/i,
+  /gnutls recv error/i,
+  /early eof/i,
+  /remote end hung up unexpectedly/i,
+  /rpc failed/i,
+  /returned error: (429|5\d\d)/i,
+];
+
+/**
+ * Check if a git error message looks like a transient network failure.
+ */
+export function isTransientGitError(message: string): boolean {
+  return TRANSIENT_GIT_ERROR_PATTERNS.some((re) => re.test(message));
+}
+
+/**
+ * Git error patterns indicating the requested ref (tag/branch) doesn't exist
+ * in the remote. Happens when a registry (e.g. npm) publishes a version before
+ * the matching git tag is pushed — a transient state that self-heals once the
+ * tag lands, so callers can skip rather than hard-fail.
+ */
+const MISSING_REF_GIT_ERROR_PATTERNS = [
+  /remote branch .* not found in upstream/i,
+  /could not find remote (branch|ref)/i,
+  /(pathspec|reference) .* did not match/i,
+];
+
+/**
+ * Check if a git error message indicates the requested ref doesn't exist.
+ */
+export function isMissingRefError(message: string): boolean {
+  return MISSING_REF_GIT_ERROR_PATTERNS.some((re) => re.test(message));
+}
+
+/**
+ * Synchronous sleep (cloneRepository is sync, so no await available).
+ */
+function sleepSync(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+const CLONE_ATTEMPTS = 3;
+
+/**
  * Clone a git repository to a temporary directory.
+ * Retries transient network failures with exponential backoff (2s, 4s).
  */
 export function cloneRepository(url: string, ref?: string): GitCloneResult {
-  const tempDir = mkdtempSync(join(tmpdir(), "context-git-"));
+  for (let attempt = 1; ; attempt++) {
+    const tempDir = mkdtempSync(join(tmpdir(), "context-git-"));
 
-  try {
-    // Clone with depth 1 for efficiency (shallow clone)
-    const cloneArgs = ["clone", "--depth", "1"];
-    if (ref) {
-      cloneArgs.push("--branch", ref);
+    try {
+      // Clone with depth 1 for efficiency (shallow clone)
+      const cloneArgs = ["clone", "--depth", "1"];
+      if (ref) {
+        cloneArgs.push("--branch", ref);
+      }
+      cloneArgs.push(url, tempDir);
+
+      execSync(`git ${cloneArgs.join(" ")}`, {
+        stdio: ["pipe", "pipe", "pipe"],
+        encoding: "utf-8",
+      });
+
+      return {
+        tempDir,
+        cleanup: () => rmSync(tempDir, { recursive: true, force: true }),
+      };
+    } catch (error) {
+      // Clean up on failure
+      rmSync(tempDir, { recursive: true, force: true });
+
+      const message = extractGitError(error);
+      if (attempt >= CLONE_ATTEMPTS || !isTransientGitError(message)) {
+        throw new Error(`Git clone failed: ${message}`);
+      }
+
+      const delayMs = 2 ** attempt * 1000;
+      console.error(
+        `Clone of ${url} failed (attempt ${attempt}/${CLONE_ATTEMPTS}), retrying in ${delayMs / 1000}s...`,
+      );
+      sleepSync(delayMs);
     }
-    cloneArgs.push(url, tempDir);
-
-    execSync(`git ${cloneArgs.join(" ")}`, {
-      stdio: ["pipe", "pipe", "pipe"],
-      encoding: "utf-8",
-    });
-  } catch (error) {
-    // Clean up on failure
-    rmSync(tempDir, { recursive: true, force: true });
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Git clone failed: ${message}`);
   }
-
-  return {
-    tempDir,
-    cleanup: () => rmSync(tempDir, { recursive: true, force: true }),
-  };
 }
 
 /**
@@ -812,32 +893,46 @@ export function sortTagsForSelection(tags: TagInfo[]): TagInfo[] {
 }
 
 /**
- * Checkout a specific git ref (tag or branch).
+ * Checkout a specific git ref (tag or branch) in a (possibly shallow) clone.
+ *
+ * Strategy:
+ * 1. Try fetching as a tag. `git fetch origin tag <ref>` creates a local tag
+ *    ref, so a subsequent `git checkout <ref>` resolves to it.
+ * 2. If that fails, try fetching as a branch. A shallow `git fetch origin
+ *    <branch>` only updates FETCH_HEAD (no local/tracking ref), so we check
+ *    out FETCH_HEAD in detached mode — otherwise the checkout would fail
+ *    with "pathspec did not match" even though the commit is present.
+ * 3. If neither fetch succeeds, or the checkout itself fails, throw an error
+ *    that includes git's stderr so the user can actually diagnose the cause.
  */
 export function checkoutRef(dirPath: string, ref: string): void {
-  try {
-    // Fetch the specific ref (for shallow clones)
-    execSync(`git fetch --depth=1 origin tag ${ref} --no-tags 2>/dev/null`, {
-      cwd: dirPath,
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-  } catch {
-    // Tag fetch failed, try as branch
-    try {
-      execSync(`git fetch --depth=1 origin ${ref} 2>/dev/null`, {
-        cwd: dirPath,
-        encoding: "utf-8",
-        stdio: ["pipe", "pipe", "pipe"],
-      });
-    } catch {
-      // Fetch failed, continue anyway
-    }
-  }
-
-  execSync(`git checkout ${ref} 2>/dev/null`, {
+  const execOpts: ExecSyncOptionsWithStringEncoding = {
     cwd: dirPath,
     encoding: "utf-8",
     stdio: ["pipe", "pipe", "pipe"],
-  });
+  };
+
+  let fetchedAs: "tag" | "branch";
+  try {
+    execSync(`git fetch --depth=1 origin tag ${ref} --no-tags`, execOpts);
+    fetchedAs = "tag";
+  } catch {
+    try {
+      execSync(`git fetch --depth=1 origin ${ref}`, execOpts);
+      fetchedAs = "branch";
+    } catch (error) {
+      throw new Error(
+        `Could not find tag or branch '${ref}': ${extractGitError(error)}`,
+      );
+    }
+  }
+
+  // Tags get checked out by name (local tag ref exists); branches via
+  // FETCH_HEAD because shallow fetches don't create a local tracking ref.
+  const target = fetchedAs === "tag" ? ref : "FETCH_HEAD";
+  try {
+    execSync(`git checkout ${target}`, execOpts);
+  } catch (error) {
+    throw new Error(`Failed to checkout '${ref}': ${extractGitError(error)}`);
+  }
 }

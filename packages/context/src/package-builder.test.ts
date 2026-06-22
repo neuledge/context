@@ -269,4 +269,43 @@ Run the install command.
       db.close();
     }
   });
+
+  it("extracts sections from representative HTML pages", () => {
+    const html = `<!DOCTYPE html>
+<html>
+<head><title>Blog Post</title></head>
+<body>
+<nav><a href="/">Home</a></nav>
+<article>
+<h1>Things I Don't Know as of 2018</h1>
+<p>People often assume that I know way more than I actually do.</p>
+<h2>Backend</h2>
+<p>I don't know how to configure a Linux server.</p>
+<h2>CSS</h2>
+<p>I can't center a div without googling.</p>
+</article>
+<footer>Copyright 2018</footer>
+<script>console.log('hi');</script>
+</body>
+</html>`;
+
+    const result = buildPackage(
+      testDbPath,
+      [{ path: "example.com/post.html", content: html }],
+      { name: "test-html", version: "1.0.0" },
+    );
+
+    expect(result.sectionCount).toBeGreaterThan(0);
+
+    const db = openDatabase(testDbPath, { readonly: true });
+    try {
+      const chunks = db
+        .prepare("SELECT section_title FROM chunks ORDER BY id")
+        .all() as { section_title: string }[];
+
+      expect(chunks.length).toBeGreaterThan(0);
+    } finally {
+      db.close();
+    }
+  });
 });

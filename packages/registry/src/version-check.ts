@@ -1,10 +1,11 @@
 /**
- * Version discovery from package registry APIs (npm, pip, maven).
+ * Version discovery from package registry APIs (npm, pip, maven, hex).
  *
  * Queries public registry APIs to find available versions,
  * filters to defined ranges, and deduplicates to latest-patch-per-minor.
  */
 
+import pRetry, { AbortError } from "p-retry";
 import {
   compareSemver,
   isVersioned,
@@ -31,6 +32,7 @@ const registryFetchers: Record<string, RegistryFetcher> = {
   npm: fetchNpmVersions,
   pip: fetchPipVersions,
   maven: fetchMavenVersions,
+  hex: fetchHexVersions,
 };
 
 /**
@@ -121,12 +123,11 @@ export async function discoverVersions(
 }
 
 async function fetchNpmVersions(packageName: string): Promise<VersionInfo[]> {
-  const res = await fetch(
+  const res = await fetchWithRetry(
     `https://registry.npmjs.org/${encodeURIComponent(packageName)}`,
+    `npm registry`,
+    packageName,
   );
-  if (!res.ok) {
-    throw new Error(`npm registry returned ${res.status} for ${packageName}`);
-  }
 
   const data = (await res.json()) as {
     versions?: Record<string, unknown>;
@@ -143,12 +144,11 @@ async function fetchNpmVersions(packageName: string): Promise<VersionInfo[]> {
 }
 
 async function fetchPipVersions(packageName: string): Promise<VersionInfo[]> {
-  const res = await fetch(
+  const res = await fetchWithRetry(
     `https://pypi.org/pypi/${encodeURIComponent(packageName)}/json`,
+    `PyPI`,
+    packageName,
   );
-  if (!res.ok) {
-    throw new Error(`PyPI returned ${res.status} for ${packageName}`);
-  }
 
   const data = (await res.json()) as {
     releases?: Record<string, Array<{ upload_time_iso_8601?: string }>>;
@@ -175,12 +175,11 @@ async function fetchMavenVersions(packageName: string): Promise<VersionInfo[]> {
   }
 
   const query = `g:${groupId}+AND+a:${artifactId}`;
-  const res = await fetch(
+  const res = await fetchWithRetry(
     `https://search.maven.org/solrsearch/select?q=${query}&core=gav&rows=200&wt=json`,
+    `Maven Central`,
+    packageName,
   );
-  if (!res.ok) {
-    throw new Error(`Maven Central returned ${res.status} for ${packageName}`);
-  }
 
   const data = (await res.json()) as {
     response?: {
@@ -196,6 +195,52 @@ async function fetchMavenVersions(packageName: string): Promise<VersionInfo[]> {
       ? new Date(doc.timestamp).toISOString()
       : undefined,
   }));
+}
+
+/**
+ * Fetch versions from Hex.pm API.
+ * Package names are lowercase with underscores (e.g., "phoenix", "phoenix_live_view").
+ */
+async function fetchHexVersions(packageName: string): Promise<VersionInfo[]> {
+  const res = await fetchWithRetry(
+    `https://hex.pm/api/packages/${encodeURIComponent(packageName)}`,
+    `Hex`,
+    packageName,
+  );
+
+  const data = (await res.json()) as {
+    releases?: Array<{ version?: string; inserted_at?: string }>;
+  };
+
+  const releases = data.releases ?? [];
+
+  return releases.map((r) => ({
+    version: r.version ?? "",
+    publishedAt: r.inserted_at,
+  }));
+}
+
+/**
+ * Public registries occasionally return 504/503 under load. Retry 5xx and
+ * network errors with exponential backoff; 4xx aborts immediately.
+ */
+function fetchWithRetry(
+  url: string,
+  registryLabel: string,
+  packageName: string,
+): Promise<Response> {
+  return pRetry(
+    async () => {
+      const res = await fetch(url);
+      if (res.ok) return res;
+      const error = new Error(
+        `${registryLabel} returned ${res.status} for ${packageName}`,
+      );
+      if (res.status < 500) throw new AbortError(error);
+      throw error;
+    },
+    { retries: 3 },
+  );
 }
 
 function isPrerelease(version: string): boolean {

@@ -1,5 +1,68 @@
 # @neuledge/registry
 
+## 0.0.13
+
+### Patch Changes
+
+- Updated dependencies [[`45319fc`](https://github.com/neuledge/context/commit/45319fc6bbf0cb4695c26a221d0fac5dea745682)]:
+  - @neuledge/context@1.2.0
+
+## 0.0.12
+
+### Patch Changes
+
+- Updated dependencies [[`b33164a`](https://github.com/neuledge/context/commit/b33164a4a5b983a53a49a50fce317200bdec31b5)]:
+  - @neuledge/context@1.1.2
+
+## 0.0.11
+
+### Patch Changes
+
+- Updated dependencies [[`8248ded`](https://github.com/neuledge/context/commit/8248dedf7158bec85ecaca1469977a7890e9172b), [`d84e982`](https://github.com/neuledge/context/commit/d84e982c1d16bdc3d0af612cf5014770c66590e3)]:
+  - @neuledge/context@1.1.1
+
+## 0.0.10
+
+### Patch Changes
+
+- Updated dependencies [[`1d0a5f6`](https://github.com/neuledge/context/commit/1d0a5f67eab9590f5b8c9d92513c7bc7bc30b66a)]:
+  - @neuledge/context@1.1.0
+
+## 0.0.9
+
+### Patch Changes
+
+- Updated dependencies [[`b5dd83b`](https://github.com/neuledge/context/commit/b5dd83b453ce861ebc516ae915c847f385d6c0d3)]:
+  - @neuledge/context@1.0.1
+
+## 0.0.8
+
+### Patch Changes
+
+- Updated dependencies [[`eb7d01c`](https://github.com/neuledge/context/commit/eb7d01c4044b30707645af43cd3890c9c1e776d4)]:
+  - @neuledge/context@1.0.0
+
+## 0.0.7
+
+### Patch Changes
+
+- Updated dependencies [[`92f0a7d`](https://github.com/neuledge/context/commit/92f0a7d121cd92b8802aeaf5488f811c9e8f140d), [`85f787c`](https://github.com/neuledge/context/commit/85f787cad34bb51e120de63780eac1c360f8cc6d)]:
+  - @neuledge/context@0.9.0
+
+## 0.0.6
+
+### Patch Changes
+
+- Updated dependencies [[`5297843`](https://github.com/neuledge/context/commit/529784333baa75c3e74e5c7af57ca0a451e99bb3)]:
+  - @neuledge/context@0.8.1
+
+## 0.0.5
+
+### Patch Changes
+
+- Updated dependencies [[`37350b7`](https://github.com/neuledge/context/commit/37350b7d1d5b310ff051329e54b03a8d63af9681), [`224b62d`](https://github.com/neuledge/context/commit/224b62db0676eccf735ede7e02319dc718e95075)]:
+  - @neuledge/context@0.8.0
+
 ## 0.0.4
 
 ### Patch Changes

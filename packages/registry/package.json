@@ -1,6 +1,6 @@
 {
   "name": "@neuledge/registry",
-  "version": "0.0.4",
+  "version": "0.0.13",
   "private": true,
   "description": "Registry infrastructure for building and publishing context packages",
   "type": "module",
@@ -27,6 +27,7 @@
   "dependencies": {
     "@neuledge/context": "workspace:*",
     "commander": "^14.0.0",
+    "p-retry": "^8.0.0",
     "yaml": "^2.8.2",
     "zod": "^4.3.6"
   },

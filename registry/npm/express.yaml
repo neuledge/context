@@ -5,4 +5,4 @@ repository: https://github.com/expressjs/express
 source:
   type: git
   url: https://github.com/expressjs/expressjs.com
-  docs_path: en
+  docs_path: src/content/docs

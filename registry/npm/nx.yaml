@@ -3,7 +3,16 @@ description: "Smart, fast, and extensible build system for monorepos"
 repository: https://github.com/nrwl/nx
 
 versions:
+  # Nx 22.7.0 moved docs from `docs/` to `astro-docs/src/content/docs/`
+  # (Markdoc-based Astro site) and dropped the top-level `docs/` folder.
+  - min_version: "22.7.0"
+    source:
+      type: git
+      url: https://github.com/nrwl/nx
+      docs_path: astro-docs/src/content/docs
+    tag_pattern: "{version}"
   - min_version: "17.0.0"
+    max_version: "22.7.0"
     source:
       type: git
       url: https://github.com/nrwl/nx

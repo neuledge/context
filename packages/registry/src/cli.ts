@@ -7,6 +7,7 @@
 
 import { mkdirSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
+import { isMissingRefError } from "@neuledge/context";
 import { Command } from "commander";
 import {
   buildFromDefinition,
@@ -291,6 +292,13 @@ program
           succeeded++;
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
+          // A registry can publish a version before its git tag is pushed.
+          // Skip (don't fail) — the next run picks it up once the tag lands.
+          if (isMissingRefError(message)) {
+            console.log(`  Skipping ${id} (git tag not published yet)`);
+            skipped++;
+            continue;
+          }
           console.error(`  FAILED ${id}: ${message}`);
           failures.push({ id, error: message });
         }

@@ -27,6 +27,27 @@ Install the package.
     expect(result.frontmatter.description).toBe("Learn how to get started");
   });
 
+  it("ignores non-string frontmatter title (malformed YAML)", () => {
+    // Svelte 5's docs use unquoted titles like `{let/const ...}` that YAML
+    // parses into an object, which must not leak into docTitle (it would break
+    // SQLite parameter binding with "Too few parameter values were provided").
+    const source = `---
+title: {let/const ...}
+---
+
+## Declaration tags
+
+Some content about declaration tags.
+`;
+
+    const result = parseMarkdown(source, "docs/declaration-tags.md");
+
+    expect(result.frontmatter.title).toBeUndefined();
+    // docTitle falls back to the filename-derived title
+    expect(typeof result.sections[0]?.docTitle).toBe("string");
+    expect(result.sections[0]?.docTitle).toBe("declaration-tags");
+  });
+
   it("chunks content by h2 sections", () => {
     const source = `---
 title: Routing

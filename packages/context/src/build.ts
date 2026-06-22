@@ -141,7 +141,15 @@ function extractFrontmatter(tree: Root): DocFrontmatter {
   if (!yamlNode) return {};
 
   try {
-    return parseYaml(yamlNode.value) as DocFrontmatter;
+    // Validate types rather than blindly casting: malformed frontmatter can
+    // parse title/description into non-strings (e.g. a bare value the YAML
+    // parser reads as a map), which later breaks SQLite parameter binding.
+    const data = parseYaml(yamlNode.value) as Record<string, unknown> | null;
+    return {
+      title: typeof data?.title === "string" ? data.title : undefined,
+      description:
+        typeof data?.description === "string" ? data.description : undefined,
+    };
   } catch {
     return {};
   }
@@ -313,7 +321,7 @@ export function parseMarkdown(source: string, filePath: string): ParsedDoc {
     filePath
       .split("/")
       .pop()
-      ?.replace(/\.(md|mdx|qmd|rmd|adoc|rst)$/, "") ||
+      ?.replace(/\.(md|mdx|mdoc|qmd|rmd|adoc|rst)$/, "") ||
     "Untitled";
 
   // Remove frontmatter and JSX import statements from source for extraction

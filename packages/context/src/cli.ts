@@ -19,9 +19,16 @@ import { Command } from "commander";
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json") as { version: string };
 
+import { loadAuth, saveAuth } from "./auth.js";
 import { getServerUrl } from "./config.js";
 import { initDatabase } from "./database.js";
 import { downloadPackage, searchPackages } from "./download.js";
+import { extractArticleMarkdown } from "./extract-html.js";
+import {
+  buildFetchOptions,
+  fetchWithTimeout,
+  readResponseText,
+} from "./fetch.js";
 import {
   checkoutRef,
   cloneRepository,
@@ -42,6 +49,7 @@ import {
   NO_DOCUMENTATION_FOUND_MESSAGE,
   SEARCH_PACKAGES_NAME_DESCRIPTION,
 } from "./guidance.js";
+import { fetchLinkedDocs } from "./llms-txt.js";
 import { buildPackage, type MarkdownFile } from "./package-builder.js";
 import { type SearchResult, search } from "./search.js";
 import { ContextServer } from "./server.js";
@@ -139,6 +147,128 @@ export function packageNameFromUrl(url: string): string {
 }
 
 /**
+ * Derive a package name from an arbitrary URL, including path.
+ * e.g., "https://overreacted.io/things-i-dont-know-as-of-2018/" → "overreacted.io-things-i-dont-know-as-of-2018"
+ */
+export function suggestPackageNameFromUrl(url: string): string {
+  const parsed = new URL(url);
+  const host = parsed.hostname.replace(/^www\./, "");
+  const path = parsed.pathname.replace(/\/$/, "").replace(/^\//, "");
+  if (!path) return host;
+  const sanitizedPath = path
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  return sanitizedPath ? `${host}-${sanitizedPath}` : host;
+}
+
+export interface FetchedWebPage {
+  /** Clean markdown/text content, ready to pass to the package builder. */
+  content: string;
+  /** Article title when extracted from HTML (undefined for raw markdown/text). */
+  title?: string;
+}
+
+/**
+ * Result of {@link fetchWebPage}. On failure, `reason` describes what
+ * went wrong so callers can surface a useful error to the user.
+ */
+export type FetchWebPageResult =
+  | ({ ok: true } & FetchedWebPage)
+  | { ok: false; reason: string };
+
+/**
+ * Fetch a web page and return it as markdown-ready content.
+ *
+ * HTML responses are run through defuddle to strip site chrome (nav,
+ * subscribe boxes, comments, recommendation rails) before being
+ * converted to Markdown. Markdown/plain-text responses pass through
+ * unchanged. On failure, returns `{ ok: false, reason }` with a
+ * human-readable explanation.
+ */
+export async function fetchWebPage(
+  url: string,
+  fetchImpl: typeof fetch = fetch,
+  timeoutMs: number = 30_000,
+): Promise<FetchWebPageResult> {
+  let response: Response;
+  try {
+    response = await fetchWithTimeout(
+      fetchImpl,
+      url,
+      buildFetchOptions(url),
+      timeoutMs,
+    );
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      return { ok: false, reason: `request timed out after ${timeoutMs}ms` };
+    }
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, reason: `network error: ${msg}` };
+  }
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      reason: `HTTP ${response.status} ${response.statusText}`.trim(),
+    };
+  }
+
+  const contentLength = response.headers.get("content-length");
+  if (contentLength && Number.parseInt(contentLength, 10) > 10 * 1024 * 1024) {
+    return { ok: false, reason: "response exceeds 10 MB size cap" };
+  }
+
+  const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+
+  if (
+    contentType.includes("application/pdf") ||
+    contentType.startsWith("image/") ||
+    contentType.startsWith("video/") ||
+    contentType.startsWith("audio/")
+  ) {
+    return {
+      ok: false,
+      reason: `unsupported content type: ${contentType || "binary"}`,
+    };
+  }
+
+  let text: string | null;
+  try {
+    text = await readResponseText(response);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, reason: `failed to read response body: ${msg}` };
+  }
+
+  if (text === null) {
+    return { ok: false, reason: "response body exceeds 10 MB size cap" };
+  }
+  if (!text.trim()) {
+    return { ok: false, reason: "empty response body" };
+  }
+
+  const isHtml =
+    contentType.includes("text/html") ||
+    contentType.includes("application/xhtml") ||
+    (!contentType && /<html[\s>]/i.test(text.slice(0, 1024)));
+
+  if (isHtml) {
+    const extracted = await extractArticleMarkdown(text, url);
+    if (!extracted) {
+      return {
+        ok: false,
+        reason: "could not extract readable article content from HTML",
+      };
+    }
+    return { ok: true, content: extracted.markdown, title: extracted.title };
+  }
+
+  return { ok: true, content: text };
+}
+
+/**
  * Resolve the llms.txt URL to fetch.
  * If the URL already points to a specific llms.txt file, use it directly.
  * Otherwise, try well-known paths from the site root.
@@ -171,7 +301,7 @@ async function addFromWebsite(
   for (const url of urls) {
     console.log(`Trying ${url}...`);
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, buildFetchOptions(url));
       if (response.ok) {
         const text = await response.text();
         // Sanity check: must have some meaningful content
@@ -188,23 +318,84 @@ async function addFromWebsite(
   }
 
   if (!content || !resolvedUrl) {
-    throw new Error(
-      `No llms.txt found at ${source}. Tried:\n${urls.map((u) => `  - ${u}`).join("\n")}\n\nThis website may not provide an llms.txt file. See https://llmstxt.org/ for details.`,
+    // Fallback: fetch the original URL as a single page
+    console.log(`No llms.txt found. Fetching page content directly...`);
+    const page = await fetchWebPage(source);
+    if (!page.ok) {
+      throw new Error(
+        `No llms.txt found at ${source}. Tried:\n${urls.map((u) => `  - ${u}`).join("\n")}\n\nDirect fetch also failed: ${page.reason}.`,
+      );
+    }
+
+    const packageName = options.name ?? suggestPackageNameFromUrl(source);
+    const versionLabel = options.version ?? "latest";
+
+    const parsedUrl = new URL(source);
+    let path = parsedUrl.pathname.replace(/\/$/, "") || "/index";
+    if (!/\.(md|mdx|adoc|rst|txt)$/i.test(path)) {
+      path += ".md";
+    }
+    const docPath = parsedUrl.host + path;
+
+    const files: MarkdownFile[] = [{ path: docPath, content: page.content }];
+
+    ensureDataDir();
+    const outputPath = join(
+      DATA_DIR,
+      getPackageFileName(packageName, versionLabel),
     );
+
+    console.log(`Building package...`);
+    const result = buildPackage(outputPath, files, {
+      name: packageName,
+      version: versionLabel,
+      sourceUrl: source,
+    });
+
+    if (result.sectionCount === 0) {
+      throw new Error(
+        `No documentation sections could be extracted from ${source}. The page may be empty or in an unsupported format.`,
+      );
+    }
+
+    console.log(`✓ Built package: ${packageName}@${versionLabel}`);
+    console.log(`✓ Saved to ${outputPath}`);
+
+    if (options.save) {
+      savePackageCopy(outputPath, options.save, packageName, versionLabel);
+    }
+
+    const sizeBytes = statSync(outputPath).size;
+
+    console.log(
+      `\nInstalled: ${packageName}@${versionLabel} (${formatBytes(sizeBytes)}, ${result.sectionCount} sections)`,
+    );
+    return;
   }
 
   const packageName = options.name ?? packageNameFromUrl(source);
   const versionLabel = options.version ?? "latest";
 
-  // Parse the content as a single markdown file
+  const isFullIndex = resolvedUrl.endsWith("/llms-full.txt");
+
+  // Always include the index itself so the H1/intro content is preserved.
   const files: MarkdownFile[] = [
     {
-      path: resolvedUrl.endsWith("/llms-full.txt")
-        ? "llms-full.txt"
-        : "llms.txt",
+      path: isFullIndex ? "llms-full.txt" : "llms.txt",
       content,
     },
   ];
+
+  // llms.txt is a curated index of links — follow them to fetch the actual
+  // documentation. llms-full.txt already inlines everything, so skip.
+  if (!isFullIndex) {
+    const linkedFiles = await fetchLinkedDocs(content, resolvedUrl, {
+      log: (msg) => {
+        console.log(msg);
+      },
+    });
+    files.push(...linkedFiles);
+  }
 
   // Build the package
   ensureDataDir();
@@ -318,6 +509,53 @@ function loadPackages(store: PackageStore): void {
       // Skip invalid packages
     }
   }
+}
+
+/** Parse a `--libs` spec into name (optionally with @version). */
+// Uses lastIndexOf so scoped names like `@trpc/server@1.0.0` split correctly,
+// while a bare scoped name `@trpc/server` (leading `@` only) keeps its name.
+export function parseLibSpec(spec: string): { name: string; version?: string } {
+  const at = spec.lastIndexOf("@");
+  if (at <= 0) return { name: spec };
+  return { name: spec.slice(0, at), version: spec.slice(at + 1) };
+}
+
+/**
+ * Resolve `--libs` specs against installed packages. Exits the process with a
+ * descriptive error if any spec doesn't match an installed package.
+ */
+export function resolveAllowedLibraries(
+  specs: string[],
+  installed: PackageInfo[],
+): Set<string> {
+  const allowed = new Set<string>();
+  const errors: string[] = [];
+
+  for (const raw of specs) {
+    const spec = parseLibSpec(raw);
+    const pkg = installed.find((p) => p.name === spec.name);
+
+    if (!pkg) {
+      errors.push(`  - ${raw}: not installed`);
+      continue;
+    }
+    if (spec.version && pkg.version !== spec.version) {
+      errors.push(
+        `  - ${raw}: installed version is ${pkg.version}, not ${spec.version}`,
+      );
+      continue;
+    }
+    allowed.add(pkg.name);
+  }
+
+  if (errors.length > 0) {
+    console.error("Cannot start --libs session:");
+    for (const e of errors) console.error(e);
+    console.error("Run `context list` to see installed packages.");
+    process.exit(1);
+  }
+
+  return allowed;
 }
 
 const program = new Command()
@@ -488,10 +726,12 @@ async function addFromGitClone(
 ): Promise<void> {
   const { url, ref: urlRef } = parseGitUrl(source);
 
-  console.log(`Cloning ${url}...`);
+  console.log(`Cloning ${url}${urlRef ? ` (ref: ${urlRef})` : ""}...`);
 
-  // Clone without checking out a specific ref initially (we'll do it after tag selection)
-  const { tempDir, cleanup } = cloneRepository(url);
+  // If the URL already specifies a ref (e.g. /tree/branch), clone directly
+  // onto it — that's more reliable than post-clone fetch+checkout, which
+  // doesn't work cleanly for branches on shallow clones.
+  const { tempDir, cleanup } = cloneRepository(url, urlRef);
 
   try {
     // Determine which tag/ref to use
@@ -501,7 +741,8 @@ async function addFromGitClone(
       // Explicit --tag provided
       selectedTag = options.tag;
     } else if (urlRef) {
-      // Ref was part of the URL (e.g., github.com/user/repo#v1.0.0)
+      // Ref was part of the URL (e.g., /tree/branch). Already checked out
+      // via the initial clone, so we only record it for labeling below.
       selectedTag = urlRef;
     } else {
       // Interactive tag selection
@@ -523,8 +764,9 @@ async function addFromGitClone(
       }
     }
 
-    // Checkout the selected tag if specified
-    if (selectedTag) {
+    // Checkout the selected tag if specified — skipped when we already
+    // cloned with it (urlRef case).
+    if (selectedTag && selectedTag !== urlRef) {
       console.log(`Checking out ${selectedTag}...`);
       checkoutRef(tempDir, selectedTag);
     }
@@ -837,35 +1079,53 @@ program
     "Start as HTTP server instead of stdio (default port: 8080)",
   )
   .option("--host <host>", "Host to bind to (default: 127.0.0.1)")
-  .action(async (options: { http?: string | true; host?: string }) => {
-    const store = new PackageStore();
-    loadPackages(store);
+  .option(
+    "--libs <names...>",
+    "Restrict the session to a fixed set of installed libraries (e.g., react next@15). Hides search_packages and download_package.",
+  )
+  .action(
+    async (options: {
+      http?: string | true;
+      host?: string;
+      libs?: string[];
+    }) => {
+      const store = new PackageStore();
+      loadPackages(store);
 
-    const packages = store.list();
-    if (packages.length > 0) {
-      const names = packages.map((p) => `${p.name}@${p.version}`).join(", ");
-      console.error(`Context MCP Server starting...`);
-      console.error(`Loaded ${packages.length} packages: ${names}`);
-    } else {
-      console.error("Context MCP Server starting...");
-      console.error("No packages installed. Run: context add <package.db>");
-    }
+      const allowedLibraries = options.libs
+        ? resolveAllowedLibraries(options.libs, store.list())
+        : undefined;
 
-    const server = new ContextServer(store);
+      const visible = allowedLibraries
+        ? store.list().filter((p) => allowedLibraries.has(p.name))
+        : store.list();
 
-    if (options.http !== undefined) {
-      const port =
-        typeof options.http === "string"
-          ? Number.parseInt(options.http, 10)
-          : 8080;
-      const host = options.host ?? "127.0.0.1";
+      if (visible.length > 0) {
+        const names = visible.map((p) => `${p.name}@${p.version}`).join(", ");
+        console.error(`Context MCP Server starting...`);
+        const prefix = allowedLibraries ? "Restricted to" : "Loaded";
+        console.error(`${prefix} ${visible.length} packages: ${names}`);
+      } else {
+        console.error("Context MCP Server starting...");
+        console.error("No packages installed. Run: context add <package.db>");
+      }
 
-      const { port: actualPort } = await server.startHTTP({ port, host });
-      console.error(`Listening on http://${host}:${actualPort}/mcp`);
-    } else {
-      await server.start();
-    }
-  });
+      const server = new ContextServer(store, { allowedLibraries });
+
+      if (options.http !== undefined) {
+        const port =
+          typeof options.http === "string"
+            ? Number.parseInt(options.http, 10)
+            : 8080;
+        const host = options.host ?? "127.0.0.1";
+
+        const { port: actualPort } = await server.startHTTP({ port, host });
+        console.error(`Listening on http://${host}:${actualPort}/mcp`);
+      } else {
+        await server.start();
+      }
+    },
+  );
 
 function formatLibraryName(pkg: PackageInfo): string {
   return `${pkg.name}@${pkg.version}`;
@@ -939,22 +1199,35 @@ program
   });
 
 /**
- * Parse a "registry/name" string (e.g., "npm/next", "pip/django").
- * Returns { registry, name } or null if the format is invalid.
+ * Parse a "registry/name[@version]" string (e.g., "npm/next",
+ * "pip/django", "npm/next@16.1.7", "npm/@trpc/server@10.0.0").
+ * Returns { registry, name, version? } or null if the format is invalid.
  */
 export function parseRegistryPackage(input: string): {
   registry: string;
   name: string;
+  version?: string;
 } | null {
   // Handle scoped packages: npm/@scope/name → registry=npm, name=@scope/name
   const firstSlash = input.indexOf("/");
   if (firstSlash <= 0) return null;
 
   const registry = input.slice(0, firstSlash);
-  const name = input.slice(firstSlash + 1);
+  let name = input.slice(firstSlash + 1);
   if (!name) return null;
 
-  return { registry, name };
+  // Split off an optional trailing "@version". Use lastIndexOf so scoped
+  // package names like "@trpc/server" aren't mistaken for a version marker.
+  let version: string | undefined;
+  const atIdx = name.lastIndexOf("@");
+  if (atIdx > 0) {
+    const v = name.slice(atIdx + 1);
+    if (v) version = v;
+    name = name.slice(0, atIdx);
+  }
+  if (!name) return null;
+
+  return version ? { registry, name, version } : { registry, name };
 }
 
 program
@@ -972,7 +1245,9 @@ program
     try {
       const serverUrl = getServerUrl(options.server);
 
-      // Parse "registry/name" or treat as name-only search
+      // Parse "registry/name[@version]" or treat as name-only search.
+      // The version suffix (if any) is ignored — browse always lists all
+      // available versions for the package.
       const parsed = parseRegistryPackage(pkg);
       const registry = parsed?.registry ?? "npm";
       const name = parsed?.name ?? pkg;
@@ -1024,8 +1299,15 @@ program
           process.exit(1);
         }
 
+        if (parsed.version && versionArg && parsed.version !== versionArg) {
+          console.error(
+            `Error: Conflicting versions: "${parsed.version}" in "${pkg}" and "${versionArg}" as separate argument.`,
+          );
+          process.exit(1);
+        }
+
         const serverUrl = getServerUrl(options.server);
-        let targetVersion = versionArg;
+        let targetVersion = versionArg ?? parsed.version;
 
         // If no version specified, find the latest
         if (!targetVersion) {
@@ -1065,6 +1347,97 @@ program
       }
     },
   );
+
+program
+  .command("auth")
+  .description("Manage per-platform authentication (cookies, headers)")
+  .addCommand(
+    new Command("add")
+      .description("Add or update auth for a domain")
+      .argument(
+        "<domain>",
+        "Domain to authenticate (e.g., medium.com, substack.com)",
+      )
+      .option("--cookies <cookies>", "Cookie string (e.g., 'uid=abc; sid=def')")
+      .option(
+        "--header <header>",
+        "Additional header in 'Key: Value' format (repeatable)",
+        collectHeaders,
+        {},
+      )
+      .action(
+        (
+          domain: string,
+          options: { cookies?: string; header: Record<string, string> },
+        ) => {
+          const auth = loadAuth();
+          auth[domain] = {
+            cookies: options.cookies,
+            headers:
+              Object.keys(options.header).length > 0
+                ? options.header
+                : undefined,
+          };
+          saveAuth(auth);
+          console.log(`✓ Auth saved for ${domain}`);
+        },
+      ),
+  )
+  .addCommand(
+    new Command("list")
+      .description("List configured platform auth entries")
+      .action(() => {
+        const auth = loadAuth();
+        const domains = Object.keys(auth);
+        if (domains.length === 0) {
+          console.log("No platform auth configured.");
+          console.log("Run: context auth add <domain> --cookies <cookies>");
+          return;
+        }
+        console.log("Configured platform auth:\n");
+        for (const domain of domains.sort()) {
+          const entry = auth[domain];
+          if (!entry) continue;
+          const hasCookies = entry.cookies ? "yes" : "no";
+          const headerCount = entry.headers
+            ? Object.keys(entry.headers).length
+            : 0;
+          console.log(
+            `  ${domain.padEnd(24)} cookies: ${hasCookies}  headers: ${headerCount}`,
+          );
+        }
+      }),
+  )
+  .addCommand(
+    new Command("remove")
+      .description("Remove auth for a domain")
+      .argument("<domain>", "Domain to remove auth for")
+      .action((domain: string) => {
+        const auth = loadAuth();
+        if (!auth[domain]) {
+          console.error(`Error: No auth found for ${domain}`);
+          process.exit(1);
+        }
+        delete auth[domain];
+        saveAuth(auth);
+        console.log(`✓ Removed auth for ${domain}`);
+      }),
+  );
+
+/** Collect repeated --header options into a Record. */
+function collectHeaders(
+  value: string,
+  previous: Record<string, string>,
+): Record<string, string> {
+  const sep = value.indexOf(":");
+  if (sep <= 0) {
+    throw new Error(`Invalid header format: "${value}". Use "Key: Value".`);
+  }
+  const key = value.slice(0, sep).trim();
+  const val = value.slice(sep + 1).trim();
+  previous[key] = val;
+  return previous;
+}
 
 // Only parse when run directly (not when imported for testing)
 const isRunDirectly =

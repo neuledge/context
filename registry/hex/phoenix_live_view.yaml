@@ -1,0 +1,11 @@
+name: phoenix_live_view
+description: "Rich, real-time user experiences with server-rendered HTML in Elixir"
+repository: https://github.com/phoenixframework/phoenix_live_view
+
+versions:
+  - min_version: "0.17.0"
+    source:
+      type: git
+      url: https://github.com/phoenixframework/phoenix_live_view
+      docs_path: guides
+    tag_pattern: "v{version}"

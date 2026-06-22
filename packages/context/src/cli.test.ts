@@ -1,10 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   detectSourceType,
+  fetchWebPage,
   packageNameFromUrl,
+  parseLibSpec,
   parseRegistryPackage,
+  resolveAllowedLibraries,
   resolveLlmsTxtUrls,
+  suggestPackageNameFromUrl,
 } from "./cli.js";
+import type { PackageInfo } from "./store.js";
 
 describe("detectSourceType", () => {
   describe("file sources", () => {
@@ -151,6 +156,34 @@ describe("parseRegistryPackage", () => {
     expect(parseRegistryPackage("/next")).toBeNull();
     expect(parseRegistryPackage("npm/")).toBeNull();
   });
+
+  it("parses inline @version suffix", () => {
+    expect(parseRegistryPackage("npm/next@16.1.7")).toEqual({
+      registry: "npm",
+      name: "next",
+      version: "16.1.7",
+    });
+    expect(parseRegistryPackage("pip/django@4.2.0")).toEqual({
+      registry: "pip",
+      name: "django",
+      version: "4.2.0",
+    });
+  });
+
+  it("parses scoped packages with @version", () => {
+    expect(parseRegistryPackage("npm/@trpc/server@10.0.0")).toEqual({
+      registry: "npm",
+      name: "@trpc/server",
+      version: "10.0.0",
+    });
+  });
+
+  it("ignores empty @version suffix", () => {
+    expect(parseRegistryPackage("npm/next@")).toEqual({
+      registry: "npm",
+      name: "next",
+    });
+  });
 });
 
 describe("resolveLlmsTxtUrls", () => {
@@ -201,5 +234,274 @@ describe("packageNameFromUrl", () => {
 
   it("strips www prefix", () => {
     expect(packageNameFromUrl("https://www.prisma.io/docs")).toBe("prisma.io");
+  });
+});
+
+describe("suggestPackageNameFromUrl", () => {
+  it("returns hostname for domain roots", () => {
+    expect(suggestPackageNameFromUrl("https://overreacted.io/")).toBe(
+      "overreacted.io",
+    );
+    expect(suggestPackageNameFromUrl("https://example.com")).toBe(
+      "example.com",
+    );
+  });
+
+  it("includes sanitized path for specific pages", () => {
+    expect(
+      suggestPackageNameFromUrl(
+        "https://overreacted.io/things-i-dont-know-as-of-2018/",
+      ),
+    ).toBe("overreacted.io-things-i-dont-know-as-of-2018");
+    expect(
+      suggestPackageNameFromUrl("https://example.com/blog/my-first-post"),
+    ).toBe("example.com-blog-my-first-post");
+  });
+
+  it("strips www prefix", () => {
+    expect(
+      suggestPackageNameFromUrl("https://www.example.com/article/hello-world"),
+    ).toBe("example.com-article-hello-world");
+  });
+
+  it("handles paths with special characters", () => {
+    expect(suggestPackageNameFromUrl("https://site.com/a_b.c/d+e")).toBe(
+      "site.com-a-b-c-d-e",
+    );
+  });
+});
+
+describe("fetchWebPage", () => {
+  function makeFetch(
+    responses: Record<
+      string,
+      { body: string; status?: number; contentType?: string }
+    >,
+  ): typeof fetch {
+    return (async (input: string | URL | Request) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const r = responses[url];
+      if (!r) {
+        return new Response("not found", { status: 404 });
+      }
+      return new Response(r.body, {
+        status: r.status ?? 200,
+        headers: { "content-type": r.contentType ?? "text/markdown" },
+      });
+    }) as typeof fetch;
+  }
+
+  it("returns markdown content unchanged", async () => {
+    const fetchImpl = makeFetch({
+      "https://example.com/post": {
+        body: "# Hello\n\nWorld",
+        contentType: "text/markdown",
+      },
+    });
+    const page = await fetchWebPage("https://example.com/post", fetchImpl);
+    expect(page.ok).toBe(true);
+    if (!page.ok) return;
+    expect(page.content).toBe("# Hello\n\nWorld");
+    expect(page.title).toBeUndefined();
+  });
+
+  it("extracts HTML responses into clean markdown via defuddle", async () => {
+    const html = `<!DOCTYPE html>
+<html>
+<head><title>Real Article</title></head>
+<body>
+<nav><a href="/">Home</a><a href="/subscribe">Subscribe</a></nav>
+<aside class="subscribe-cta">Subscribe now for $5/month!</aside>
+<article>
+<h1>Real Article</h1>
+<p>This is the main article content that should survive extraction.</p>
+<p>A second paragraph to give defuddle enough signal.</p>
+</article>
+<aside class="recommendations">More from this author</aside>
+<footer>Copyright 2026</footer>
+</body>
+</html>`;
+    const fetchImpl = makeFetch({
+      "https://example.com/page": {
+        body: html,
+        contentType: "text/html; charset=utf-8",
+      },
+    });
+    const page = await fetchWebPage("https://example.com/page", fetchImpl);
+    expect(page.ok).toBe(true);
+    if (!page.ok) return;
+    expect(page.content).toContain("main article content");
+    expect(page.content).not.toContain("Subscribe now");
+    expect(page.content).not.toContain("More from this author");
+    expect(page.title).toBe("Real Article");
+  });
+
+  it("sniffs HTML when content-type is missing", async () => {
+    const html = `<!DOCTYPE html><html><head><title>T</title></head><body>
+<article><h1>T</h1><p>Some readable body text of reasonable length so defuddle has signal to work with.</p></article>
+</body></html>`;
+    const fetchImpl = makeFetch({
+      "https://example.com/page": {
+        body: html,
+        contentType: "",
+      },
+    });
+    const page = await fetchWebPage("https://example.com/page", fetchImpl);
+    expect(page.ok).toBe(true);
+    if (!page.ok) return;
+    expect(page.content).toContain("readable body text");
+  });
+
+  it("reports unsupported content type for PDFs", async () => {
+    const fetchImpl = makeFetch({
+      "https://example.com/paper.pdf": {
+        body: "%PDF-1.4...",
+        contentType: "application/pdf",
+      },
+    });
+    const page = await fetchWebPage("https://example.com/paper.pdf", fetchImpl);
+    expect(page.ok).toBe(false);
+    if (page.ok) return;
+    expect(page.reason).toMatch(/unsupported content type.*pdf/);
+  });
+
+  it("reports HTTP status for failed requests", async () => {
+    const fetchImpl = makeFetch({
+      "https://example.com/bad": { body: "error", status: 500 },
+    });
+    const page = await fetchWebPage("https://example.com/bad", fetchImpl);
+    expect(page.ok).toBe(false);
+    if (page.ok) return;
+    expect(page.reason).toMatch(/HTTP 500/);
+  });
+
+  it("reports empty body reason", async () => {
+    const fetchImpl = makeFetch({
+      "https://example.com/empty": { body: "   " },
+    });
+    const page = await fetchWebPage("https://example.com/empty", fetchImpl);
+    expect(page.ok).toBe(false);
+    if (page.ok) return;
+    expect(page.reason).toMatch(/empty response body/);
+  });
+
+  it("reports size cap when content-length exceeds 10 MB", async () => {
+    const fetchImpl = (async () => {
+      return new Response("<html>big</html>", {
+        status: 200,
+        headers: {
+          "content-type": "text/html",
+          "content-length": "20971520",
+        },
+      });
+    }) as typeof fetch;
+    const page = await fetchWebPage(
+      "https://example.com/huge",
+      fetchImpl,
+      1000,
+    );
+    expect(page.ok).toBe(false);
+    if (page.ok) return;
+    expect(page.reason).toMatch(/10 MB size cap/);
+  });
+
+  it("reports timeout reason", async () => {
+    const fetchImpl = (async (_input, init) => {
+      return new Promise<Response>((_, reject) => {
+        if (init?.signal?.aborted) {
+          reject(new DOMException("Aborted", "AbortError"));
+          return;
+        }
+        init?.signal?.addEventListener("abort", () => {
+          reject(new DOMException("Aborted", "AbortError"));
+        });
+      });
+    }) as typeof fetch;
+    const page = await fetchWebPage("https://example.com/slow", fetchImpl, 100);
+    expect(page.ok).toBe(false);
+    if (page.ok) return;
+    expect(page.reason).toMatch(/timed out after 100ms/);
+  });
+});
+
+describe("parseLibSpec", () => {
+  it("treats a bare name as no version", () => {
+    expect(parseLibSpec("react")).toEqual({ name: "react" });
+  });
+
+  it("splits on the last @", () => {
+    expect(parseLibSpec("next@15.0.0")).toEqual({
+      name: "next",
+      version: "15.0.0",
+    });
+  });
+
+  it("preserves scoped names without a version", () => {
+    expect(parseLibSpec("@trpc/server")).toEqual({ name: "@trpc/server" });
+  });
+
+  it("splits a scoped name with a version on the last @", () => {
+    expect(parseLibSpec("@trpc/server@11.0.0")).toEqual({
+      name: "@trpc/server",
+      version: "11.0.0",
+    });
+  });
+});
+
+describe("resolveAllowedLibraries", () => {
+  const installed: PackageInfo[] = [
+    {
+      name: "react",
+      version: "18.3.1",
+      path: "/react.db",
+      sizeBytes: 0,
+      sectionCount: 0,
+    },
+    {
+      name: "next",
+      version: "15.0.4",
+      path: "/next.db",
+      sizeBytes: 0,
+      sectionCount: 0,
+    },
+  ];
+
+  it("returns the set of matching names for valid specs", () => {
+    const result = resolveAllowedLibraries(["react", "next@15.0.4"], installed);
+    expect(result).toEqual(new Set(["react", "next"]));
+  });
+
+  it("exits with an error when a name isn't installed", () => {
+    const exit = vi
+      .spyOn(process, "exit")
+      .mockImplementation((() => undefined) as never);
+    const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      resolveAllowedLibraries(["missing"], installed);
+      expect(exit).toHaveBeenCalledWith(1);
+      expect(err.mock.calls.flat().join("\n")).toContain(
+        "missing: not installed",
+      );
+    } finally {
+      exit.mockRestore();
+      err.mockRestore();
+    }
+  });
+
+  it("exits with an error when the pinned version doesn't match", () => {
+    const exit = vi
+      .spyOn(process, "exit")
+      .mockImplementation((() => undefined) as never);
+    const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      resolveAllowedLibraries(["react@17.0.0"], installed);
+      expect(exit).toHaveBeenCalledWith(1);
+      expect(err.mock.calls.flat().join("\n")).toContain(
+        "installed version is 18.3.1",
+      );
+    } finally {
+      exit.mockRestore();
+      err.mockRestore();
+    }
   });
 });
