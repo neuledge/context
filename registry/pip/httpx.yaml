@@ -1,0 +1,13 @@
+name: httpx
+description: "A next-generation HTTP client for Python"
+repository: https://github.com/encode/httpx
+
+versions:
+  - min_version: "0.25.0"
+    source:
+      type: git
+      url: https://github.com/encode/httpx
+      docs_path: docs
+      lang: en
+    tag_pattern: "{version}"
+
