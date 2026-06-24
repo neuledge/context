@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { initDatabase, openDatabase } from "./database.js";
-import { buildPackage } from "./package-builder.js";
+import { buildPackage, splitMarkdownByHeadings } from "./package-builder.js";
 
 describe("buildPackage", () => {
   beforeAll(async () => {
@@ -306,6 +306,123 @@ Run the install command.
       expect(chunks.length).toBeGreaterThan(0);
     } finally {
       db.close();
+    }
+  });
+});
+
+describe("splitMarkdownByHeadings", () => {
+  it("splits content by ## headings into preamble + per-section parts", () => {
+    const file = {
+      path: "test.txt",
+      content: `# Docs
+
+Intro text.
+
+## Workers
+
+Workers content.
+
+## Pages
+
+Pages content.`,
+    };
+    const result = splitMarkdownByHeadings(file);
+    // preamble + 2 sections = 3 parts
+    expect(result).toHaveLength(3);
+    expect(result[0]?.content).toContain("Intro text.");
+    expect(result[0]?.content).not.toContain("## Workers");
+    expect(result[1]?.content).toContain("## Workers");
+    expect(result[1]?.content).toContain("Workers content.");
+    expect(result[2]?.content).toContain("## Pages");
+    expect(result[2]?.content).toContain("Pages content.");
+  });
+
+  it("handles content starting with ## (no preamble)", () => {
+    const file = {
+      path: "test.txt",
+      content: `## Alpha
+
+Alpha content.
+
+## Beta
+
+Beta content.`,
+    };
+    const result = splitMarkdownByHeadings(file);
+    expect(result).toHaveLength(2);
+    expect(result[0]?.content).toMatch(/^## Alpha/);
+    expect(result[0]?.content).toContain("Alpha content.");
+    expect(result[1]?.content).toMatch(/^## Beta/);
+    expect(result[1]?.content).toContain("Beta content.");
+  });
+
+  it("returns original file when no ## headings exist", () => {
+    const file = {
+      path: "readme.md",
+      content: "# Title\n\nJust a single section.\n\n### Subheading\n\nMore content.",
+    };
+    const result = splitMarkdownByHeadings(file);
+    expect(result).toEqual([file]);
+  });
+
+  it("returns original file when content starts with a single ## section (no split needed)", () => {
+    const file = {
+      path: "single.txt",
+      content: "## Only One Section\n\nContent here.",
+    };
+    const result = splitMarkdownByHeadings(file);
+    expect(result).toEqual([file]);
+  });
+
+  it("preserves the preamble before the first ## heading", () => {
+    const file = {
+      path: "docs.md",
+      content: `---
+title: Docs
+---
+
+# Title
+
+Intro paragraph.
+
+## First Section
+
+Content here.`,
+    };
+    const result = splitMarkdownByHeadings(file);
+    expect(result).toHaveLength(2);
+    expect(result[0]?.content).toContain("Intro paragraph.");
+    expect(result[1]?.content).toContain("## First Section");
+    expect(result[1]?.content).toContain("Content here.");
+  });
+
+  it("preserves empty lines within sections", () => {
+    const file = {
+      path: "spacing.txt",
+      content: `## Section A
+
+Line 1.
+
+Line 2.
+
+## Section B
+
+Line 3.`,
+    };
+    const result = splitMarkdownByHeadings(file);
+    expect(result).toHaveLength(2);
+    expect(result[0]?.content).toContain("Line 1.\n\nLine 2.");
+    expect(result[1]?.content).toContain("Line 3.");
+  });
+
+  it("preserves doc_path across all split parts", () => {
+    const file = {
+      path: "cloudflare.com/llms-full.txt",
+      content: `## Workers\nContent.\n\n## Pages\nContent.`,
+    };
+    const result = splitMarkdownByHeadings(file);
+    for (const part of result) {
+      expect(part.path).toBe("cloudflare.com/llms-full.txt");
     }
   });
 });

@@ -35,6 +35,37 @@ export interface BuildResult {
   totalTokens: number;
 }
 
+/** Files larger than this are pre-split by ## headings before AST parsing to avoid OOM. */
+const MAX_FILE_SIZE_FOR_PARSING = 1024 * 1024; // 1MB
+
+/** Pre-split oversized markdown by ## headings into independently parseable chunks. */
+export function splitMarkdownByHeadings(file: MarkdownFile): MarkdownFile[] {
+  if (!/^## /m.test(file.content)) {
+    return [file];
+  }
+
+  const parts: string[] = [];
+  let current: string[] = [];
+
+  for (const line of file.content.split("\n")) {
+    if (line.startsWith("## ")) {
+      if (current.length > 0) {
+        parts.push(current.join("\n"));
+      }
+      current = [line];
+    } else {
+      current.push(line);
+    }
+  }
+  if (current.length > 0) {
+    parts.push(current.join("\n"));
+  }
+
+  if (parts.length <= 1) return [file];
+
+  return parts.map((content) => ({ path: file.path, content }));
+}
+
 /**
  * Build a documentation package from markdown files.
  */
@@ -95,7 +126,18 @@ export function buildPackage(
     const allSections: DocSection[] = [];
     const seenHashes = new Set<string>();
 
-    for (const file of files) {
+    // Pre-split oversized files by ## headings to avoid OOM during AST parsing
+    const processedFiles = files.flatMap((file) => {
+      if (
+        file.content.length > MAX_FILE_SIZE_FOR_PARSING &&
+        /\.(md|mdx|txt)$/i.test(file.path)
+      ) {
+        return splitMarkdownByHeadings(file);
+      }
+      return [file];
+    });
+
+    for (const file of processedFiles) {
       try {
         const parsed = parseDocument(file.content, file.path);
         for (const section of parsed.sections) {
