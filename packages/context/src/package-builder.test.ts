@@ -3,7 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { initDatabase, openDatabase } from "./database.js";
-import { buildPackage } from "./package-builder.js";
+import {
+  buildPackage,
+  splitForParsing,
+  splitMarkdownByHeadings,
+} from "./package-builder.js";
 
 describe("buildPackage", () => {
   beforeAll(async () => {
@@ -307,5 +311,118 @@ Run the install command.
     } finally {
       db.close();
     }
+  });
+});
+
+describe("splitMarkdownByHeadings", () => {
+  it("splits into preamble + one part per ## heading", () => {
+    const file = {
+      path: "test.txt",
+      content: "# Docs\n\nIntro.\n\n## Workers\n\nA.\n\n## Pages\n\nB.",
+    };
+    const result = splitMarkdownByHeadings(file);
+
+    expect(result).toHaveLength(3);
+    expect(result[0]?.content).toContain("Intro.");
+    expect(result[0]?.content).not.toContain("## Workers");
+    expect(result[1]?.content).toMatch(/^## Workers/);
+    expect(result[2]?.content).toMatch(/^## Pages/);
+  });
+
+  it("returns the file unchanged when there is nothing to split", () => {
+    const noHeadings = { path: "a.md", content: "# Title\n\nOne section." };
+    const single = { path: "b.txt", content: "## Only\n\nContent." };
+
+    expect(splitMarkdownByHeadings(noHeadings)).toEqual([noHeadings]);
+    expect(splitMarkdownByHeadings(single)).toEqual([single]);
+  });
+
+  it("ignores ## lines inside fenced code blocks", () => {
+    const file = {
+      path: "docs.md",
+      content: [
+        "## Real",
+        "",
+        "```markdown",
+        "## Not a heading",
+        "```",
+        "",
+        "## Also real",
+      ].join("\n"),
+    };
+    const result = splitMarkdownByHeadings(file);
+
+    expect(result).toHaveLength(2);
+    expect(result[0]?.content).toContain("## Not a heading");
+    expect(result[0]?.content).toContain("```markdown\n## Not a heading\n```");
+    expect(result[1]?.content).toMatch(/^## Also real/);
+  });
+
+  it("tracks ~~~ fences and longer closing fences", () => {
+    const file = {
+      path: "docs.md",
+      content: [
+        "## Real",
+        "",
+        "~~~",
+        "## Inside tilde fence",
+        "~~~",
+        "",
+        "````",
+        "```",
+        "## Inside nested fence",
+        "````",
+      ].join("\n"),
+    };
+
+    expect(splitMarkdownByHeadings(file)).toHaveLength(1);
+  });
+
+  it("keeps doc path on every part", () => {
+    const file = {
+      path: "cloudflare.com/llms-full.txt",
+      content: "## Workers\nA.\n\n## Pages\nB.",
+    };
+
+    for (const part of splitMarkdownByHeadings(file)) {
+      expect(part.path).toBe("cloudflare.com/llms-full.txt");
+    }
+  });
+});
+
+describe("splitForParsing", () => {
+  const oversized = (body: string) => body.repeat(Math.ceil(2e6 / body.length));
+
+  it("leaves files under the size threshold alone", () => {
+    const file = { path: "small.md", content: "## A\nx\n\n## B\ny" };
+    expect(splitForParsing(file)).toEqual([file]);
+  });
+
+  it("bounds chunk size for a large file with no headings", () => {
+    const file = { path: "flat.txt", content: oversized("no headings here\n") };
+    const result = splitForParsing(file);
+
+    expect(result.length).toBeGreaterThan(1);
+    for (const part of result) {
+      expect(part.content.length).toBeLessThanOrEqual(1024 * 1024);
+    }
+  });
+
+  it("bounds chunk size when a single ## section is still too large", () => {
+    const file = {
+      path: "huge.txt",
+      content: `## One\n${oversized("filler line\n")}\n## Two\nsmall`,
+    };
+    const result = splitForParsing(file);
+
+    for (const part of result) {
+      expect(part.content.length).toBeLessThanOrEqual(1024 * 1024);
+    }
+    expect(result.at(-1)?.content).toMatch(/^## Two/);
+  });
+
+  it("never line-splits non-markdown formats", () => {
+    const file = { path: "big.rst", content: oversized("plain text\n") };
+    expect(splitForParsing(file)).toEqual([file]);
   });
 });

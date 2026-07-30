@@ -35,6 +35,85 @@ export interface BuildResult {
   totalTokens: number;
 }
 
+/** Markdown chunks larger than this are split further before AST parsing. */
+const MAX_PARSE_CHUNK_BYTES = 1024 * 1024; // 1MB
+
+/**
+ * Split markdown into one chunk per `##` section.
+ *
+ * Fenced code blocks are tracked so that `## ` lines inside them — common in docs
+ * that demonstrate markdown — aren't mistaken for headings and split mid-fence.
+ */
+export function splitMarkdownByHeadings(file: MarkdownFile): MarkdownFile[] {
+  const parts: string[] = [];
+  let current: string[] = [];
+  let openFence: string | null = null;
+
+  for (const line of file.content.split("\n")) {
+    const fence = /^\s{0,3}(`{3,}|~{3,})/.exec(line)?.[1];
+
+    if (fence) {
+      // A fence closes only with the same character, repeated at least as many times.
+      if (openFence === null) openFence = fence;
+      else if (fence.startsWith(openFence)) openFence = null;
+    } else if (openFence === null && line.startsWith("## ") && current.length) {
+      parts.push(current.join("\n"));
+      current = [];
+    }
+
+    current.push(line);
+  }
+  if (current.length) parts.push(current.join("\n"));
+
+  if (parts.length <= 1) return [file];
+  return parts.map((content) => ({ path: file.path, content }));
+}
+
+/** Split content into chunks of at most `maxBytes` at line boundaries. */
+function splitBySize(content: string, maxBytes: number): string[] {
+  const chunks: string[] = [];
+  let current = "";
+
+  for (const line of content.split("\n")) {
+    if (current && current.length + line.length + 1 > maxBytes) {
+      chunks.push(current);
+      current = line;
+    } else {
+      current += current ? `\n${line}` : line;
+    }
+  }
+  if (current) chunks.push(current);
+
+  return chunks;
+}
+
+/**
+ * Break an oversized file into chunks small enough to parse without exhausting the heap.
+ *
+ * remark builds a full AST for whatever it is given, so a multi-megabyte document (a
+ * site's `llms-full.txt`, say) can OOM the process. Splitting by `##` keeps sections
+ * intact where possible; the size fallback bounds the rest, so a file with no headings
+ * — or one enormous section — can't crash the build either.
+ *
+ * Only markdown is split: the other formats route to parsers that don't build a
+ * whole-document AST, and line-splitting them would corrupt their block structure.
+ */
+export function splitForParsing(file: MarkdownFile): MarkdownFile[] {
+  const isMarkdown = !/\.(html?|adoc|rst)$/i.test(file.path);
+  if (file.content.length <= MAX_PARSE_CHUNK_BYTES || !isMarkdown) {
+    return [file];
+  }
+
+  return splitMarkdownByHeadings(file).flatMap((part) =>
+    part.content.length > MAX_PARSE_CHUNK_BYTES
+      ? splitBySize(part.content, MAX_PARSE_CHUNK_BYTES).map((content) => ({
+          path: file.path,
+          content,
+        }))
+      : [part],
+  );
+}
+
 /**
  * Build a documentation package from markdown files.
  */
@@ -95,7 +174,7 @@ export function buildPackage(
     const allSections: DocSection[] = [];
     const seenHashes = new Set<string>();
 
-    for (const file of files) {
+    for (const file of files.flatMap(splitForParsing)) {
       try {
         const parsed = parseDocument(file.content, file.path);
         for (const section of parsed.sections) {
