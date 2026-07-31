@@ -160,6 +160,12 @@ function* scanTags(
   html: string,
 ): Generator<[offset: number, name: string, closing: boolean]> {
   let i = 0;
+  // A close tag that could not be found from one offset cannot be found from a later
+  // one, and these searches only ever start further into the file, so one failure per
+  // name settles it. Re-running the search is what makes it quadratic: 1MB of
+  // `<script ` with no `</script` anywhere rescanned the whole remainder per tag and
+  // took 40s, against 50ms once the failure is remembered.
+  const unclosed = new Set<string>();
 
   while (i < html.length) {
     const lt = html.indexOf("<", i);
@@ -182,11 +188,12 @@ function* scanTags(
     yield [lt, name, !!closing];
     i = lt + 1;
 
-    if (!closing && RAW_TEXT_TAGS.has(name)) {
+    if (!closing && RAW_TEXT_TAGS.has(name) && !unclosed.has(name)) {
       const close = new RegExp(`</${name}`, "gi");
       close.lastIndex = i;
       const end = close.exec(html)?.index;
       if (end != null) i = end;
+      else unclosed.add(name);
     }
   }
 }
@@ -215,6 +222,12 @@ function splitHtmlBySize(html: string, maxChars: number): string[] {
   let lastTag = 0;
   let lastHeading = 0;
   let removed = 0;
+  // The first `>` at or after the tag being looked at. `offset` only moves forward, so
+  // a `>` already found at or beyond it is still the first one, and "there is no `>`
+  // left" stays true for good: the search resumes instead of restarting. Restarting it
+  // per tag is quadratic — 3MB of `<svg ` took 25s with or without a trailing `>`,
+  // against 130ms resumed — and a future reader must not "simplify" it back.
+  let gt = html.indexOf(">");
 
   // Both candidates were recorded while they still fit, and `start` only moves
   // forward, so every chunk cut here is within the limit.
@@ -243,7 +256,11 @@ function splitHtmlBySize(html: string, maxChars: number): string[] {
 
     const isRemoved = REMOVED_TAGS.has(name);
     // These elements nest — `<article><header>` inside a `<header>` is ordinary — so
-    // the body is skipped by depth, not by searching for the next close tag.
+    // the body is skipped by depth, not by searching for the next close tag. Depth is
+    // all it is: a stray `</header>` inside an `<aside>` ends the aside's suppression
+    // early, and the cap below is what limits the damage. Matching names instead would
+    // need a stack, which on `<aside>` repeated to a chunk is both memory and, if the
+    // match is anything but the innermost, another quadratic scan.
     if (closing && isRemoved && removed) removed--;
 
     if (!removed) {
@@ -252,10 +269,18 @@ function splitHtmlBySize(html: string, maxChars: number): string[] {
     }
 
     if (!closing && isRemoved) {
-      // An XHTML-style `<svg/>` closes on the spot; counting it open would suppress
-      // every candidate after it.
-      const gt = html.indexOf(">", offset);
-      if (gt < 0 || html[gt - 1] !== "/") removed++;
+      if (gt >= 0 && gt < offset) gt = html.indexOf(">", offset);
+
+      // `/>` usually closes the tag on the spot, and counting `<svg/>` open would
+      // suppress candidates that did not need it. But an unquoted attribute value
+      // swallows the `/`, so `<iframe src=foo/>` is an *open* iframe whose real
+      // `</iframe>` would then cancel an enclosing `<aside>`. Only a `/` that ends the
+      // tag name or follows a quote or space is read as closing; guessing "open" is the
+      // safe way round, costing at most one suppressed cut candidate.
+      const ends = gt - 1 === offset + 1 + name.length;
+      const closes =
+        html[gt - 1] === "/" && (ends || /["'\s]/.test(html[gt - 2] ?? ""));
+      if (!closes) removed++;
     }
   }
   packTo(html.length);

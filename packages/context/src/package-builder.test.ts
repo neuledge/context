@@ -558,7 +558,10 @@ describe("splitForParsing (HTML)", () => {
     const unit = (i: number) =>
       `<article><header><h2>Chrome${i}</h2></header>` +
       `<h2>S${i}</h2><p>${words(60)}</p></article>` +
-      `<aside><aside><p>${words(10)}</p></aside>` +
+      // `src=foo/` is one unquoted attribute value, so this iframe is open, not
+      // self-closing. Reading it as closed lets its `</iframe>` cancel the aside.
+      `<aside><iframe src=foo/>${words(5)}</iframe>` +
+      `<aside><p>${words(10)}</p></aside>` +
       `<h2>Sidebar${i}</h2><p>${words(120)}</p></aside>`;
     const content = Array.from({ length: 1400 }, (_, i) => unit(i)).join("");
     const result = splitForParsing({ path: "big.html", content });
@@ -595,6 +598,37 @@ describe("splitForParsing (HTML)", () => {
       expect(part.content).toMatch(/^<h2[\s>]/);
     }
   });
+
+  it("keeps a self-closing stripped element from suppressing cut points", () => {
+    // `<svg/>` is over the moment it opens, so every candidate after it still counts.
+    const file = {
+      path: "big.html",
+      content: `<svg/><svg />${sections(2600)}`,
+    };
+
+    for (const part of splitForParsing(file).slice(1)) {
+      expect(part.content).toMatch(/^<h2[\s>]/);
+    }
+  });
+
+  it("scans a hostile page once, not once per tag", () => {
+    // Both searches driven by these tags — for a `</script`, and for the `>` that
+    // would end a `<svg ` — are monotone in the offset, so each may only be resumed.
+    // Restarted per tag they are quadratic: 40s and 1.4s at 1MB, 5.4min and 25s at 3MB.
+    // `buildPackage` splits outside its per-file `try` and with no timeout, so a single
+    // malformed page stalls the whole registry build.
+    for (const content of [
+      "<script ".repeat(140000),
+      "<svg ".repeat(400000),
+      // Not only the fruitless search: a `>` the scan has already passed is just as
+      // costly to look for again.
+      `${"<svg ".repeat(400000)}>`,
+    ]) {
+      expect(
+        splitForParsing({ path: "hostile.html", content }).length,
+      ).toBeGreaterThan(1);
+    }
+  }, 3000);
 
   it("carries a chunk's own heading into its continuations, and only its own", () => {
     // Mirrors the markdown path, which would otherwise title these "Introduction".
