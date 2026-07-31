@@ -717,7 +717,10 @@ describe("splitForParsing (HTML)", () => {
     // real content and has to survive.
     const tail = `<h2>TAIL</h2><p>${words(200)}</p>`.repeat(200);
 
-    for (const tag of ["script", "style", "title"]) {
+    // `<title attr=x/>` is here because an unquoted attribute value swallows the `/`,
+    // so it is an *open* tag and must still truncate. Reading it as self-closing keeps
+    // a tail the parser never had.
+    for (const tag of ["script", "style", "title", "title attr=x/"]) {
       const result = splitForParsing({
         path: "big.html",
         content: `${sections(1100)}<${tag}>x${tail}`,
@@ -753,14 +756,14 @@ describe("splitForParsing (HTML)", () => {
     const tail = `<h2>TAIL</h2><p>${words(200)}</p>`.repeat(200);
 
     for (const open of ["<title/>", "<title />", "<script/>", "<style/>"]) {
-      const kept = splitForParsing({
+      const result = splitForParsing({
         path: "big.html",
         content: `${sections(1100)}<svg>${open}</svg>${tail}`,
-      })
-        .map((p) => p.content)
-        .join("");
+      });
 
-      expect(kept).toContain("<h2>TAIL</h2>");
+      // Under the cap the file comes back whole and `toContain` passes for free.
+      expect(result.length).toBeGreaterThan(1);
+      expect(result.map((p) => p.content).join("")).toContain("<h2>TAIL</h2>");
     }
   });
 
@@ -770,14 +773,14 @@ describe("splitForParsing (HTML)", () => {
     const tail = `<h2>TAIL</h2><p>${words(200)}</p>`.repeat(200);
 
     for (const bogus of ["<!foo <script> bar>", '<?php echo "<script>"; ?>']) {
-      const kept = splitForParsing({
+      const result = splitForParsing({
         path: "big.html",
         content: `${sections(1100)}${bogus}${tail}`,
-      })
-        .map((p) => p.content)
-        .join("");
+      });
 
-      expect(kept).toContain("<h2>TAIL</h2>");
+      // Under the cap the file comes back whole and `toContain` passes for free.
+      expect(result.length).toBeGreaterThan(1);
+      expect(result.map((p) => p.content).join("")).toContain("<h2>TAIL</h2>");
     }
   });
 
