@@ -372,10 +372,47 @@ describe("splitMarkdownByHeadings", () => {
         "```",
         "## Inside nested fence",
         "````",
+        "",
+        "## After", // proves the fences actually closed, not just that nothing split
       ].join("\n"),
     };
 
-    expect(splitMarkdownByHeadings(file)).toHaveLength(1);
+    const result = splitMarkdownByHeadings(file);
+
+    expect(result).toHaveLength(2);
+    expect(result[1]?.content).toMatch(/^## After/);
+  });
+
+  it("does not let an info-string line close an open fence", () => {
+    // CommonMark: an opening fence may carry an info string, a closing fence may not.
+    const file = {
+      path: "docs.md",
+      content: [
+        "## Real",
+        "",
+        "```",
+        "```js",
+        "## Still inside the block",
+        "```",
+        "",
+        "## After",
+      ].join("\n"),
+    };
+
+    const result = splitMarkdownByHeadings(file);
+
+    expect(result).toHaveLength(2);
+    expect(result[0]?.content).toContain("## Still inside the block");
+    expect(result[1]?.content).toMatch(/^## After/);
+  });
+
+  it("recognises indented and tab-separated ## headings", () => {
+    const file = {
+      path: "docs.md",
+      content: "## A\nx\n   ## B\ny\n##\tC\nz",
+    };
+
+    expect(splitMarkdownByHeadings(file)).toHaveLength(3);
   });
 
   it("keeps doc path on every part", () => {
@@ -421,8 +458,42 @@ describe("splitForParsing", () => {
     expect(result.at(-1)?.content).toMatch(/^## Two/);
   });
 
+  it("bounds a single line longer than the limit", () => {
+    // Nothing about line structure bounds a base64 blob or a minified sample.
+    const file = { path: "blob.md", content: "x".repeat(3 * 1024 * 1024) };
+    const result = splitForParsing(file);
+
+    expect(result.length).toBeGreaterThan(1);
+    for (const part of result) {
+      expect(part.content.length).toBeLessThanOrEqual(1024 * 1024);
+    }
+  });
+
+  it("carries frontmatter and section heading into continuation chunks", () => {
+    // Both feed doc_title / section_title, so a continuation must not lose them.
+    const file = {
+      path: "doc.md",
+      content: `---\ntitle: Real Title\n---\n\n## One\n${oversized("filler line\n")}\n## Two\nsmall`,
+    };
+    const result = splitForParsing(file);
+
+    for (const part of result.slice(1)) {
+      expect(part.content).toMatch(/^---\ntitle: Real Title\n---\n/);
+    }
+    // Continuations of the oversized section keep its heading.
+    expect(result[2]?.content).toContain("## One");
+  });
+
   it("never line-splits non-markdown formats", () => {
-    const file = { path: "big.rst", content: oversized("plain text\n") };
-    expect(splitForParsing(file)).toEqual([file]);
+    for (const path of ["big.rst", "big.html", "big.adoc"]) {
+      const file = { path, content: oversized("plain text\n") };
+      expect(splitForParsing(file)).toEqual([file]);
+    }
+  });
+
+  it("splits uppercase extensions that still route to the markdown parser", () => {
+    // parseDocument's checks are case-sensitive, so .RST is parsed as markdown.
+    const file = { path: "big.RST", content: oversized("plain text\n") };
+    expect(splitForParsing(file).length).toBeGreaterThan(1);
   });
 });

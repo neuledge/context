@@ -35,14 +35,27 @@ export interface BuildResult {
   totalTokens: number;
 }
 
-/** Markdown chunks larger than this are split further before AST parsing. */
-const MAX_PARSE_CHUNK_BYTES = 1024 * 1024; // 1MB
+/**
+ * Markdown chunks longer than this are split further before AST parsing.
+ *
+ * Counted in UTF-16 code units, not bytes: that is what a JS string costs in the heap,
+ * which is the resource being bounded here.
+ */
+const MAX_PARSE_CHUNK_CHARS = 1024 * 1024;
+
+/** Extensions `parseDocument` routes away from remark. Matched as it matches them. */
+const NON_MARKDOWN_EXTENSIONS = [".html", ".htm", ".adoc", ".rst"];
+
+/** An ATX `##` heading: up to 3 spaces of indent, then `##` and a space or tab. */
+const H2_LINE = /^ {0,3}##([ \t]|$)/;
 
 /**
  * Split markdown into one chunk per `##` section.
  *
- * Fenced code blocks are tracked so that `## ` lines inside them — common in docs
- * that demonstrate markdown — aren't mistaken for headings and split mid-fence.
+ * Fenced code blocks are tracked so that `## ` lines inside them — common in docs that
+ * demonstrate markdown — aren't mistaken for headings and split mid-fence. Fence
+ * handling follows CommonMark: an opening fence may carry an info string, a closing
+ * fence may not, and only the same character in at least the same run length closes.
  */
 export function splitMarkdownByHeadings(file: MarkdownFile): MarkdownFile[] {
   const parts: string[] = [];
@@ -50,13 +63,16 @@ export function splitMarkdownByHeadings(file: MarkdownFile): MarkdownFile[] {
   let openFence: string | null = null;
 
   for (const line of file.content.split("\n")) {
-    const fence = /^\s{0,3}(`{3,}|~{3,})/.exec(line)?.[1];
+    const [, marker, info] = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line) ?? [];
 
-    if (fence) {
-      // A fence closes only with the same character, repeated at least as many times.
-      if (openFence === null) openFence = fence;
-      else if (fence.startsWith(openFence)) openFence = null;
-    } else if (openFence === null && line.startsWith("## ") && current.length) {
+    if (marker) {
+      if (openFence === null) {
+        // Backtick fences can't have a backtick in the info string; that isn't a fence.
+        if (marker[0] !== "`" || !info?.includes("`")) openFence = marker;
+      } else if (marker.startsWith(openFence) && !info?.trim()) {
+        openFence = null;
+      }
+    } else if (openFence === null && H2_LINE.test(line) && current.length) {
       parts.push(current.join("\n"));
       current = [];
     }
@@ -69,22 +85,38 @@ export function splitMarkdownByHeadings(file: MarkdownFile): MarkdownFile[] {
   return parts.map((content) => ({ path: file.path, content }));
 }
 
-/** Split content into chunks of at most `maxBytes` at line boundaries. */
-function splitBySize(content: string, maxBytes: number): string[] {
+/**
+ * Split content into chunks of at most `maxChars`, preferring line boundaries.
+ *
+ * A single line over the limit is cut mid-line. Nothing else bounds it, and a line that
+ * long is a data blob — a base64 payload, a minified sample — rather than prose.
+ */
+function splitBySize(content: string, maxChars: number): string[] {
   const chunks: string[] = [];
   let current = "";
 
   for (const line of content.split("\n")) {
-    if (current && current.length + line.length + 1 > maxBytes) {
+    if (current && current.length + line.length + 1 > maxChars) {
       chunks.push(current);
-      current = line;
-    } else {
-      current += current ? `\n${line}` : line;
+      current = "";
     }
+
+    let rest = line;
+    while (rest.length > maxChars) {
+      chunks.push(rest.slice(0, maxChars));
+      rest = rest.slice(maxChars);
+    }
+
+    current += current ? `\n${rest}` : rest;
   }
   if (current) chunks.push(current);
 
-  return chunks;
+  return chunks.length ? chunks : [content];
+}
+
+/** The document's leading YAML frontmatter block, if it opens with one. */
+function leadingFrontmatter(content: string): string {
+  return /^---\n[\s\S]*?\n---\n/.exec(content)?.[0] ?? "";
 }
 
 /**
@@ -95,23 +127,48 @@ function splitBySize(content: string, maxBytes: number): string[] {
  * intact where possible; the size fallback bounds the rest, so a file with no headings
  * — or one enormous section — can't crash the build either.
  *
- * Only markdown is split: the other formats route to parsers that don't build a
- * whole-document AST, and line-splitting them would corrupt their block structure.
+ * Only markdown is split, because splitting on markdown line structure would corrupt
+ * the other formats. Note this leaves HTML unbounded: `parseHtml` builds a DOM *and*
+ * then a remark AST, so it is the heaviest path here.
+ * TODO: bound HTML too, by size at tag boundaries.
  */
 export function splitForParsing(file: MarkdownFile): MarkdownFile[] {
-  const isMarkdown = !/\.(html?|adoc|rst)$/i.test(file.path);
-  if (file.content.length <= MAX_PARSE_CHUNK_BYTES || !isMarkdown) {
+  const isMarkdown = !NON_MARKDOWN_EXTENSIONS.some((ext) =>
+    file.path.endsWith(ext),
+  );
+  if (file.content.length <= MAX_PARSE_CHUNK_CHARS || !isMarkdown) {
     return [file];
   }
 
-  return splitMarkdownByHeadings(file).flatMap((part) =>
-    part.content.length > MAX_PARSE_CHUNK_BYTES
-      ? splitBySize(part.content, MAX_PARSE_CHUNK_BYTES).map((content) => ({
-          path: file.path,
-          content,
-        }))
-      : [part],
-  );
+  // `parseMarkdown` reads frontmatter only at offset 0 and titles a section from the
+  // `##` line opening it, so a continuation chunk would otherwise index under the
+  // filename with a section title of "Introduction". Carry both forward instead.
+  const frontmatter = leadingFrontmatter(file.content);
+  const chunks: MarkdownFile[] = [];
+
+  splitMarkdownByHeadings(file).forEach((part, index) => {
+    const prefix = index === 0 ? "" : frontmatter;
+
+    if (prefix.length + part.content.length <= MAX_PARSE_CHUNK_CHARS) {
+      chunks.push({ path: file.path, content: prefix + part.content });
+      return;
+    }
+
+    const heading = /^ {0,3}##[ \t].*/.exec(part.content)?.[0];
+    const carried = heading ? `${prefix + heading}\n` : prefix;
+
+    for (const [i, content] of splitBySize(
+      part.content,
+      MAX_PARSE_CHUNK_CHARS - carried.length,
+    ).entries()) {
+      chunks.push({
+        path: file.path,
+        content: i === 0 ? prefix + content : carried + content,
+      });
+    }
+  });
+
+  return chunks;
 }
 
 /**
