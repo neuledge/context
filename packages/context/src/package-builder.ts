@@ -150,6 +150,9 @@ const REMOVED_TAG_IDS = new Map([...REMOVED_TAGS].map((tag, id) => [tag, id]));
 /** A tag name at a known `<`. Sticky: it matches there or not at all, never searches. */
 const TAG_NAME = /<(\/?)([a-zA-Z][^\s/>]*)/y;
 
+/** The quote opening an attribute value, at a known `=`. Sticky, as above. */
+const ATTR_VALUE = /\s*(["'])?/y;
+
 /** Elements whose content is raw text: a `<` inside them never opens a tag. */
 const RAW_TEXT_TAGS = new Set(["script", "style", "textarea", "title"]);
 
@@ -164,19 +167,46 @@ const STRIPPED_RAW_TEXT = new Set(
 );
 
 /**
- * Is the `<` at `lt` inside another tag, as the one in `<div title="<script>">` is?
+ * The `>` ending the tag whose name ends at `from`, or -1 if the tag never ends.
  *
- * An HTML parser reads that as an attribute value; this scan reads it as a tag, and
- * acting on the difference would drop the rest of a well-formed document. Nothing but a
- * missing `>` since the previous `<` distinguishes the two.
+ * Quoted attribute values are jumped over, so the `<` and `>` in `<div title="<b>">` are
+ * read as the value they are and not as structure. Reading them as structure is what let
+ * a `<script` inside an attribute pass for a real one and drop a whole document.
+ *
+ * The tag is walked, not tokenized: attribute names and unquoted values need no state,
+ * since nothing inside them ends the tag but the `>`. Only the quote is approximated —
+ * it counts as opening a value where one belongs, just after `=`, which is also where
+ * the real tokenizer accepts one. Elsewhere it is ordinary text, so `<div a=b"c>` ends
+ * at that `>` rather than hunting for a matching quote. Both ways of being wrong about
+ * an oddity like `<a href=x=y">` end the tag too late rather than too early, which costs
+ * cut candidates: cutting more bluntly is recoverable, cutting inside a tag is not.
  */
-function insideTag(html: string, lt: number): boolean {
-  return lt > 0 && html.lastIndexOf("<", lt - 1) > html.lastIndexOf(">", lt);
+function tagEnd(html: string, from: number): number {
+  for (let i = from; i < html.length; i++) {
+    if (html[i] === ">") return i;
+    if (html[i] !== "=") continue;
+
+    ATTR_VALUE.lastIndex = i + 1;
+    const [, quote] = ATTR_VALUE.exec(html) ?? [];
+    if (!quote) continue;
+
+    // A value whose quote never closes swallows the rest of the file, as it does for a
+    // real parser: the tag never ends, and everything after it is inside it.
+    const close = html.indexOf(quote, ATTR_VALUE.lastIndex);
+    if (close < 0) return -1;
+    i = close;
+  }
+
+  return -1;
 }
 
 /**
- * Yield the offset and lowercased name of every tag in an HTML source, and return the
- * offset at which the document stops holding indexable content.
+ * Yield the offset, lowercased name and shape of every tag in an HTML source, and return
+ * the offset at which the document stops holding indexable content.
+ *
+ * Tag markup itself is skipped, so an attribute value is never read as document text and
+ * the `<script` in `<div title="<script>">` is not seen at all. A tag with no `>` ends
+ * the scan: the rest of the file is inside it, and later cuts there are merely blunt.
  *
  * Comments and terminated raw-text element bodies are skipped, because a cut inside one
  * loses content rather than splitting it: the truncated `<script>` or `<!--` swallows
@@ -195,7 +225,10 @@ function insideTag(html: string, lt: number): boolean {
  */
 function* scanTags(
   html: string,
-): Generator<[offset: number, name: string, closing: boolean], number> {
+): Generator<
+  [offset: number, name: string, closing: boolean, selfClosing: boolean],
+  number
+> {
   let i = 0;
   // A close tag that could not be found from one offset cannot be found from a later
   // one, and these searches only ever start further into the file, so one failure per
@@ -215,25 +248,42 @@ function* scanTags(
     }
 
     TAG_NAME.lastIndex = lt;
-    const [, closing, tag] = TAG_NAME.exec(html) ?? [];
-    if (!tag) {
+    const [match, closing, tag] = TAG_NAME.exec(html) ?? [];
+    if (!match || !tag) {
       i = lt + 1;
       continue;
     }
 
     const name = tag.toLowerCase();
-    yield [lt, name, !!closing];
-    i = lt + 1;
+    const nameEnd = lt + match.length;
+    const end = tagEnd(html, nameEnd);
+
+    // `/>` usually closes the tag on the spot, and counting `<svg/>` open would suppress
+    // candidates that did not need it. But an unquoted attribute value swallows the `/`,
+    // so `<iframe src=foo/>` is an *open* iframe whose real `</iframe>` would then cancel
+    // an enclosing `<aside>`. Only a `/` that ends the tag name or follows a quote or
+    // space is read as closing; guessing "open" is the safe way round, costing at most
+    // one suppressed cut candidate.
+    const selfClosing =
+      html[end - 1] === "/" &&
+      (end - 1 === nameEnd || /["'\s]/.test(html[end - 2] ?? ""));
+
+    yield [lt, name, !!closing, selfClosing];
+
+    // Past the tag, not back into it. Resuming at `lt + 1` re-read the tag's own markup
+    // as document text, which is how an attribute value came to be scanned for tags.
+    // A tag that never ends leaves nothing after it to scan: the rest of the file is
+    // inside it, so the scan is over rather than restarted from within. That is also
+    // what keeps this linear — tags are walked once because they never overlap — and
+    // resuming anywhere inside one makes the whole scan quadratic again.
+    i = end < 0 ? html.length : end + 1;
 
     if (!closing && RAW_TEXT_TAGS.has(name) && !unclosed.has(name)) {
       const close = new RegExp(`</${name}`, "gi");
       close.lastIndex = i;
-      const end = close.exec(html)?.index;
-      if (end != null) i = end;
-      // The `insideTag` check costs two backward searches, but only ever runs once per
-      // raw-text name — `unclosed` absorbs every later one — so it is linear, not the
-      // per-tag rescan this loop is otherwise careful to avoid.
-      else if (STRIPPED_RAW_TEXT.has(name) && !insideTag(html, lt)) return lt;
+      const found = close.exec(html)?.index;
+      if (found != null) i = found;
+      else if (STRIPPED_RAW_TEXT.has(name)) return lt;
       else unclosed.add(name);
     }
   }
@@ -277,12 +327,6 @@ function splitHtmlBySize(html: string, maxChars: number): HtmlSplit {
   // opening tag that reaches this stack is five characters, so a 1MB chunk limit caps it
   // at about 210k entries however deeply the page nests.
   const open: number[] = [];
-  // The first `>` at or after the tag being looked at. `offset` only moves forward, so
-  // a `>` already found at or beyond it is still the first one, and "there is no `>`
-  // left" stays true for good: the search resumes instead of restarting. Restarting it
-  // per tag is quadratic — 3MB of `<svg ` took 25s with or without a trailing `>`,
-  // against 130ms resumed — and a future reader must not "simplify" it back.
-  let gt = html.indexOf(">");
 
   // Both candidates were recorded while they still fit, and `start` only moves
   // forward, so every chunk cut here is within the limit.
@@ -307,7 +351,7 @@ function splitHtmlBySize(html: string, maxChars: number): HtmlSplit {
   // Opening `<h2` only: cutting at the matching `</h2` would strand the heading in
   // the previous chunk and leave its section titled "Introduction".
   for (; !tag.done; tag = tags.next()) {
-    const [offset, name, closing] = tag.value;
+    const [offset, name, closing, selfClosing] = tag.value;
     packTo(offset);
 
     // Suppression that has outrun a whole chunk has nothing left to protect: the cut
@@ -334,20 +378,7 @@ function splitHtmlBySize(html: string, maxChars: number): HtmlSplit {
       if (name === "h2" && !closing) lastHeading = offset;
     }
 
-    if (!closing && isRemoved) {
-      if (gt >= 0 && gt < offset) gt = html.indexOf(">", offset);
-
-      // `/>` usually closes the tag on the spot, and counting `<svg/>` open would
-      // suppress candidates that did not need it. But an unquoted attribute value
-      // swallows the `/`, so `<iframe src=foo/>` is an *open* iframe whose real
-      // `</iframe>` would then cancel an enclosing `<aside>`. Only a `/` that ends the
-      // tag name or follows a quote or space is read as closing; guessing "open" is the
-      // safe way round, costing at most one suppressed cut candidate.
-      const ends = gt - 1 === offset + 1 + name.length;
-      const closes =
-        html[gt - 1] === "/" && (ends || /["'\s]/.test(html[gt - 2] ?? ""));
-      if (!closes) open.push(removedId);
-    }
+    if (!closing && isRemoved && !selfClosing) open.push(removedId);
   }
 
   // Cut exactly where content ends, so the tail can be dropped a whole chunk at a time.

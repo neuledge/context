@@ -667,16 +667,25 @@ describe("splitForParsing (HTML)", () => {
     ).toHaveLength(0);
   });
 
-  it("reads a `<script` inside an attribute value as an attribute value", () => {
-    // This scan sees a tag where an HTML parser sees quoted text. Treating it as an
-    // element that never closes would drop a well-formed document over a quoting
-    // detail, so the tail is only given up when nothing is left open before it.
-    const result = splitForParsing({
-      path: "big.html",
-      content: `<div title="<script>">${sections(1200)}`,
-    });
+  it("reads markup inside an attribute value as an attribute value", () => {
+    // An HTML parser sees quoted text here; a scan that resumes inside the tag it has
+    // just yielded sees markup. Either way of acting on a phantom `<script>` loses a
+    // well-formed page: suppression it opens and never closes starves the splitter of
+    // candidates until a chunk begins at the `<` inside the attribute, and turndown
+    // then drops that entire chunk as script text — 1008 of 1200 sections at the first
+    // title below. The second is why a back-search for an enclosing tag is not enough:
+    // the `>` closing `<b>` makes the `<script` look like real markup, and the whole
+    // document is given up as an unterminated script.
+    for (const title of ['"<script>"', '"<b><script>"', "'<b><script>'"]) {
+      const content = `<div title=${title}>${sections(1200)}`;
+      const result = splitForParsing({ path: "big.html", content });
 
-    expect(result.map((p) => p.content).join("")).toContain("<h2>S1199</h2>");
+      expect(result.map((p) => p.content).join("")).toContain("<h2>S1199</h2>");
+      // A chunk that starts anywhere but a heading started inside the attribute.
+      for (const part of result.slice(1)) {
+        expect(part.content).toMatch(/^<h2[\s>]/);
+      }
+    }
   });
 
   it("recovers cut points after an element that is never closed", () => {
