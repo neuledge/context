@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { existsSync, unlinkSync } from "node:fs";
 import { type DocSection, parseDocument } from "./build.js";
 import { openDatabase } from "./database.js";
+import { REMOVED_TAGS } from "./html.js";
 
 /**
  * Generate a content hash for section deduplication.
@@ -52,6 +53,12 @@ const NON_MARKDOWN_EXTENSIONS = [...HTML_EXTENSIONS, ".adoc", ".rst"];
 /** An ATX `##` heading: up to 3 spaces of indent, then `##` and a space or tab. */
 const H2_LINE = /^ {0,3}##([ \t]|$)/;
 
+/** The `<h2>…</h2>` a chunk opens with, if it opens with one. */
+const H2_OPENING = /^<h2[\s>][\s\S]*?<\/h2\s*>/i;
+
+/** Longest heading carried forward; past this it is a section body, not a title. */
+const MAX_CARRIED_HEADING = 1024;
+
 /**
  * Split markdown into one chunk per `##` section.
  *
@@ -89,6 +96,17 @@ export function splitMarkdownByHeadings(file: MarkdownFile): MarkdownFile[] {
 }
 
 /**
+ * Move a blind cut off a surrogate pair, which halved becomes two U+FFFD.
+ *
+ * Only ever moves back by one, and never past `from`, so it can't stall a loop that
+ * relies on the cut making progress.
+ */
+function offSurrogatePair(text: string, from: number, at: number): number {
+  const high = text.charCodeAt(at - 1);
+  return high >= 0xd800 && high <= 0xdbff && at - 1 > from ? at - 1 : at;
+}
+
+/**
  * Split content into chunks of at most `maxChars`, preferring line boundaries.
  *
  * A single line over the limit is cut mid-line. Nothing else bounds it, and a line that
@@ -106,8 +124,9 @@ function splitBySize(content: string, maxChars: number): string[] {
 
     let rest = line;
     while (rest.length > maxChars) {
-      chunks.push(rest.slice(0, maxChars));
-      rest = rest.slice(maxChars);
+      const at = offSurrogatePair(rest, 0, maxChars);
+      chunks.push(rest.slice(0, at));
+      rest = rest.slice(at);
     }
 
     current += current ? `\n${rest}` : rest;
@@ -117,7 +136,7 @@ function splitBySize(content: string, maxChars: number): string[] {
   return chunks.length ? chunks : [content];
 }
 
-/** A tag name at a known `<`. Sticky, so scanning megabytes allocates nothing. */
+/** A tag name at a known `<`. Sticky: it matches there or not at all, never searches. */
 const TAG_NAME = /<(\/?)([a-zA-Z][^\s/>]*)/y;
 
 /** Elements whose content is raw text: a `<` inside them never opens a tag. */
@@ -126,11 +145,16 @@ const RAW_TEXT_TAGS = new Set(["script", "style", "textarea", "title"]);
 /**
  * Yield the offset and lowercased name of every tag in an HTML source.
  *
- * Comments and raw-text element bodies are skipped, so every offset yielded is a
- * position the document can be cut at. Cutting elsewhere loses content rather than
- * just splitting it: inside `<script>` the unterminated element swallows the rest of
- * one chunk and spills JavaScript into the next as prose, and inside a comment the
- * remainder of the comment reappears as text.
+ * Comments and terminated raw-text element bodies are skipped, because a cut inside one
+ * loses content rather than splitting it: the truncated `<script>` or `<!--` swallows
+ * the rest of its chunk, and its tail reappears in the next chunk as prose.
+ *
+ * A construct that is never terminated is scanned into rather than abandoned. Giving up
+ * looks safer but isn't: it leaves the entire remainder of the file with no cut
+ * candidate, so every later cut is blind and can land mid-tag, spilling raw attribute
+ * markup into the index. The tail of an unterminated construct is resurrected either
+ * way — once the document is cut inside it, the far side is parsed as content — so
+ * scanning on only decides where the cut lands, and a tag boundary is the better place.
  */
 function* scanTags(
   html: string,
@@ -143,8 +167,7 @@ function* scanTags(
 
     if (html.startsWith("<!--", lt)) {
       const end = html.indexOf("-->", lt + 4);
-      if (end < 0) return;
-      i = end + 3;
+      i = end < 0 ? lt + 4 : end + 3;
       continue;
     }
 
@@ -163,8 +186,7 @@ function* scanTags(
       const close = new RegExp(`</${name}`, "gi");
       close.lastIndex = i;
       const end = close.exec(html)?.index;
-      if (end == null) return;
-      i = end;
+      if (end != null) i = end;
     }
   }
 }
@@ -177,6 +199,12 @@ function* scanTags(
  * fits. A stretch of text with no tag at all is cut mid-way — nothing else bounds it,
  * and it is a data blob rather than markup.
  *
+ * Offsets inside a `REMOVED_TAGS` element are skipped while the element is smaller than
+ * a chunk. Cutting there leaves the opening `<aside>` in the previous chunk, so
+ * `turndown.remove` no longer applies to the tail and the sidebar is indexed as prose —
+ * and in reverse, a `<h2>` inside a stripped `<header>` becomes a real heading once the
+ * `<header>` is gone.
+ *
  * Fragments are safe to hand to a parser in a way markdown fragments are not: HTML
  * parsing auto-closes whatever the cut left open, so a chunk degrades to slightly
  * flatter nesting instead of the following text changing meaning.
@@ -186,6 +214,7 @@ function splitHtmlBySize(html: string, maxChars: number): string[] {
   let start = 0;
   let lastTag = 0;
   let lastHeading = 0;
+  let removed = 0;
 
   // Both candidates were recorded while they still fit, and `start` only moves
   // forward, so every chunk cut here is within the limit.
@@ -196,7 +225,7 @@ function splitHtmlBySize(html: string, maxChars: number): string[] {
           ? lastHeading
           : lastTag > start
             ? lastTag
-            : start + maxChars;
+            : offSurrogatePair(html, start, start + maxChars);
       chunks.push(html.slice(start, at));
       start = at;
     }
@@ -206,8 +235,28 @@ function splitHtmlBySize(html: string, maxChars: number): string[] {
   // the previous chunk and leave its section titled "Introduction".
   for (const [offset, name, closing] of scanTags(html)) {
     packTo(offset);
-    lastTag = offset;
-    if (name === "h2" && !closing) lastHeading = offset;
+
+    // Suppression that has outrun a whole chunk has nothing left to protect: the cut
+    // lands inside the element whichever candidate wins, so take the tag boundary.
+    // This also caps the damage of an element that is opened and never closed.
+    if (removed && offset - lastTag > maxChars) removed = 0;
+
+    const isRemoved = REMOVED_TAGS.has(name);
+    // These elements nest — `<article><header>` inside a `<header>` is ordinary — so
+    // the body is skipped by depth, not by searching for the next close tag.
+    if (closing && isRemoved && removed) removed--;
+
+    if (!removed) {
+      lastTag = offset;
+      if (name === "h2" && !closing) lastHeading = offset;
+    }
+
+    if (!closing && isRemoved) {
+      // An XHTML-style `<svg/>` closes on the spot; counting it open would suppress
+      // every candidate after it.
+      const gt = html.indexOf(">", offset);
+      if (gt < 0 || html[gt - 1] !== "/") removed++;
+    }
   }
   packTo(html.length);
 
@@ -239,9 +288,24 @@ export function splitForParsing(file: MarkdownFile): MarkdownFile[] {
   if (file.content.length <= MAX_PARSE_CHUNK_CHARS) return [file];
 
   if (HTML_EXTENSIONS.some((ext) => file.path.endsWith(ext))) {
-    return splitHtmlBySize(file.content, MAX_PARSE_CHUNK_CHARS).map(
-      (content) => ({ path: file.path, content }),
-    );
+    // `parseHtml` titles a section from the `<h2>` opening it, so a chunk cut where no
+    // heading fit would otherwise be indexed as "Introduction". Carry the heading a
+    // chunk opened with into its continuations, exactly as the markdown path carries a
+    // `##` line. Only that heading: any other `<h2>` in the chunk may be one
+    // `turndown.remove` was going to drop, and promoting it would index chrome as a
+    // section title. The budget is reduced by what may be carried so the prefixed chunk
+    // still fits; `splitHtmlBySize` itself stays lossless.
+    let carried = "";
+    return splitHtmlBySize(
+      file.content,
+      MAX_PARSE_CHUNK_CHARS - MAX_CARRIED_HEADING,
+    ).map((chunk) => {
+      const opening = H2_OPENING.exec(chunk)?.[0];
+      if (!opening) return { path: file.path, content: carried + chunk };
+
+      carried = opening.length <= MAX_CARRIED_HEADING ? opening : "";
+      return { path: file.path, content: chunk };
+    });
   }
 
   const isMarkdown = !NON_MARKDOWN_EXTENSIONS.some((ext) =>

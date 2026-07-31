@@ -500,6 +500,7 @@ describe("splitForParsing", () => {
 
 describe("splitForParsing (HTML)", () => {
   const MAX = 1024 * 1024;
+  const words = (count: number) => "word ".repeat(count);
   const sections = (count: number) =>
     Array.from(
       { length: count },
@@ -527,36 +528,112 @@ describe("splitForParsing (HTML)", () => {
     expect(result.map((p) => p.content).join("")).toBe(file.content);
   });
 
-  it("keeps cuts out of scripts and comments", () => {
-    // A cut inside either loses text rather than splitting it: the unterminated
-    // element swallows the rest of its chunk and spills into the next as prose.
-    const filler = `<p>${"word ".repeat(200)}</p>`;
-    const straddling = [
-      filler.repeat(900),
+  it("keeps cuts out of scripts, comments and raw text", () => {
+    // A cut inside any of them loses text rather than splitting it: the truncated
+    // element swallows the rest of its chunk and its tail returns in the next as
+    // prose. The markup inside each is what a cut would be tempted by; `<TEXTAREA>`
+    // also pins the close-tag search staying case-insensitive.
+    const pad = `<p>${"word ".repeat(200)}</p>`.repeat(1000);
+
+    for (const body of [
       `<script>${"var x = '<h2>';".repeat(20000)}</script>`,
-      `<!--${" note".repeat(60000)}-->`,
-      filler.repeat(900),
-    ].join("");
-    const result = splitForParsing({ path: "big.html", content: straddling });
+      `<!-- <h2>old heading</h2>${"<p>draft</p>".repeat(25000)} -->`,
+      `<TEXTAREA>${"<h2>sample</h2>".repeat(20000)}</TEXTAREA>`,
+    ]) {
+      // `pad` alone fits a chunk, so the element always straddles a boundary.
+      const result = splitForParsing({
+        path: "big.html",
+        content: pad + body + pad,
+      });
+
+      expect(result.length).toBeGreaterThan(1);
+      expect(result.filter((p) => p.content.includes(body))).toHaveLength(1);
+    }
+  });
+
+  it("keeps cuts out of the elements the HTML parser strips", () => {
+    // A cut inside one leaves its opening tag in the previous chunk, so the next
+    // chunk's parser never sees it: the sidebar is converted to prose and indexed,
+    // and a heading the whole-file parse dropped comes back as a section title.
+    const unit = (i: number) =>
+      `<article><header><h2>Chrome${i}</h2></header>` +
+      `<h2>S${i}</h2><p>${words(60)}</p></article>` +
+      `<aside><aside><p>${words(10)}</p></aside>` +
+      `<h2>Sidebar${i}</h2><p>${words(120)}</p></aside>`;
+    const content = Array.from({ length: 1400 }, (_, i) => unit(i)).join("");
+    const result = splitForParsing({ path: "big.html", content });
+
+    // Nesting is why the scan counts depth rather than searching for the next close
+    // tag: the inner `</aside>` does not end the outer one.
+    const depth = (text: string, tag: string) =>
+      (text.match(new RegExp(`<${tag}[\\s>]`, "g")) ?? []).length -
+      (text.match(new RegExp(`</${tag}[\\s>]`, "g")) ?? []).length;
+
+    expect(result.length).toBeGreaterThan(1);
+    for (const [i, part] of result.entries()) {
+      const before = result
+        .slice(0, i)
+        .map((p) => p.content)
+        .join("");
+      expect(depth(before, "aside")).toBe(0);
+      expect(depth(before, "header")).toBe(0);
+      expect(part.content.length).toBeLessThanOrEqual(MAX);
+    }
+  });
+
+  it("recovers cut points after an element that is never closed", () => {
+    // Suppressing candidates to the end of the file would leave every later cut
+    // blind and landing mid-tag. An unclosed element costs only the chunk it opens.
+    const file = {
+      path: "big.html",
+      content: `<nav><p>menu</p>${sections(2600)}`,
+    };
+    const result = splitForParsing(file);
+
+    expect(result.length).toBeGreaterThan(2);
+    for (const part of result.slice(2)) {
+      expect(part.content).toMatch(/^<h2[\s>]/);
+    }
+  });
+
+  it("carries a chunk's own heading into its continuations, and only its own", () => {
+    // Mirrors the markdown path, which would otherwise title these "Introduction".
+    // Only the opening heading: any later `<h2>` may be one the parser was going to
+    // strip, and promoting that would index page chrome as a section title.
+    const file = {
+      path: "big.html",
+      content: `<h2>Only</h2><header><h2>Chrome</h2></header><p>${words(600000)}</p>`,
+    };
+    const result = splitForParsing(file);
 
     expect(result.length).toBeGreaterThan(1);
     for (const part of result) {
-      expect(part.content.split("<script").length).toBe(
-        part.content.split("</script").length,
-      );
-      expect(part.content.split("<!--").length).toBe(
-        part.content.split("-->").length,
-      );
+      expect(part.content.startsWith("<h2>Only</h2>")).toBe(true);
+      expect(part.content.length).toBeLessThanOrEqual(MAX);
     }
   });
 
   it("bounds a stretch of markup with no tag to cut at", () => {
-    const file = { path: "blob.htm", content: `<p>${"x".repeat(3 * MAX)}</p>` };
+    // No trailing close tag, so only the bound after the last tag ends this.
+    const file = { path: "blob.htm", content: `<p>${"x".repeat(3 * MAX)}` };
     const result = splitForParsing(file);
 
     expect(result.length).toBeGreaterThan(1);
     for (const part of result) {
       expect(part.content.length).toBeLessThanOrEqual(MAX);
+    }
+  });
+
+  it("never cuts a blind chunk through a surrogate pair", () => {
+    // Halving one would turn a single emoji into two U+FFFD.
+    for (const path of ["blob.htm", "blob.md"]) {
+      for (const part of splitForParsing({
+        path,
+        content: `x${"😀".repeat(MAX)}`,
+      })) {
+        expect(part.content).not.toMatch(/[\uD800-\uDBFF]$/);
+        expect(part.content).not.toMatch(/^[\uDC00-\uDFFF]/);
+      }
     }
   });
 });

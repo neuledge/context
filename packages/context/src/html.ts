@@ -12,8 +12,14 @@ const turndown = new TurndownService({
   codeBlockStyle: "fenced",
 });
 
-// Remove non-content elements
-for (const tag of [
+/**
+ * Elements dropped whole: page chrome and non-prose, never document content.
+ *
+ * Exported because `splitForParsing` has to keep its cuts out of their bodies. A cut
+ * inside one leaves the opening tag in the previous chunk, so the next chunk's parser
+ * never sees it and indexes the sidebar or footer as prose.
+ */
+export const REMOVED_TAGS = new Set([
   "script",
   "style",
   "nav",
@@ -26,7 +32,9 @@ for (const tag of [
   "form",
   "svg",
   "canvas",
-]) {
+]);
+
+for (const tag of REMOVED_TAGS) {
   turndown.remove(tag);
 }
 
