@@ -110,6 +110,27 @@ Run the install command.
     expect(result.sectionCount).toBeGreaterThanOrEqual(2);
   });
 
+  it("skips a file that cannot be split, and says how many it skipped", () => {
+    // Splitting used to run outside the per-file guard, so anything it threw on took
+    // the whole registry build down with it instead of costing one document.
+    const files = [
+      {
+        path: "docs/valid.md",
+        content:
+          "# Valid\n\n## Section\n\nThis is a valid markdown file with sufficient content for indexing.",
+      },
+      { path: "docs/broken.md", content: undefined as unknown as string },
+    ];
+
+    const result = buildPackage(testDbPath, files, {
+      name: "skip-unsplittable",
+      version: "1.0.0",
+    });
+
+    expect(result.sectionCount).toBeGreaterThan(0);
+    expect(result.skippedFiles).toBe(1);
+  });
+
   it("skips files that fail to parse", () => {
     const files = [
       {
@@ -507,6 +528,10 @@ describe("splitForParsing (HTML)", () => {
       (_, i) =>
         `<section><h2>S${i}</h2><p>${"word ".repeat(200)}</p></section>`,
     ).join("");
+  /** How many `<tag>` are still open at the end of `text`. */
+  const depth = (text: string, tag: string) =>
+    (text.match(new RegExp(`<${tag}[\\s>]`, "g")) ?? []).length -
+    (text.match(new RegExp(`</${tag}[\\s>]`, "g")) ?? []).length;
 
   it("cuts an oversized page at section starts", () => {
     const file = {
@@ -566,12 +591,8 @@ describe("splitForParsing (HTML)", () => {
     const content = Array.from({ length: 1400 }, (_, i) => unit(i)).join("");
     const result = splitForParsing({ path: "big.html", content });
 
-    // Nesting is why the scan counts depth rather than searching for the next close
-    // tag: the inner `</aside>` does not end the outer one.
-    const depth = (text: string, tag: string) =>
-      (text.match(new RegExp(`<${tag}[\\s>]`, "g")) ?? []).length -
-      (text.match(new RegExp(`</${tag}[\\s>]`, "g")) ?? []).length;
-
+    // Nesting is why the scan tracks what is open rather than searching for the next
+    // close tag: the inner `</aside>` does not end the outer one.
     expect(result.length).toBeGreaterThan(1);
     for (const [i, part] of result.entries()) {
       const before = result
@@ -582,6 +603,80 @@ describe("splitForParsing (HTML)", () => {
       expect(depth(before, "header")).toBe(0);
       expect(part.content.length).toBeLessThanOrEqual(MAX);
     }
+  });
+
+  it("ignores a close tag that matches nothing open", () => {
+    // `</header>` inside an `<aside>` closes nothing. Counting it against the aside
+    // ends that element's suppression early, and a cut then lands inside the aside:
+    // its opening tag stays in the previous chunk, `turndown.remove` stops applying,
+    // and the sidebar is indexed as prose. Measured before the open elements were
+    // tracked by name: 1, 1, 0, 4, 0, 0 and 5 leaked sections over a 2.8-9.7MB sweep.
+    const content = Array.from(
+      { length: 6000 },
+      (_, i) =>
+        `<h2>S${i}</h2><p>${words(50)}</p>` +
+        `<aside><p>x</p></header><h2>Sidebar${i}</h2><p>${words(50)}</p></aside>`,
+    ).join("");
+    const result = splitForParsing({ path: "big.html", content });
+
+    expect(result.length).toBeGreaterThan(1);
+    for (const [i, part] of result.entries()) {
+      const before = result
+        .slice(0, i)
+        .map((p) => p.content)
+        .join("");
+      expect(depth(before, "aside")).toBe(0);
+      expect(part.content.length).toBeLessThanOrEqual(MAX);
+    }
+  });
+
+  it("drops what follows a stripped raw-text element that never closes", () => {
+    // Everything after an unterminated `<script>` is its text content — that is what
+    // the whole-file parse makes of it, and turndown drops the element — so chunking
+    // the tail hands raw JavaScript to the parser as prose and resurrects sections the
+    // page never had. `<textarea>` is raw text too but is not stripped, so its tail is
+    // real content and has to survive.
+    const tail = `<h2>TAIL</h2><p>${words(200)}</p>`.repeat(200);
+
+    for (const tag of ["script", "style", "title"]) {
+      const result = splitForParsing({
+        path: "big.html",
+        content: `${sections(1100)}<${tag}>x${tail}`,
+      });
+
+      const kept = result.map((p) => p.content).join("");
+      expect(kept).toContain("<h2>S0</h2>");
+      expect(kept).not.toContain("<h2>TAIL</h2>");
+    }
+
+    const keptTextarea = splitForParsing({
+      path: "big.html",
+      content: `${sections(1100)}<textarea>x${tail}`,
+    })
+      .map((p) => p.content)
+      .join("");
+    expect(keptTextarea).toContain("<h2>TAIL</h2>");
+
+    // A page whose script opens and never closes holds no content at all, which is
+    // also exactly what parsing it whole yields.
+    expect(
+      splitForParsing({
+        path: "big.html",
+        content: `<script>${"var q = 2;\n".repeat(120000)}`,
+      }),
+    ).toHaveLength(0);
+  });
+
+  it("reads a `<script` inside an attribute value as an attribute value", () => {
+    // This scan sees a tag where an HTML parser sees quoted text. Treating it as an
+    // element that never closes would drop a well-formed document over a quoting
+    // detail, so the tail is only given up when nothing is left open before it.
+    const result = splitForParsing({
+      path: "big.html",
+      content: `<div title="<script>">${sections(1200)}`,
+    });
+
+    expect(result.map((p) => p.content).join("")).toContain("<h2>S1199</h2>");
   });
 
   it("recovers cut points after an element that is never closed", () => {
@@ -612,13 +707,12 @@ describe("splitForParsing (HTML)", () => {
   });
 
   it("scans a hostile page once, not once per tag", () => {
-    // Both searches driven by these tags — for a `</script`, and for the `>` that
+    // Both searches driven by these tags — for a `</textarea`, and for the `>` that
     // would end a `<svg ` — are monotone in the offset, so each may only be resumed.
     // Restarted per tag they are quadratic: 40s and 1.4s at 1MB, 5.4min and 25s at 3MB.
-    // `buildPackage` splits outside its per-file `try` and with no timeout, so a single
-    // malformed page stalls the whole registry build.
+    // A page that stalls the split stalls the whole registry build behind it.
     for (const content of [
-      "<script ".repeat(140000),
+      "<textarea ".repeat(120000),
       "<svg ".repeat(400000),
       // Not only the fruitless search: a `>` the scan has already passed is just as
       // costly to look for again.
@@ -628,6 +722,15 @@ describe("splitForParsing (HTML)", () => {
         splitForParsing({ path: "hostile.html", content }).length,
       ).toBeGreaterThan(1);
     }
+
+    // The same page made of `<script ` costs even less: the first one never closes, so
+    // the rest of the file is its text and there is nothing further to scan or chunk.
+    expect(
+      splitForParsing({
+        path: "hostile.html",
+        content: "<script ".repeat(140000),
+      }),
+    ).toHaveLength(0);
   }, 3000);
 
   it("carries a chunk's own heading into its continuations, and only its own", () => {

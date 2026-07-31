@@ -34,6 +34,8 @@ export interface BuildResult {
   path: string;
   sectionCount: number;
   totalTokens: number;
+  /** Files dropped whole because splitting or parsing them threw. */
+  skippedFiles: number;
 }
 
 /**
@@ -136,6 +138,15 @@ function splitBySize(content: string, maxChars: number): string[] {
   return chunks.length ? chunks : [content];
 }
 
+/**
+ * `REMOVED_TAGS` numbered, so the open-element stack below can hold integers.
+ *
+ * A page of nothing but `<svg ` pushes one entry per five characters, and holding that
+ * many short strings alive costs the collector about a third of the scan; the same
+ * count of small integers is a packed array of a couple of megabytes and costs nothing.
+ */
+const REMOVED_TAG_IDS = new Map([...REMOVED_TAGS].map((tag, id) => [tag, id]));
+
 /** A tag name at a known `<`. Sticky: it matches there or not at all, never searches. */
 const TAG_NAME = /<(\/?)([a-zA-Z][^\s/>]*)/y;
 
@@ -143,22 +154,48 @@ const TAG_NAME = /<(\/?)([a-zA-Z][^\s/>]*)/y;
 const RAW_TEXT_TAGS = new Set(["script", "style", "textarea", "title"]);
 
 /**
- * Yield the offset and lowercased name of every tag in an HTML source.
+ * Raw-text elements the HTML parser also strips.
+ *
+ * `textarea` is deliberately absent: it is raw text, but turndown keeps its text, so a
+ * `<textarea>` that never closes still has indexable content after it.
+ */
+const STRIPPED_RAW_TEXT = new Set(
+  [...RAW_TEXT_TAGS].filter((tag) => REMOVED_TAGS.has(tag)),
+);
+
+/**
+ * Is the `<` at `lt` inside another tag, as the one in `<div title="<script>">` is?
+ *
+ * An HTML parser reads that as an attribute value; this scan reads it as a tag, and
+ * acting on the difference would drop the rest of a well-formed document. Nothing but a
+ * missing `>` since the previous `<` distinguishes the two.
+ */
+function insideTag(html: string, lt: number): boolean {
+  return lt > 0 && html.lastIndexOf("<", lt - 1) > html.lastIndexOf(">", lt);
+}
+
+/**
+ * Yield the offset and lowercased name of every tag in an HTML source, and return the
+ * offset at which the document stops holding indexable content.
  *
  * Comments and terminated raw-text element bodies are skipped, because a cut inside one
  * loses content rather than splitting it: the truncated `<script>` or `<!--` swallows
  * the rest of its chunk, and its tail reappears in the next chunk as prose.
  *
- * A construct that is never terminated is scanned into rather than abandoned. Giving up
- * looks safer but isn't: it leaves the entire remainder of the file with no cut
- * candidate, so every later cut is blind and can land mid-tag, spilling raw attribute
- * markup into the index. The tail of an unterminated construct is resurrected either
- * way — once the document is cut inside it, the far side is parsed as content — so
- * scanning on only decides where the cut lands, and a tag boundary is the better place.
+ * An unterminated `<!--`, or an unterminated `<textarea>`, is scanned into rather than
+ * abandoned. Giving up looks safer but isn't: it leaves the entire remainder of the file
+ * with no cut candidate, so every later cut is blind and can land mid-tag, spilling raw
+ * attribute markup into the index, and the tail is resurrected either way.
+ *
+ * A `<script>`, `<style>` or `<title>` that never closes is different, and is where the
+ * scan stops. Everything after it is that element's text content — that is what the
+ * whole-file parse sees — and turndown drops the element, so the tail is not content to
+ * be placed well but content that does not exist. The returned offset is where it
+ * starts; scanning on would only decide where to cut a region the parser never had.
  */
 function* scanTags(
   html: string,
-): Generator<[offset: number, name: string, closing: boolean]> {
+): Generator<[offset: number, name: string, closing: boolean], number> {
   let i = 0;
   // A close tag that could not be found from one offset cannot be found from a later
   // one, and these searches only ever start further into the file, so one failure per
@@ -169,7 +206,7 @@ function* scanTags(
 
   while (i < html.length) {
     const lt = html.indexOf("<", i);
-    if (lt < 0) return;
+    if (lt < 0) break;
 
     if (html.startsWith("<!--", lt)) {
       const end = html.indexOf("-->", lt + 4);
@@ -193,9 +230,23 @@ function* scanTags(
       close.lastIndex = i;
       const end = close.exec(html)?.index;
       if (end != null) i = end;
+      // The `insideTag` check costs two backward searches, but only ever runs once per
+      // raw-text name — `unclosed` absorbs every later one — so it is linear, not the
+      // per-tag rescan this loop is otherwise careful to avoid.
+      else if (STRIPPED_RAW_TEXT.has(name) && !insideTag(html, lt)) return lt;
       else unclosed.add(name);
     }
   }
+
+  return html.length;
+}
+
+/** Chunks of an HTML document, and how many of them hold indexable content. */
+interface HtmlSplit {
+  /** A lossless partition of the input: joining these reproduces it exactly. */
+  chunks: string[];
+  /** Chunks before the tail of a stripped raw-text element that never closes. */
+  contentChunks: number;
 }
 
 /**
@@ -216,12 +267,16 @@ function* scanTags(
  * parsing auto-closes whatever the cut left open, so a chunk degrades to slightly
  * flatter nesting instead of the following text changing meaning.
  */
-function splitHtmlBySize(html: string, maxChars: number): string[] {
+function splitHtmlBySize(html: string, maxChars: number): HtmlSplit {
   const chunks: string[] = [];
   let start = 0;
   let lastTag = 0;
   let lastHeading = 0;
-  let removed = 0;
+  // The open `REMOVED_TAGS` elements the scan is inside, innermost last. Bounded by the
+  // cap below: suppression is dropped once it has spanned `maxChars`, and the shortest
+  // opening tag that reaches this stack is five characters, so a 1MB chunk limit caps it
+  // at about 210k entries however deeply the page nests.
+  const open: number[] = [];
   // The first `>` at or after the tag being looked at. `offset` only moves forward, so
   // a `>` already found at or beyond it is still the first one, and "there is no `>`
   // left" stays true for good: the search resumes instead of restarting. Restarting it
@@ -244,26 +299,37 @@ function splitHtmlBySize(html: string, maxChars: number): string[] {
     }
   };
 
+  // Iterated by hand rather than with `for…of`, which discards the generator's return
+  // value — here, the offset at which indexable content ends.
+  const tags = scanTags(html);
+  let tag = tags.next();
+
   // Opening `<h2` only: cutting at the matching `</h2` would strand the heading in
   // the previous chunk and leave its section titled "Introduction".
-  for (const [offset, name, closing] of scanTags(html)) {
+  for (; !tag.done; tag = tags.next()) {
+    const [offset, name, closing] = tag.value;
     packTo(offset);
 
     // Suppression that has outrun a whole chunk has nothing left to protect: the cut
     // lands inside the element whichever candidate wins, so take the tag boundary.
     // This also caps the damage of an element that is opened and never closed.
-    if (removed && offset - lastTag > maxChars) removed = 0;
+    if (open.length && offset - lastTag > maxChars) open.length = 0;
 
-    const isRemoved = REMOVED_TAGS.has(name);
+    const removedId = REMOVED_TAG_IDS.get(name);
+    const isRemoved = removedId !== undefined;
     // These elements nest — `<article><header>` inside a `<header>` is ordinary — so
-    // the body is skipped by depth, not by searching for the next close tag. Depth is
-    // all it is: a stray `</header>` inside an `<aside>` ends the aside's suppression
-    // early, and the cap below is what limits the damage. Matching names instead would
-    // need a stack, which on `<aside>` repeated to a chunk is both memory and, if the
-    // match is anything but the innermost, another quadratic scan.
-    if (closing && isRemoved && removed) removed--;
+    // the body is skipped by tracking what is open, not by searching for the next close
+    // tag. Names are tracked and not merely a depth, because a stray `</header>` inside
+    // an `<aside>` would otherwise end the aside's suppression early and let a cut land
+    // inside it. A close tag that does not match the innermost open element is ignored
+    // rather than hunted for further up the stack: that hunt is what would make this
+    // quadratic, and ignoring it is also what an HTML parser does with these elements,
+    // whose mismatched end tags are dropped instead of closing an ancestor. Mis-nesting
+    // like `<aside><nav></aside>` therefore leaves the stack stuck open, which only
+    // costs cut candidates until the cap above clears it.
+    if (closing && isRemoved && open[open.length - 1] === removedId) open.pop();
 
-    if (!removed) {
+    if (!open.length) {
       lastTag = offset;
       if (name === "h2" && !closing) lastHeading = offset;
     }
@@ -280,13 +346,24 @@ function splitHtmlBySize(html: string, maxChars: number): string[] {
       const ends = gt - 1 === offset + 1 + name.length;
       const closes =
         html[gt - 1] === "/" && (ends || /["'\s]/.test(html[gt - 2] ?? ""));
-      if (!closes) removed++;
+      if (!closes) open.push(removedId);
     }
   }
-  packTo(html.length);
 
+  // Cut exactly where content ends, so the tail can be dropped a whole chunk at a time.
+  // The tail is still emitted — these chunks stay a lossless partition of the input, and
+  // which of them are worth parsing is `splitForParsing`'s call. In the usual case,
+  // where content ends with the document, everything below is a no-op.
+  const contentEnd = tag.value;
+  packTo(contentEnd);
+  if (start < contentEnd) chunks.push(html.slice(start, contentEnd));
+  start = contentEnd;
+  const contentChunks = chunks.length;
+
+  packTo(html.length);
   if (start < html.length) chunks.push(html.slice(start));
-  return chunks;
+
+  return { chunks, contentChunks };
 }
 
 /** The document's leading YAML frontmatter block, if it opens with one. */
@@ -321,10 +398,16 @@ export function splitForParsing(file: MarkdownFile): MarkdownFile[] {
     // section title. The budget is reduced by what may be carried so the prefixed chunk
     // still fits; `splitHtmlBySize` itself stays lossless.
     let carried = "";
-    return splitHtmlBySize(
+    const { chunks, contentChunks } = splitHtmlBySize(
       file.content,
       MAX_PARSE_CHUNK_CHARS - MAX_CARRIED_HEADING,
-    ).map((chunk) => {
+    );
+
+    // Chunks past `contentChunks` are the text of a `<script>`, `<style>` or `<title>`
+    // that never closes, which is what the whole-file parse makes of them too. Parsing
+    // them would index raw JavaScript as prose; a page whose script is unterminated
+    // right at the top therefore yields nothing, exactly as it does whole.
+    return chunks.slice(0, contentChunks).map((chunk) => {
       const opening = H2_OPENING.exec(chunk)?.[0];
       if (!opening) return { path: file.path, content: carried + chunk };
 
@@ -428,11 +511,18 @@ export function buildPackage(
 
     const allSections: DocSection[] = [];
     const seenHashes = new Set<string>();
+    let skippedFiles = 0;
 
-    for (const file of files.flatMap(splitForParsing)) {
+    for (const file of files) {
       try {
-        const parsed = parseDocument(file.content, file.path);
-        for (const section of parsed.sections) {
+        // Splitting is inside the guard on purpose: it walks untrusted markup, so a
+        // throw there has to cost one file rather than the whole registry build. Doing
+        // it per file also keeps only one file's chunks alive at a time.
+        const sections = splitForParsing(file).flatMap(
+          (chunk) => parseDocument(chunk.content, chunk.path).sections,
+        );
+
+        for (const section of sections) {
           // Deduplicate sections with identical content (ignore titles)
           const hash = contentHash(section.content);
           if (!seenHashes.has(hash)) {
@@ -441,7 +531,11 @@ export function buildPackage(
           }
         }
       } catch {
-        // Skip files that fail to parse
+        // A file that cannot be split or parsed is dropped whole, so a half-indexed
+        // document never reaches the package. The failure is counted rather than
+        // logged: `buildPackage` has no logger, and a silent skip is how a registry
+        // build loses documents without anyone noticing.
+        skippedFiles++;
       }
     }
 
@@ -470,6 +564,7 @@ export function buildPackage(
       path: outputPath,
       sectionCount: allSections.length,
       totalTokens,
+      skippedFiles,
     };
   } finally {
     db.close();
