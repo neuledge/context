@@ -746,6 +746,41 @@ describe("splitForParsing (HTML)", () => {
     ).toHaveLength(0);
   });
 
+  it("keeps the tail when a stripped raw-text element closes itself", () => {
+    // `<svg><title/></svg>` is well-formed, and inline SVG is common in a page big
+    // enough to split. Reading that `<title/>` as open would truncate the document
+    // at it — deleting every section after — since no `</title>` ever follows.
+    const tail = `<h2>TAIL</h2><p>${words(200)}</p>`.repeat(200);
+
+    for (const open of ["<title/>", "<title />", "<script/>", "<style/>"]) {
+      const kept = splitForParsing({
+        path: "big.html",
+        content: `${sections(1100)}<svg>${open}</svg>${tail}`,
+      })
+        .map((p) => p.content)
+        .join("");
+
+      expect(kept).toContain("<h2>TAIL</h2>");
+    }
+  });
+
+  it("does not read the body of a bogus comment as markup", () => {
+    // `<!foo …>` and `<?php …?>` end at the next `>` and hold no markup. Scanning in
+    // finds a `<script>` that never closes and truncates the document at it.
+    const tail = `<h2>TAIL</h2><p>${words(200)}</p>`.repeat(200);
+
+    for (const bogus of ["<!foo <script> bar>", '<?php echo "<script>"; ?>']) {
+      const kept = splitForParsing({
+        path: "big.html",
+        content: `${sections(1100)}${bogus}${tail}`,
+      })
+        .map((p) => p.content)
+        .join("");
+
+      expect(kept).toContain("<h2>TAIL</h2>");
+    }
+  });
+
   it("reads markup inside an attribute value as an attribute value", () => {
     // An HTML parser sees quoted text here; a scan that resumes inside the tag it has
     // just yielded sees markup. Either way of acting on a phantom `<script>` loses a

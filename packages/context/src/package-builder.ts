@@ -247,6 +247,15 @@ function* scanTags(
       continue;
     }
 
+    // A bogus comment — `<!doctype…>`, `<?php…?>`, `<!foo…>` — ends at the next `>` and
+    // its body is not markup. Scanning into it reads that body as tags, and one
+    // unterminated `<script>` in there truncates the document at it.
+    if (/[!?]/.test(html[lt + 1] ?? "")) {
+      const end = html.indexOf(">", lt + 2);
+      i = end < 0 ? html.length : end + 1;
+      continue;
+    }
+
     TAG_NAME.lastIndex = lt;
     const [match, closing, tag] = TAG_NAME.exec(html) ?? [];
     if (!match || !tag) {
@@ -278,7 +287,15 @@ function* scanTags(
     // resuming anywhere inside one makes the whole scan quadratic again.
     i = end < 0 ? html.length : end + 1;
 
-    if (!closing && RAW_TEXT_TAGS.has(name) && !unclosed.has(name)) {
+    // `!selfClosing` matters more here than for the stripped stack: `<svg><title/></svg>`
+    // is well-formed, and reading that `<title/>` as an open raw-text element with no
+    // `</title>` anywhere truncates the document at it, deleting everything after.
+    if (
+      !closing &&
+      !selfClosing &&
+      RAW_TEXT_TAGS.has(name) &&
+      !unclosed.has(name)
+    ) {
       const close = new RegExp(`</${name}`, "gi");
       close.lastIndex = i;
       const found = close.exec(html)?.index;
