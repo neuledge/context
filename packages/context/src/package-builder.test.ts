@@ -484,8 +484,8 @@ describe("splitForParsing", () => {
     expect(result[2]?.content).toContain("## One");
   });
 
-  it("never line-splits non-markdown formats", () => {
-    for (const path of ["big.rst", "big.html", "big.adoc"]) {
+  it("never line-splits formats that parse by line scanning", () => {
+    for (const path of ["big.rst", "big.adoc"]) {
       const file = { path, content: oversized("plain text\n") };
       expect(splitForParsing(file)).toEqual([file]);
     }
@@ -495,5 +495,68 @@ describe("splitForParsing", () => {
     // parseDocument's checks are case-sensitive, so .RST is parsed as markdown.
     const file = { path: "big.RST", content: oversized("plain text\n") };
     expect(splitForParsing(file).length).toBeGreaterThan(1);
+  });
+});
+
+describe("splitForParsing (HTML)", () => {
+  const MAX = 1024 * 1024;
+  const sections = (count: number) =>
+    Array.from(
+      { length: count },
+      (_, i) =>
+        `<section><h2>S${i}</h2><p>${"word ".repeat(200)}</p></section>`,
+    ).join("");
+
+  it("cuts an oversized page at section starts", () => {
+    const file = {
+      path: "big.html",
+      content: `<html><body>${sections(1200)}</body></html>`,
+    };
+    const result = splitForParsing(file);
+
+    expect(result.length).toBeGreaterThan(1);
+    for (const part of result) {
+      expect(part.content.length).toBeLessThanOrEqual(MAX);
+    }
+    // Cutting at the matching `</h2>` instead would strand the heading in the
+    // previous chunk, leaving its section titled "Introduction".
+    for (const part of result.slice(1)) {
+      expect(part.content).toMatch(/^<h2[\s>]/);
+    }
+    // Nothing may be dropped or duplicated at a boundary.
+    expect(result.map((p) => p.content).join("")).toBe(file.content);
+  });
+
+  it("keeps cuts out of scripts and comments", () => {
+    // A cut inside either loses text rather than splitting it: the unterminated
+    // element swallows the rest of its chunk and spills into the next as prose.
+    const filler = `<p>${"word ".repeat(200)}</p>`;
+    const straddling = [
+      filler.repeat(900),
+      `<script>${"var x = '<h2>';".repeat(20000)}</script>`,
+      `<!--${" note".repeat(60000)}-->`,
+      filler.repeat(900),
+    ].join("");
+    const result = splitForParsing({ path: "big.html", content: straddling });
+
+    expect(result.length).toBeGreaterThan(1);
+    for (const part of result) {
+      expect(part.content.split("<script").length).toBe(
+        part.content.split("</script").length,
+      );
+      expect(part.content.split("<!--").length).toBe(
+        part.content.split("-->").length,
+      );
+    }
+  });
+
+  it("bounds a stretch of markup with no tag to cut at", () => {
+    const file = { path: "blob.htm", content: `<p>${"x".repeat(3 * MAX)}</p>` };
+    const result = splitForParsing(file);
+
+    expect(result.length).toBeGreaterThan(1);
+    for (const part of result) {
+      expect(part.content.length).toBeLessThanOrEqual(MAX);
+    }
   });
 });

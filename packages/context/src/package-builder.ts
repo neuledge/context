@@ -43,8 +43,11 @@ export interface BuildResult {
  */
 const MAX_PARSE_CHUNK_CHARS = 1024 * 1024;
 
+/** Extensions `parseDocument` routes to `parseHtml`. Matched as it matches them. */
+const HTML_EXTENSIONS = [".html", ".htm"];
+
 /** Extensions `parseDocument` routes away from remark. Matched as it matches them. */
-const NON_MARKDOWN_EXTENSIONS = [".html", ".htm", ".adoc", ".rst"];
+const NON_MARKDOWN_EXTENSIONS = [...HTML_EXTENSIONS, ".adoc", ".rst"];
 
 /** An ATX `##` heading: up to 3 spaces of indent, then `##` and a space or tab. */
 const H2_LINE = /^ {0,3}##([ \t]|$)/;
@@ -114,6 +117,104 @@ function splitBySize(content: string, maxChars: number): string[] {
   return chunks.length ? chunks : [content];
 }
 
+/** A tag name at a known `<`. Sticky, so scanning megabytes allocates nothing. */
+const TAG_NAME = /<(\/?)([a-zA-Z][^\s/>]*)/y;
+
+/** Elements whose content is raw text: a `<` inside them never opens a tag. */
+const RAW_TEXT_TAGS = new Set(["script", "style", "textarea", "title"]);
+
+/**
+ * Yield the offset and lowercased name of every tag in an HTML source.
+ *
+ * Comments and raw-text element bodies are skipped, so every offset yielded is a
+ * position the document can be cut at. Cutting elsewhere loses content rather than
+ * just splitting it: inside `<script>` the unterminated element swallows the rest of
+ * one chunk and spills JavaScript into the next as prose, and inside a comment the
+ * remainder of the comment reappears as text.
+ */
+function* scanTags(
+  html: string,
+): Generator<[offset: number, name: string, closing: boolean]> {
+  let i = 0;
+
+  while (i < html.length) {
+    const lt = html.indexOf("<", i);
+    if (lt < 0) return;
+
+    if (html.startsWith("<!--", lt)) {
+      const end = html.indexOf("-->", lt + 4);
+      if (end < 0) return;
+      i = end + 3;
+      continue;
+    }
+
+    TAG_NAME.lastIndex = lt;
+    const [, closing, tag] = TAG_NAME.exec(html) ?? [];
+    if (!tag) {
+      i = lt + 1;
+      continue;
+    }
+
+    const name = tag.toLowerCase();
+    yield [lt, name, !!closing];
+    i = lt + 1;
+
+    if (!closing && RAW_TEXT_TAGS.has(name)) {
+      const close = new RegExp(`</${name}`, "gi");
+      close.lastIndex = i;
+      const end = close.exec(html)?.index;
+      if (end == null) return;
+      i = end;
+    }
+  }
+}
+
+/**
+ * Split HTML into chunks of at most `maxChars`, cutting at tag boundaries.
+ *
+ * Each cut lands on the last `<h2` that fits, so chunks hold whole sections and
+ * `parseHtml` still names them from their heading; failing that, on the last tag that
+ * fits. A stretch of text with no tag at all is cut mid-way — nothing else bounds it,
+ * and it is a data blob rather than markup.
+ *
+ * Fragments are safe to hand to a parser in a way markdown fragments are not: HTML
+ * parsing auto-closes whatever the cut left open, so a chunk degrades to slightly
+ * flatter nesting instead of the following text changing meaning.
+ */
+function splitHtmlBySize(html: string, maxChars: number): string[] {
+  const chunks: string[] = [];
+  let start = 0;
+  let lastTag = 0;
+  let lastHeading = 0;
+
+  // Both candidates were recorded while they still fit, and `start` only moves
+  // forward, so every chunk cut here is within the limit.
+  const packTo = (offset: number) => {
+    while (offset - start > maxChars) {
+      const at =
+        lastHeading > start
+          ? lastHeading
+          : lastTag > start
+            ? lastTag
+            : start + maxChars;
+      chunks.push(html.slice(start, at));
+      start = at;
+    }
+  };
+
+  // Opening `<h2` only: cutting at the matching `</h2` would strand the heading in
+  // the previous chunk and leave its section titled "Introduction".
+  for (const [offset, name, closing] of scanTags(html)) {
+    packTo(offset);
+    lastTag = offset;
+    if (name === "h2" && !closing) lastHeading = offset;
+  }
+  packTo(html.length);
+
+  if (start < html.length) chunks.push(html.slice(start));
+  return chunks;
+}
+
 /** The document's leading YAML frontmatter block, if it opens with one. */
 function leadingFrontmatter(content: string): string {
   return /^---\n[\s\S]*?\n---\n/.exec(content)?.[0] ?? "";
@@ -127,18 +228,26 @@ function leadingFrontmatter(content: string): string {
  * intact where possible; the size fallback bounds the rest, so a file with no headings
  * — or one enormous section — can't crash the build either.
  *
- * Only markdown is split, because splitting on markdown line structure would corrupt
- * the other formats. Note this leaves HTML unbounded: `parseHtml` builds a DOM *and*
- * then a remark AST, so it is the heaviest path here.
- * TODO: bound HTML too, by size at tag boundaries.
+ * HTML is split on tag structure instead, because `parseHtml` builds a DOM before it
+ * builds an AST and the DOM is what actually hurts: converting an 8MB page peaked at
+ * 1451MB RSS, of which the full pipeline added only 40MB more. Converting first and
+ * reusing the markdown split would therefore bound nothing — the source has to be cut
+ * before turndown sees it. AsciiDoc and reStructuredText are left whole; both parse
+ * with plain line scanning, so neither is a heap risk.
  */
 export function splitForParsing(file: MarkdownFile): MarkdownFile[] {
+  if (file.content.length <= MAX_PARSE_CHUNK_CHARS) return [file];
+
+  if (HTML_EXTENSIONS.some((ext) => file.path.endsWith(ext))) {
+    return splitHtmlBySize(file.content, MAX_PARSE_CHUNK_CHARS).map(
+      (content) => ({ path: file.path, content }),
+    );
+  }
+
   const isMarkdown = !NON_MARKDOWN_EXTENSIONS.some((ext) =>
     file.path.endsWith(ext),
   );
-  if (file.content.length <= MAX_PARSE_CHUNK_CHARS || !isMarkdown) {
-    return [file];
-  }
+  if (!isMarkdown) return [file];
 
   // `parseMarkdown` reads frontmatter only at offset 0 and titles a section from the
   // `##` line opening it, so a continuation chunk would otherwise index under the
