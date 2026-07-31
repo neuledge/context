@@ -466,8 +466,12 @@ export function splitForParsing(file: MarkdownFile): MarkdownFile[] {
       return;
     }
 
+    // `frontmatter`, not `prefix`: the first part needs no prefix because it opens the
+    // file, frontmatter and all, but its *continuation* chunks do. A document with no
+    // `##` anywhere is one single part, so taking `prefix` here left every chunk after
+    // the first without frontmatter and indexed under the filename.
     const heading = /^ {0,3}##[ \t].*/.exec(part.content)?.[0];
-    const carried = heading ? `${prefix + heading}\n` : prefix;
+    const carried = heading ? `${frontmatter + heading}\n` : frontmatter;
 
     for (const [i, content] of splitBySize(
       part.content,
@@ -481,6 +485,54 @@ export function splitForParsing(file: MarkdownFile): MarkdownFile[] {
   });
 
   return chunks;
+}
+
+/** The `(part N)` suffix the parser appends when it splits one section into several. */
+const PART_SUFFIX = /^(.*) \(part (\d+)\)$/;
+
+/**
+ * Parse one file, numbering its `(part N)` titles continuously across its chunks.
+ *
+ * Each chunk is parsed on its own, so the parser's part counter restarts at 1 for every
+ * one of them. On a document with no `##`/`<h2>` at all — an `h1`+`h3` page, div-based
+ * headings — the whole file is one "Introduction" section, and the restart makes every
+ * chunk repeat the same run of titles. Those titles are indexed into `chunks_fts`, so
+ * the duplicates blunt title search and attribution.
+ *
+ * The count flows *out* of the parser and into the next chunk, rather than an offset
+ * being passed *in*: `splitForParsing` is a pure function that runs to completion before
+ * anything is parsed, so how many parts a chunk yields is only knowable once it has been
+ * parsed. Threading it here also leaves every parser signature — and the titles produced
+ * by parsing a whole file — exactly as they were.
+ */
+function parseChunks(file: MarkdownFile): DocSection[] {
+  const sections: DocSection[] = [];
+  let lastTitle = "";
+  let lastPart = 0;
+
+  for (const chunk of splitForParsing(file)) {
+    // Only the run of sections a chunk opens with continues the previous chunk, and
+    // only if it is under the same title — the heading carried across the cut. Anything
+    // past that is a section of the document's own, whose part 1 really is part 1.
+    const continues = lastTitle;
+    let offset = lastPart;
+
+    for (const section of parseDocument(chunk.content, chunk.path).sections) {
+      const [, base = section.sectionTitle, part] =
+        PART_SUFFIX.exec(section.sectionTitle) ?? [];
+      if (base !== continues) offset = 0;
+
+      lastTitle = base;
+      lastPart = Number(part ?? 1) + offset;
+      sections.push(
+        lastPart > 1
+          ? { ...section, sectionTitle: `${base} (part ${lastPart})` }
+          : section,
+      );
+    }
+  }
+
+  return sections;
 }
 
 /**
@@ -549,9 +601,7 @@ export function buildPackage(
         // Splitting is inside the guard on purpose: it walks untrusted markup, so a
         // throw there has to cost one file rather than the whole registry build. Doing
         // it per file also keeps only one file's chunks alive at a time.
-        const sections = splitForParsing(file).flatMap(
-          (chunk) => parseDocument(chunk.content, chunk.path).sections,
-        );
+        const sections = parseChunks(file);
 
         for (const section of sections) {
           // Deduplicate sections with identical content (ignore titles)

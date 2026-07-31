@@ -333,6 +333,85 @@ Run the install command.
       db.close();
     }
   });
+
+  // A page with `h1` + `h3`, or with div-based headings, has no `##`/`<h2>` anywhere,
+  // so the whole document is one "Introduction" section. Split for parsing, each chunk
+  // used to restart the part counter and repeat the same run of titles.
+  it.each([
+    [
+      "flat.md",
+      "---\ntitle: Flat Guide\n---\n\n# Flat Guide\n\n",
+      (i: number) => `### Item ${i}\n\n${`w${i} `.repeat(600)}\n\n`,
+    ],
+    [
+      "flat.html",
+      "<html><body><h1>Flat Guide</h1>",
+      (i: number) => `<h3>Item ${i}</h3><p>${`w${i} `.repeat(600)}</p>`,
+    ],
+  ])("numbers %s parts continuously across a split", (path, head, block) => {
+    let content = head;
+    for (let i = 0; content.length < 1.1 * 1024 * 1024; i++)
+      content += block(i);
+    // Or the file was never split and the rest of this proves nothing.
+    expect(splitForParsing({ path, content }).length).toBeGreaterThan(1);
+
+    buildPackage(testDbPath, [{ path, content }], {
+      name: "test-parts",
+      version: "1.0.0",
+    });
+
+    const db = openDatabase(testDbPath, { readonly: true });
+    try {
+      const rows = db
+        .prepare("SELECT section_title, doc_title FROM chunks ORDER BY id")
+        .all() as { section_title: string; doc_title: string }[];
+
+      expect(rows.map((r) => r.section_title)).toEqual(
+        rows.map((_, i) =>
+          i ? `Introduction (part ${i + 1})` : "Introduction",
+        ),
+      );
+      // Frontmatter must reach continuation chunks too, or they index under the filename.
+      expect(new Set(rows.map((r) => r.doc_title))).toEqual(
+        new Set([path === "flat.md" ? "Flat Guide" : "flat.html"]),
+      );
+    } finally {
+      db.close();
+    }
+  });
+
+  it("restarts numbering at a section the split did not cut through", () => {
+    // Only a chunk's leading run, under the heading carried across the cut, continues
+    // the previous chunk. `## Second` is a section of the document's own.
+    let body = "";
+    for (let i = 0; body.length < 1.1 * 1024 * 1024; i++)
+      body += `${`w${i} `.repeat(600)}\n\n`;
+
+    buildPackage(
+      testDbPath,
+      [
+        {
+          path: "two.md",
+          content: `## First\n\n${body}## Second\n\nA short closing section of prose.`,
+        },
+      ],
+      { name: "test-parts-reset", version: "1.0.0" },
+    );
+
+    const db = openDatabase(testDbPath, { readonly: true });
+    try {
+      const titles = (
+        db.prepare("SELECT section_title FROM chunks ORDER BY id").all() as {
+          section_title: string;
+        }[]
+      ).map((r) => r.section_title);
+
+      expect(titles.at(-2)).toMatch(/^First \(part \d+\)$/);
+      expect(titles.at(-1)).toBe("Second");
+    } finally {
+      db.close();
+    }
+  });
 });
 
 describe("splitMarkdownByHeadings", () => {
