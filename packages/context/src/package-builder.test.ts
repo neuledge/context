@@ -767,6 +767,19 @@ describe("splitForParsing (HTML)", () => {
     }
   });
 
+  it("runs a CDATA section to ]]>, not to the first >", () => {
+    // `<![CDATA[ a > <script> ]]>` holds a `>` in its body. Ending the section there
+    // exposes the `<script>` as a real unterminated element and truncates the document.
+    const tail = `<h2>TAIL</h2><p>${words(200)}</p>`.repeat(200);
+    const result = splitForParsing({
+      path: "big.html",
+      content: `${sections(1100)}<svg><![CDATA[ a > <script> ]]></svg>${tail}`,
+    });
+
+    expect(result.length).toBeGreaterThan(1);
+    expect(result.map((p) => p.content).join("")).toContain("<h2>TAIL</h2>");
+  });
+
   it("does not read the body of a bogus comment as markup", () => {
     // `<!foo …>` and `<?php …?>` end at the next `>` and hold no markup. Scanning in
     // finds a `<script>` that never closes and truncates the document at it.

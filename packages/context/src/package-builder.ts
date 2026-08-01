@@ -247,6 +247,15 @@ function* scanTags(
       continue;
     }
 
+    // CDATA runs to `]]>`, not to the first `>`. Stopping at a `>` in its body would
+    // expose the rest of that body as markup, and an unterminated `<script>` there
+    // truncates the document — the same loss the branch below exists to prevent.
+    if (html.startsWith("<![CDATA[", lt)) {
+      const end = html.indexOf("]]>", lt + 9);
+      i = end < 0 ? html.length : end + 3;
+      continue;
+    }
+
     // A bogus comment — `<!doctype…>`, `<?php…?>`, `<!foo…>` — ends at the next `>` and
     // its body is not markup. Scanning into it reads that body as tags, and one
     // unterminated `<script>` in there truncates the document at it.
