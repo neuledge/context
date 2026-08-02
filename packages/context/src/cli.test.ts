@@ -7,6 +7,7 @@ import {
   parseRegistryPackage,
   resolveAllowedLibraries,
   resolveLlmsTxtUrls,
+  resolveRemoveTarget,
   suggestPackageNameFromUrl,
 } from "./cli.js";
 import type { PackageInfo } from "./store.js";
@@ -466,9 +467,9 @@ describe("resolveAllowedLibraries", () => {
     },
   ];
 
-  it("returns the set of matching names for valid specs", () => {
+  it("returns bare names and pinned keys for valid specs", () => {
     const result = resolveAllowedLibraries(["react", "next@15.0.4"], installed);
-    expect(result).toEqual(new Set(["react", "next"]));
+    expect(result).toEqual(new Set(["react", "next@15.0.4"]));
   });
 
   it("exits with an error when a name isn't installed", () => {
@@ -488,6 +489,25 @@ describe("resolveAllowedLibraries", () => {
     }
   });
 
+  it("accepts a pinned version that isn't the newest installed", () => {
+    // `store.list()` returns the highest version first, so the pinned one
+    // isn't the first match for its name.
+    const multi: PackageInfo[] = [
+      {
+        name: "react",
+        version: "19.0.0",
+        path: "/react@19.db",
+        sizeBytes: 0,
+        sectionCount: 0,
+      },
+      ...installed,
+    ];
+    // The pinned key keeps react@19.0.0 out of the session.
+    expect(resolveAllowedLibraries(["react@18.3.1"], multi)).toEqual(
+      new Set(["react@18.3.1"]),
+    );
+  });
+
   it("exits with an error when the pinned version doesn't match", () => {
     const exit = vi
       .spyOn(process, "exit")
@@ -503,5 +523,63 @@ describe("resolveAllowedLibraries", () => {
       exit.mockRestore();
       err.mockRestore();
     }
+  });
+});
+
+describe("resolveRemoveTarget", () => {
+  function pkg(name: string, version: string): PackageInfo {
+    return {
+      name,
+      version,
+      path: `/${name}@${version}.db`,
+      sizeBytes: 0,
+      sectionCount: 0,
+    };
+  }
+
+  const installed = [
+    pkg("occtswift", "1.15.9"),
+    pkg("occtswift", "1.15.10"),
+    pkg("react", "18.3.1"),
+  ];
+
+  it("removes the only installed version for a bare name", () => {
+    expect(resolveRemoveTarget("react", installed)).toEqual({
+      pkg: pkg("react", "18.3.1"),
+    });
+  });
+
+  it("refuses a bare name when several versions are installed", () => {
+    const result = resolveRemoveTarget("occtswift", installed);
+    expect(result).toEqual({
+      error: [
+        "Multiple versions of occtswift are installed: 1.15.9, 1.15.10",
+        "Specify one, e.g. `context remove occtswift@1.15.9`.",
+      ],
+    });
+  });
+
+  it("removes exactly the requested version", () => {
+    expect(resolveRemoveTarget("occtswift@1.15.9", installed)).toEqual({
+      pkg: pkg("occtswift", "1.15.9"),
+    });
+    expect(resolveRemoveTarget("occtswift@1.15.10", installed)).toEqual({
+      pkg: pkg("occtswift", "1.15.10"),
+    });
+  });
+
+  it("reports the installed versions when the pinned one is missing", () => {
+    expect(resolveRemoveTarget("occtswift@1.15.11", installed)).toEqual({
+      error: [
+        "Package not found: occtswift@1.15.11",
+        "Installed versions: 1.15.9, 1.15.10",
+      ],
+    });
+  });
+
+  it("reports unknown names", () => {
+    expect(resolveRemoveTarget("missing", installed)).toEqual({
+      error: ["Package not found: missing"],
+    });
   });
 });

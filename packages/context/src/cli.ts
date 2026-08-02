@@ -55,8 +55,10 @@ import { type SearchResult, search } from "./search.js";
 import { ContextServer } from "./server.js";
 import {
   getPackageFileName,
+  isAllowedLibrary,
   type PackageInfo,
   PackageStore,
+  packageKey,
   readPackageInfo,
 } from "./store.js";
 
@@ -367,9 +369,12 @@ async function addFromWebsite(
 
     const sizeBytes = statSync(outputPath).size;
 
-    console.log(
-      `\nInstalled: ${packageName}@${versionLabel} (${formatBytes(sizeBytes)}, ${result.sectionCount} sections)`,
-    );
+    reportInstalled({
+      name: packageName,
+      version: versionLabel,
+      sizeBytes,
+      sectionCount: result.sectionCount,
+    });
     return;
   }
 
@@ -427,9 +432,12 @@ async function addFromWebsite(
 
   const sizeBytes = statSync(outputPath).size;
 
-  console.log(
-    `\nInstalled: ${packageName}@${versionLabel} (${formatBytes(sizeBytes)}, ${result.sectionCount} sections)`,
-  );
+  reportInstalled({
+    name: packageName,
+    version: versionLabel,
+    sizeBytes,
+    sectionCount: result.sectionCount,
+  });
 }
 
 const LOW_DOCS_THRESHOLD = 50;
@@ -511,6 +519,34 @@ function loadPackages(store: PackageStore): void {
   }
 }
 
+/**
+ * Report a finished install.
+ *
+ * Also flags when a higher version is already installed, because bare-name
+ * lookups resolve to it — otherwise installing an older version looks like a
+ * no-op when the user later queries by name.
+ */
+function reportInstalled(pkg: {
+  name: string;
+  version: string;
+  sizeBytes: number;
+  sectionCount: number;
+}): void {
+  console.log(
+    `\nInstalled: ${packageKey(pkg)} (${formatBytes(pkg.sizeBytes)}, ${pkg.sectionCount} sections)`,
+  );
+
+  const store = new PackageStore();
+  loadPackages(store);
+  const preferred = store.get(pkg.name);
+  if (!preferred || preferred.version === pkg.version) return;
+
+  console.log(
+    `Note: ${packageKey(preferred)} is also installed and stays the default for \`${pkg.name}\`.`,
+  );
+  console.log(`      Query this one as \`${packageKey(pkg)}\`.`);
+}
+
 /** Parse a `--libs` spec into name (optionally with @version). */
 // Uses lastIndexOf so scoped names like `@trpc/server@1.0.0` split correctly,
 // while a bare scoped name `@trpc/server` (leading `@` only) keeps its name.
@@ -533,19 +569,25 @@ export function resolveAllowedLibraries(
 
   for (const raw of specs) {
     const spec = parseLibSpec(raw);
-    const pkg = installed.find((p) => p.name === spec.name);
+    // Every installed version counts: pinning `react@18` must succeed even
+    // when a newer react is installed alongside it.
+    const matches = installed.filter((p) => p.name === spec.name);
 
-    if (!pkg) {
+    if (matches.length === 0) {
       errors.push(`  - ${raw}: not installed`);
       continue;
     }
-    if (spec.version && pkg.version !== spec.version) {
-      errors.push(
-        `  - ${raw}: installed version is ${pkg.version}, not ${spec.version}`,
-      );
+    if (spec.version && !matches.some((p) => p.version === spec.version)) {
+      const versions = matches.map((p) => p.version).join(", ");
+      const installedLabel =
+        matches.length > 1
+          ? `installed versions are ${versions}`
+          : `installed version is ${versions}`;
+      errors.push(`  - ${raw}: ${installedLabel}, not ${spec.version}`);
       continue;
     }
-    allowed.add(pkg.name);
+    // A pinned entry allows only that version; a bare name allows all of them.
+    allowed.add(spec.version ? `${spec.name}@${spec.version}` : spec.name);
   }
 
   if (errors.length > 0) {
@@ -591,9 +633,7 @@ function addFromFile(source: string, options: { save?: string }): void {
     savePackageCopy(destPath, options.save, info.name, info.version);
   }
 
-  console.log(
-    `\nInstalled: ${info.name}@${info.version} (${formatBytes(info.sizeBytes)}, ${info.sectionCount} sections)`,
-  );
+  reportInstalled(info);
 }
 
 /** Install a package from a URL. */
@@ -637,9 +677,7 @@ async function addFromUrl(
       savePackageCopy(destPath, options.save, info.name, info.version);
     }
 
-    console.log(
-      `\nInstalled: ${info.name}@${info.version} (${formatBytes(info.sizeBytes)}, ${info.sectionCount} sections)`,
-    );
+    reportInstalled(info);
   } catch (err) {
     // Clean up temp file on error
     if (existsSync(tempPath)) {
@@ -869,9 +907,12 @@ async function addFromGitClone(
 
     const sizeBytes = statSync(outputPath).size;
 
-    console.log(
-      `\nInstalled: ${packageName}@${versionLabel} (${formatBytes(sizeBytes)}, ${result.sectionCount} sections)`,
-    );
+    reportInstalled({
+      name: packageName,
+      version: versionLabel,
+      sizeBytes,
+      sectionCount: result.sectionCount,
+    });
 
     warnIfLowDocs(result.sectionCount, packageName);
   } finally {
@@ -946,9 +987,12 @@ async function addFromLocalDir(
 
   const sizeBytes = statSync(outputPath).size;
 
-  console.log(
-    `\nInstalled: ${packageName}@${versionLabel} (${formatBytes(sizeBytes)}, ${result.sectionCount} sections)`,
-  );
+  reportInstalled({
+    name: packageName,
+    version: versionLabel,
+    sizeBytes,
+    sectionCount: result.sectionCount,
+  });
 
   warnIfLowDocs(result.sectionCount, packageName);
 }
@@ -1043,6 +1087,48 @@ program
     );
   });
 
+/**
+ * Pick the package `context remove <spec>` should delete.
+ *
+ * `remove` deletes a file from disk, so a bare name is refused while several
+ * versions are installed rather than guessing which one the user meant. With a
+ * single version installed the bare name still works, as it always has.
+ */
+export function resolveRemoveTarget(
+  spec: string,
+  installed: PackageInfo[],
+): { pkg: PackageInfo } | { error: string[] } {
+  const { name, version } = parseLibSpec(spec);
+  const matches = installed.filter((p) => p.name === name);
+  const versions = matches.map((p) => p.version).join(", ");
+
+  if (matches.length === 0) {
+    return { error: [`Package not found: ${name}`] };
+  }
+
+  if (!version) {
+    const [only, ...rest] = matches;
+    if (!only) return { error: [`Package not found: ${name}`] };
+    if (rest.length > 0) {
+      return {
+        error: [
+          `Multiple versions of ${name} are installed: ${versions}`,
+          `Specify one, e.g. \`context remove ${packageKey(only)}\`.`,
+        ],
+      };
+    }
+    return { pkg: only };
+  }
+
+  const exact = matches.find((p) => p.version === version);
+  if (!exact) {
+    return {
+      error: [`Package not found: ${spec}`, `Installed versions: ${versions}`],
+    };
+  }
+  return { pkg: exact };
+}
+
 program
   .command("remove")
   .description("Remove a documentation package")
@@ -1051,24 +1137,21 @@ program
     const store = new PackageStore();
     loadPackages(store);
 
-    // Strip version suffix if present (e.g., "next@v16.2.0" -> "next")
-    const atIndex = name.indexOf("@");
-    const packageName = atIndex > 0 ? name.slice(0, atIndex) : name;
-
-    const pkg = store.get(packageName);
-    if (!pkg) {
-      console.error(`Error: Package not found: ${packageName}`);
+    const target = resolveRemoveTarget(name, store.list());
+    if ("error" in target) {
+      console.error(`Error: ${target.error[0]}`);
+      for (const line of target.error.slice(1)) console.error(line);
       process.exit(1);
     }
 
     // Delete file from disk
     try {
-      unlinkSync(pkg.path);
+      unlinkSync(target.pkg.path);
     } catch {
       // Ignore deletion errors
     }
 
-    console.log(`Removed: ${pkg.name}@${pkg.version}`);
+    console.log(`Removed: ${packageKey(target.pkg)}`);
   });
 
 program
@@ -1097,7 +1180,7 @@ program
         : undefined;
 
       const visible = allowedLibraries
-        ? store.list().filter((p) => allowedLibraries.has(p.name))
+        ? store.list().filter((p) => isAllowedLibrary(p, allowedLibraries))
         : store.list();
 
       if (visible.length > 0) {
@@ -1126,10 +1209,6 @@ program
       }
     },
   );
-
-function formatLibraryName(pkg: PackageInfo): string {
-  return `${pkg.name}@${pkg.version}`;
-}
 
 function formatSearchResult(result: SearchResult): string {
   if (result.results.length === 0) {
@@ -1166,10 +1245,10 @@ program
     loadPackages(store);
 
     const packages = store.list();
-    const pkg = packages.find((p) => formatLibraryName(p) === library);
+    const pkg = store.get(library);
 
     if (!pkg) {
-      const available = packages.map(formatLibraryName);
+      const available = packages.map(packageKey);
       if (available.length === 0) {
         console.error("Error: No packages installed.");
         console.error("Run: context add <package.db>");
@@ -1184,7 +1263,7 @@ program
       process.exit(1);
     }
 
-    const db = store.openDb(pkg.name);
+    const db = store.openDb(packageKey(pkg));
     if (!db) {
       console.error(`Error: Failed to open package database: ${library}`);
       process.exit(1);
@@ -1338,9 +1417,7 @@ program
           targetVersion,
         );
 
-        console.log(
-          `\nInstalled: ${info.name}@${info.version} (${formatBytes(info.sizeBytes)}, ${info.sectionCount} sections)`,
-        );
+        reportInstalled(info);
       } catch (err) {
         console.error(`Error: ${err instanceof Error ? err.message : err}`);
         process.exit(1);

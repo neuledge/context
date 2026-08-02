@@ -479,17 +479,24 @@ $ context list
 Installed packages:
 
   nextjs@16.0              4.2 MB    847 sections
+  nextjs@15.5              3.9 MB    790 sections
   react@18                 2.1 MB    423 sections
 
-Total: 2 packages (6.3 MB)
+Total: 3 packages (10.2 MB)
 ```
+
+Several versions of the same package can be installed side by side; each name is listed newest first. Commands that take a bare name (`context query react`, `context serve --libs react`) use the highest installed version.
 
 ### `context remove <name>`
 
-Remove a package.
+Remove a package. Pass `name@version` to remove a specific version. A bare name
+is only accepted when a single version of that package is installed — otherwise
+the command lists the installed versions and asks you to pick one, so nothing is
+deleted by guesswork.
 
 ```bash
 context remove nextjs
+context remove nextjs@16.0
 ```
 
 ### `context auth`
@@ -531,7 +538,7 @@ context serve --libs react next@15.0.4
 |--------|-------------|
 | `--http [port]` | Start as HTTP server instead of stdio (default port: 8080) |
 | `--host <host>` | Host to bind to (default: 127.0.0.1) |
-| `--libs <names...>` | Restrict the session to a fixed set of installed libraries. Each entry is a name (`react`) or `name@version` (`react@18.3.1`). When set, `search_packages` and `download_package` are hidden so the session is locked to that list. Useful for per-project scoping when you have many packages installed globally. |
+| `--libs <names...>` | Restrict the session to a fixed set of installed libraries. Each entry is a name (`react`, exposing every installed version) or `name@version` (`react@18.3.1`, exposing only that version). When set, `search_packages` and `download_package` are hidden so the session is locked to that list. Useful for per-project scoping when you have many packages installed globally. |
 
 The HTTP transport uses the [MCP Streamable HTTP](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http) protocol, enabling multiple clients on the local network to connect to a single server instance. The endpoint is available at `http://<host>:<port>/mcp`.
 
@@ -542,6 +549,9 @@ Query documentation directly from the command line. Useful for testing and debug
 ```bash
 # Query a package (use name@version format from 'context list')
 context query 'nextjs@16.0' 'middleware authentication'
+
+# A bare name queries the highest installed version
+context query nextjs 'middleware authentication'
 
 # Returns the same JSON format as the MCP get_docs tool
 ```

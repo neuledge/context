@@ -18,7 +18,12 @@ import {
   SEARCH_PACKAGES_NAME_DESCRIPTION,
 } from "./guidance.js";
 import { type SearchResult, search } from "./search.js";
-import type { PackageInfo, PackageStore } from "./store.js";
+import {
+  isAllowedLibrary,
+  type PackageInfo,
+  type PackageStore,
+  packageKey,
+} from "./store.js";
 
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json") as { version: string };
@@ -57,7 +62,8 @@ export class ContextServer {
   private visiblePackages(): PackageInfo[] {
     const all = this.store.list();
     if (!this.allowedLibraries) return all;
-    return all.filter((p) => this.allowedLibraries?.has(p.name));
+    const allowed = this.allowedLibraries;
+    return all.filter((p) => isAllowedLibrary(p, allowed));
   }
 
   /**
@@ -192,7 +198,7 @@ export class ContextServer {
       return z.string().describe(GET_DOCS_LIBRARY_DESCRIPTION);
     }
 
-    const libraryEnum = packages.map(formatLibraryName);
+    const libraryEnum = packages.map(packageKey);
     return z
       .enum(libraryEnum as [string, ...string[]])
       .describe(GET_DOCS_LIBRARY_DESCRIPTION);
@@ -250,7 +256,7 @@ export class ContextServer {
     topic: string,
   ): { content: { type: "text"; text: string }[] } {
     const packages = this.visiblePackages();
-    const pkg = packages.find((p) => formatLibraryName(p) === library);
+    const pkg = packages.find((p) => packageKey(p) === library);
 
     if (!pkg) {
       return {
@@ -266,7 +272,7 @@ export class ContextServer {
       };
     }
 
-    const db = this.store.openDb(pkg.name);
+    const db = this.store.openDb(packageKey(pkg));
     if (!db) {
       return {
         content: [
@@ -417,10 +423,6 @@ export class ContextServer {
       },
     );
   }
-}
-
-function formatLibraryName(pkg: PackageInfo): string {
-  return `${pkg.name}@${pkg.version}`;
 }
 
 function formatSearchResult(result: SearchResult): string {
