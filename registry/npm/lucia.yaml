@@ -2,7 +2,12 @@ name: lucia
 description: "Authentication resources for JavaScript and TypeScript"
 repository: https://github.com/lucia-auth/lucia
 
+# Lucia was deprecated in March 2025, and on 2026-07-30 the default branch was
+# emptied down to a README pointing at the announcement — which is what started
+# failing the daily build. The v3 docs are still on the v3 branch and plenty of
+# codebases still run v3, so build from there rather than dropping the package.
 source:
   type: git
   url: https://github.com/lucia-auth/lucia
-  docs_path: pages
+  ref: v3
+  docs_path: docs/pages

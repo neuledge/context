@@ -27,6 +27,13 @@ import { z } from "zod/v4";
 const GitSourceSchema = z.object({
   type: z.literal("git"),
   url: z.url(),
+  /**
+   * Branch or tag to build from, for unversioned sources only. Needed when the
+   * docs aren't on the default branch — an archived project whose maintained
+   * docs stayed behind on a release branch, say. Versioned entries resolve a
+   * tag per version and ignore this.
+   */
+  ref: z.string().optional(),
   docs_path: z.string().optional(),
   lang: z.string().default("en"),
 });

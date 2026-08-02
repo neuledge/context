@@ -324,6 +324,29 @@ source:
     expect(def.source.lang).toBe("en");
   });
 
+  it("parses an unversioned source pinned to a ref", () => {
+    // Needed for a project whose docs are no longer on the default branch —
+    // lucia's survive on v3 after the default branch was emptied.
+    const yaml = `
+name: lucia
+repository: https://github.com/lucia-auth/lucia
+source:
+  type: git
+  url: https://github.com/lucia-auth/lucia
+  ref: v3
+  docs_path: docs/pages
+`;
+    const npmDir = join(tempDir, "npm");
+    mkdirSync(npmDir);
+    writeFileSync(join(npmDir, "lucia.yaml"), yaml);
+
+    const def = loadDefinition(join(npmDir, "lucia.yaml"));
+
+    if (isVersioned(def)) throw new Error("expected unversioned");
+    expect(def.source.ref).toBe("v3");
+    expect(def.source.docs_path).toBe("docs/pages");
+  });
+
   it("rejects definition with both versions and source", () => {
     const yaml = `
 name: bad

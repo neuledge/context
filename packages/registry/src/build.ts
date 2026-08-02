@@ -159,7 +159,7 @@ export async function buildUnversioned(
   }
 
   // Git source: clone and read
-  const { tempDir, cleanup } = cloneRepository(source.url);
+  const { tempDir, cleanup } = cloneRepository(source.url, source.ref);
 
   try {
     // Get the commit SHA of the cloned HEAD
