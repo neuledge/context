@@ -50,7 +50,11 @@ import {
   SEARCH_PACKAGES_NAME_DESCRIPTION,
 } from "./guidance.js";
 import { fetchLinkedDocs } from "./llms-txt.js";
-import { buildPackage, type MarkdownFile } from "./package-builder.js";
+import {
+  type BuildResult,
+  buildPackage,
+  type MarkdownFile,
+} from "./package-builder.js";
 import { type SearchResult, search } from "./search.js";
 import { ContextServer } from "./server.js";
 import {
@@ -360,8 +364,7 @@ async function addFromWebsite(
       );
     }
 
-    console.log(`✓ Built package: ${packageName}@${versionLabel}`);
-    console.log(`✓ Saved to ${outputPath}`);
+    reportBuilt(result, packageName, versionLabel, outputPath);
 
     if (options.save) {
       savePackageCopy(outputPath, options.save, packageName, versionLabel);
@@ -422,8 +425,7 @@ async function addFromWebsite(
     );
   }
 
-  console.log(`✓ Built package: ${packageName}@${versionLabel}`);
-  console.log(`✓ Saved to ${outputPath}`);
+  reportBuilt(result, packageName, versionLabel, outputPath);
 
   // Save to custom path if specified
   if (options.save) {
@@ -526,6 +528,29 @@ function loadPackages(store: PackageStore): void {
  * lookups resolve to it — otherwise installing an older version looks like a
  * no-op when the user later queries by name.
  */
+/**
+ * Report a freshly built package.
+ *
+ * Skipped files are surfaced rather than counted silently: a file too malformed
+ * to split or parse is dropped on its own so one bad document can't fail the
+ * build, which is only safe if the user can see it happened.
+ */
+function reportBuilt(
+  result: BuildResult,
+  name: string,
+  version: string,
+  outputPath: string,
+): void {
+  console.log(`✓ Built package: ${name}@${version}`);
+  console.log(`✓ Saved to ${outputPath}`);
+
+  if (result.skippedFiles > 0) {
+    console.log(
+      `⚠️  Skipped ${result.skippedFiles} file(s) that could not be parsed`,
+    );
+  }
+}
+
 function reportInstalled(pkg: {
   name: string;
   version: string;
@@ -897,8 +922,7 @@ async function addFromGitClone(
       sourceUrl: url,
     });
 
-    console.log(`✓ Built package: ${packageName}@${versionLabel}`);
-    console.log(`✓ Saved to ${outputPath}`);
+    reportBuilt(result, packageName, versionLabel, outputPath);
 
     // Save to custom path if specified
     if (options.save) {
@@ -977,8 +1001,7 @@ async function addFromLocalDir(
     sourceUrl: dirPath,
   });
 
-  console.log(`✓ Built package: ${packageName}@${versionLabel}`);
-  console.log(`✓ Saved to ${outputPath}`);
+  reportBuilt(result, packageName, versionLabel, outputPath);
 
   // Save to custom path if specified
   if (options.save) {

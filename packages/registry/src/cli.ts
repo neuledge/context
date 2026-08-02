@@ -7,7 +7,7 @@
 
 import { mkdirSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
-import { isMissingRefError } from "@neuledge/context";
+import { type BuildResult, isMissingRefError } from "@neuledge/context";
 import { Command } from "commander";
 import {
   buildFromDefinition,
@@ -31,6 +31,19 @@ const DEFAULT_REGISTRY_DIR = resolve(
 const program = new Command()
   .name("registry")
   .description("Build context documentation packages from definitions");
+
+/**
+ * Describe a finished build.
+ *
+ * Skipped files are named rather than counted silently: a file too malformed to
+ * parse is dropped on its own so one bad document can't fail the build, which is
+ * only safe if the count reaches whoever is reading the log.
+ */
+function formatBuilt(result: BuildResult): string {
+  const skipped =
+    result.skippedFiles > 0 ? `, ${result.skippedFiles} files skipped` : "";
+  return `${result.sectionCount} sections, ${result.totalTokens} tokens${skipped}`;
+}
 
 program
   .command("list")
@@ -107,17 +120,13 @@ program
       }
       console.log(`Building ${def.registry}/${def.name}@${version}...`);
       const result = await buildFromDefinition(def, version, opts.output);
-      console.log(
-        `Built: ${result.path} (${result.sectionCount} sections, ${result.totalTokens} tokens)`,
-      );
+      console.log(`Built: ${result.path} (${formatBuilt(result)})`);
     } else {
       console.log(
         `Building ${def.registry}/${def.name}@latest (unversioned)...`,
       );
       const result = await buildUnversioned(def, opts.output);
-      console.log(
-        `Built: ${result.path} (${result.sectionCount} sections, ${result.totalTokens} tokens)`,
-      );
+      console.log(`Built: ${result.path} (${formatBuilt(result)})`);
     }
   });
 
@@ -156,9 +165,7 @@ program
 
       console.log(`Building ${def.registry}/${def.name}@${version}...`);
       const result = await buildFromDefinition(def, version, opts.output);
-      console.log(
-        `Built: ${result.path} (${result.sectionCount} sections, ${result.totalTokens} tokens)`,
-      );
+      console.log(`Built: ${result.path} (${formatBuilt(result)})`);
 
       console.log(`Publishing ${def.registry}/${def.name}@${version}...`);
       await publishPackage(def.registry, def.name, version, result.path);
@@ -184,9 +191,7 @@ program
         `Building ${def.registry}/${def.name}@latest (unversioned)...`,
       );
       const result = await buildUnversioned(def, opts.output);
-      console.log(
-        `Built: ${result.path} (${result.sectionCount} sections, ${result.totalTokens} tokens)`,
-      );
+      console.log(`Built: ${result.path} (${formatBuilt(result)})`);
 
       console.log(`Publishing ${def.registry}/${def.name}@latest...`);
       await publishPackage(def.registry, def.name, "latest", result.path);
@@ -246,9 +251,7 @@ program
               ver.version,
               opts.output,
             );
-            console.log(
-              `  Built (${result.sectionCount} sections, ${result.totalTokens} tokens)`,
-            );
+            console.log(`  Built (${formatBuilt(result)})`);
 
             console.log(`  Publishing...`);
             await publishPackage(
@@ -278,9 +281,7 @@ program
 
             console.log(`Building ${id}...`);
             const result = await buildUnversioned(def, opts.output);
-            console.log(
-              `  Built (${result.sectionCount} sections, ${result.totalTokens} tokens)`,
-            );
+            console.log(`  Built (${formatBuilt(result)})`);
 
             console.log(`  Publishing...`);
             await publishPackage(def.registry, def.name, "latest", result.path);
