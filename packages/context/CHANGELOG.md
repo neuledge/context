@@ -1,5 +1,21 @@
 # @neuledge/context
 
+## 1.2.1
+
+### Patch Changes
+
+- [#105](https://github.com/neuledge/context/pull/105) [`d557b46`](https://github.com/neuledge/context/commit/d557b464d6bda3fa199d4d23c1c9331f2fd7f2eb) Thanks [@moshest](https://github.com/moshest)! - Keep every installed version of a package usable. Installing a second version of the same package (for example upgrading `occtswift` from `1.15.9` to `1.15.10`) used to hide one of them: only one version per name was tracked, and which one survived depended on the order the package files happened to be read in. `context list` showed a single entry, and `context query occtswift@1.15.10` reported "Package not found" even though the package was installed — removing the older version was the only workaround.
+
+  All installed versions are now listed and addressable. `name@version` resolves to that exact version, and a bare name resolves to the highest installed version, compared numerically so `1.15.10` beats `1.15.9` (prereleases rank below their release; labels such as `latest` rank below any numbered version). `context serve --libs pkg@1.15.9` now pins the session to exactly that version while a newer one stays installed; a bare `--libs pkg` exposes every installed version.
+
+  `context remove` no longer ignores the version in its argument: `context remove pkg@1.15.9` removes exactly that version, and a bare name is refused with the list of installed versions when there is more than one, instead of deleting an arbitrary one. `context add` now points out when the version just installed is not the one a bare name resolves to.
+
+- [#103](https://github.com/neuledge/context/pull/103) [`f3d5e43`](https://github.com/neuledge/context/commit/f3d5e43a3213d7c57ee4edd17ba83a662b68d009) Thanks [@moshest](https://github.com/moshest)! - Fix out-of-memory crash when building packages from very large documentation files (such as a site's `llms-full.txt`, or a single-page HTML manual). Oversized markdown is now split into smaller chunks before parsing, and oversized HTML is cut at tag boundaries before it reaches the HTML-to-Markdown converter, so no input can exhaust the heap. An 8MB HTML page that previously needed more than 512MB of heap now builds in under 192MB and yields the same sections. The HTML split also scans each page once rather than once per tag, so a malformed page full of unclosed `<script` or `<svg` tags no longer stalls the build for minutes.
+
+  Malformed pages keep their page chrome out of the index: a stray close tag such as a `</header>` inside an `<aside>` no longer ends the sidebar early and leak it into search results, and a `<script>`, `<style>` or `<title>` that is never closed no longer has its body indexed as prose. A file that cannot be split or parsed at all is now skipped on its own instead of failing the whole build, and `buildPackage` reports how many it skipped.
+
+  Sections of a split document also keep unique titles. A page with no `##`/`<h2>` heading anywhere — an `h1` + `h3` page, or one with div-based headings — used to restart its part numbering in every chunk, so the same run of "Introduction", "Introduction (part 2)", … repeated once per chunk and blunted title search; the numbering now runs continuously across the whole document. Such a page also keeps its frontmatter title on every chunk instead of falling back to the filename part-way through.
+
 ## 1.2.0
 
 ### Minor Changes
