@@ -38,8 +38,11 @@ export interface RegistryBuildResult extends BuildResult {
  * Get the HEAD commit SHA of a remote repository without cloning.
  * Uses `git ls-remote` which makes a single HTTP call.
  */
-export function getHeadCommit(url: string): string {
-  const output = execSync(`git ls-remote ${url} HEAD`, {
+export function getHeadCommit(url: string, ref?: string): string {
+  // Must match the ref the package is built from. Asking for HEAD while building
+  // a branch compares two unrelated commits, so the skip-if-unchanged check never
+  // fires and the package is rebuilt and republished on every run.
+  const output = execSync(`git ls-remote ${url} ${ref ?? "HEAD"}`, {
     encoding: "utf-8",
     stdio: ["pipe", "pipe", "pipe"],
   }).trim();

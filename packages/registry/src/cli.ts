@@ -178,7 +178,7 @@ program
         "latest",
       );
       if (existing?.source_commit && def.source.type === "git") {
-        const currentCommit = getHeadCommit(def.source.url);
+        const currentCommit = getHeadCommit(def.source.url, def.source.ref);
         if (currentCommit === existing.source_commit) {
           console.log(
             `Skipping ${def.registry}/${def.name}@latest (source unchanged: ${currentCommit.slice(0, 8)})`,
@@ -272,7 +272,10 @@ program
               "latest",
             );
             if (existing?.source_commit && def.source.type === "git") {
-              const currentCommit = getHeadCommit(def.source.url);
+              const currentCommit = getHeadCommit(
+                def.source.url,
+                def.source.ref,
+              );
               if (currentCommit === existing.source_commit) {
                 skipped++;
                 continue;
