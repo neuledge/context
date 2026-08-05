@@ -42,7 +42,12 @@ export function isAllowedLibrary(
 function parseVersionParts(
   version: string,
 ): { numbers: number[]; prerelease: string } | null {
-  const core = version.startsWith("v") ? version.slice(1) : version;
+  const unprefixed = version.startsWith("v") ? version.slice(1) : version;
+  // Build metadata carries no ordering meaning (semver §10), but leaving it on
+  // makes the last segment non-numeric, which would drop the whole version into
+  // the floating-label bucket below every real release.
+  const plus = unprefixed.indexOf("+");
+  const core = plus === -1 ? unprefixed : unprefixed.slice(0, plus);
   const dash = core.indexOf("-");
   const segments = (dash === -1 ? core : core.slice(0, dash)).split(".");
   if (!segments.every((s) => /^\d+$/.test(s))) return null;
@@ -64,8 +69,10 @@ function compareText(a: string, b: string): number {
  * - segments compare as numbers, so `1.15.9` < `1.15.10` (text order gets this
  *   backwards — the bug behind #102);
  * - a missing segment counts as zero, so `1.2` and `1.2.0` are the same release;
- * - a prerelease sorts below its release (`2.0.0-rc.1` < `2.0.0`); two
- *   prereleases compare as text;
+ * - a prerelease sorts below its release (`2.0.0-rc.1` < `2.0.0`), and two
+ *   prereleases compare identifier by identifier, numerically where both are
+ *   numbers, so `rc.10` beats `rc.2`;
+ * - build metadata is ignored, since it carries no ordering meaning;
  * - versions with no numeric part (`latest`, `main`) sort below every numeric
  *   version, so a floating label never hides a real release;
  * - anything still tied falls back to text, so results never depend on
@@ -89,10 +96,36 @@ export function compareVersions(a: string, b: string): number {
   if (partsA.prerelease !== partsB.prerelease) {
     if (!partsA.prerelease) return 1;
     if (!partsB.prerelease) return -1;
-    return compareText(partsA.prerelease, partsB.prerelease);
+    return comparePrerelease(partsA.prerelease, partsB.prerelease);
   }
 
   return compareText(a, b);
+}
+
+/**
+ * Order two prerelease suffixes, lowest first.
+ *
+ * Dot-separated identifiers, compared one at a time: numeric ones as numbers, so
+ * `rc.10` beats `rc.2` — comparing the whole suffix as text reintroduces exactly
+ * the inversion #102 was about, one field deeper. A version that runs out of
+ * identifiers first sorts lower (`rc` < `rc.1`), per semver §11.
+ */
+function comparePrerelease(a: string, b: string): number {
+  const idsA = a.split(".");
+  const idsB = b.split(".");
+
+  for (let i = 0; i < Math.max(idsA.length, idsB.length); i++) {
+    const x = idsA[i];
+    const y = idsB[i];
+    if (x === undefined) return -1;
+    if (y === undefined) return 1;
+
+    const numeric = /^\d+$/.test(x) && /^\d+$/.test(y);
+    const diff = numeric ? Number(x) - Number(y) : compareText(x, y);
+    if (diff !== 0) return diff;
+  }
+
+  return 0;
 }
 
 /**

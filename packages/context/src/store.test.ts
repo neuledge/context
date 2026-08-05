@@ -342,6 +342,25 @@ describe("store", () => {
       expect(compareVersions("2.0.0-rc.1", "2.0.0-rc.2")).toBeLessThan(0);
     });
 
+    it("compares prerelease identifiers numerically too", () => {
+      // Comparing the whole suffix as text puts rc.10 below rc.2 — the same
+      // inversion #102 was about, one field deeper.
+      expect(compareVersions("2.0.0-rc.2", "2.0.0-rc.10")).toBeLessThan(0);
+      expect(compareVersions("2.0.0-rc.10", "2.0.0-rc.2")).toBeGreaterThan(0);
+      // Non-numeric identifiers still compare as text, and a shorter run sorts lower.
+      expect(compareVersions("2.0.0-alpha.1", "2.0.0-beta.1")).toBeLessThan(0);
+      expect(compareVersions("2.0.0-rc", "2.0.0-rc.1")).toBeLessThan(0);
+    });
+
+    it("ignores build metadata rather than reading it as unparseable", () => {
+      // `1.0.0+build` left whole makes the last segment non-numeric, which used
+      // to drop the version below every real release.
+      expect(compareVersions("1.0.0+20130313144700", "0.0.1")).toBeGreaterThan(
+        0,
+      );
+      expect(compareVersions("1.0.0+build", "1.0.1")).toBeLessThan(0);
+    });
+
     it("sorts unparseable versions below numeric ones without throwing", () => {
       expect(compareVersions("latest", "0.0.1")).toBeLessThan(0);
       expect(compareVersions("0.0.1", "main")).toBeGreaterThan(0);
