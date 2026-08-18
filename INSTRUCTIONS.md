@@ -62,6 +62,21 @@ Store in `/.plans/` with date prefix (e.g., `2026-01-27-feature-name.md`).
 
 When starting a task, review existing plans in `/.plans/` to find relevant context.
 
+### Claim a Plan Before Executing It
+
+A plan sitting in `/.plans/` is not evidence that nobody is working on it. Sessions
+run concurrently and cannot see each other, so before executing a plan:
+
+1. Search open **and recently closed** PRs for the plan's filename.
+2. If one references it, the plan is claimed — do not execute it. Review or extend
+   that PR instead.
+3. If none does, name the plan file in your PR body so the next session sees your claim.
+4. Delete the plan file in the same PR that completes it.
+
+Why: duplicate PRs have twice been opened because a plan sat unclaimed while two
+sessions independently picked it up and built the same thing. The PR is the only
+state both sessions can see, so the claim has to live there.
+
 ### Task Management
 
 Plans are **living documents** that evolve as understanding grows:
