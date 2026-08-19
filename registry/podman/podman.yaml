@@ -1,0 +1,8 @@
+name: podman
+description: "Podman documentation"
+repository: https://github.com/podman-container-tools/podman
+
+source:
+  type: git
+  url: https://github.com/podman-container-tools/podman
+  docs_path: docs
