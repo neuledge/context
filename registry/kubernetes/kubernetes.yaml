@@ -1,0 +1,8 @@
+name: kubernetes
+description: "Kubernetes documentation"
+repository: https://github.com/kubernetes/website
+
+source:
+  type: git
+  url: https://github.com/kubernetes/website
+  docs_path: content/en/docs
