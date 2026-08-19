@@ -1,0 +1,8 @@
+name: docker
+description: "Docker documentation"
+repository: https://github.com/docker/docs
+
+source:
+  type: git
+  url: https://github.com/docker/docs
+  docs_path: content
