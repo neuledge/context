@@ -45,7 +45,7 @@
     "@inquirer/prompts": "^8.2.0",
     "@modelcontextprotocol/sdk": "^1.11.4",
     "commander": "^14.0.0",
-    "defuddle": "^0.17.0",
+    "defuddle": "^0.19.3",
     "ignore": "^7.0.5",
     "linkedom": "^0.18.12",
     "remark-frontmatter": "^5.0.0",
