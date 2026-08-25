@@ -1,5 +1,11 @@
 # @neuledge/context
 
+## 1.2.3
+
+### Patch Changes
+
+- [#119](https://github.com/neuledge/context/pull/119) [`bbc41ea`](https://github.com/neuledge/context/commit/bbc41ea5429cade63a17e9f6a0d6bea99034ab63) Thanks [@moshest](https://github.com/moshest)! - Update `defuddle` to 0.19.3, fixing GHSA-jg4p-g6xj-4qmf (XSS via unescaped attribute interpolation in site extractors). This affects HTML documentation sources; earlier versions pulled in the vulnerable 0.17.0.
+
 ## 1.2.2
 
 ### Patch Changes
