@@ -1,0 +1,134 @@
+node=v22.23.2
+Scope: all 3 workspace projects
+Lockfile is up to date, resolution step is skipped
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Packages: +399
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Progress: resolved 399, reused 399, downloaded 0, added 399, done
+
+devDependencies:
++ @biomejs/biome 2.3.10
++ @changesets/changelog-github 0.6.0
++ @changesets/cli 2.29.8
++ turbo 2.7.6
+
+. prepare$ npm run build
+packages/context prepare$ npm run build
+. prepare: > build
+. prepare: > turbo build
+packages/context prepare: > @neuledge/context@1.2.3 build
+packages/context prepare: > rimraf --glob dist/** && tsc -p tsconfig.build.json
+. prepare: • turbo 2.7.6
+. prepare: • Packages in scope: @neuledge/context, @neuledge/registry
+. prepare: • Running build in 2 packages
+. prepare: • Remote caching disabled, using shared worktree cache
+. prepare: @neuledge/context:build: cache hit, replaying logs cb5f615c6578b661
+. prepare: @neuledge/context:build: 
+. prepare: @neuledge/context:build: > @neuledge/context@1.2.3 build /tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode/packages/context
+. prepare: @neuledge/context:build: > rimraf --glob dist/** && tsc -p tsconfig.build.json
+. prepare: @neuledge/context:build: 
+. prepare: @neuledge/registry:build: cache hit, replaying logs 2e4ac5dde202a032
+. prepare: @neuledge/registry:build: 
+. prepare: @neuledge/registry:build: > @neuledge/registry@0.0.16 build /tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode/packages/registry
+. prepare: @neuledge/registry:build: > rimraf --glob dist/** && tsc -p tsconfig.build.json
+. prepare: @neuledge/registry:build: 
+. prepare:  Tasks:    2 successful, 2 total
+. prepare: Cached:    2 cached, 2 total
+. prepare:   Time:    47ms >>> FULL TURBO
+. prepare: Done
+packages/context prepare: Done
+Done in 4.2s using pnpm v10.27.0
+INSTALL=0
+
+> @ build /tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode
+> turbo build
+
+• turbo 2.7.6
+• Packages in scope: @neuledge/context, @neuledge/registry
+• Running build in 2 packages
+• Remote caching disabled, using shared worktree cache
+@neuledge/context:build: cache hit, replaying logs cb5f615c6578b661
+@neuledge/context:build: 
+@neuledge/context:build: > @neuledge/context@1.2.3 build /tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode/packages/context
+@neuledge/context:build: > rimraf --glob dist/** && tsc -p tsconfig.build.json
+@neuledge/context:build: 
+@neuledge/registry:build: cache hit, replaying logs 2e4ac5dde202a032
+@neuledge/registry:build: 
+@neuledge/registry:build: > @neuledge/registry@0.0.16 build /tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode/packages/registry
+@neuledge/registry:build: > rimraf --glob dist/** && tsc -p tsconfig.build.json
+@neuledge/registry:build: 
+
+ Tasks:    2 successful, 2 total
+Cached:    2 cached, 2 total
+  Time:    44ms >>> FULL TURBO
+
+BUILD=0
+
+> @ test /tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode
+> turbo test
+
+• turbo 2.7.6
+• Packages in scope: @neuledge/context, @neuledge/registry
+• Running test in 2 packages
+• Remote caching disabled, using shared worktree cache
+@neuledge/context:build: cache hit, replaying logs cb5f615c6578b661
+@neuledge/context:build: 
+@neuledge/context:build: > @neuledge/context@1.2.3 build /tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode/packages/context
+@neuledge/context:build: > rimraf --glob dist/** && tsc -p tsconfig.build.json
+@neuledge/context:build: 
+@neuledge/registry:build: cache hit, replaying logs 2e4ac5dde202a032
+@neuledge/registry:build: 
+@neuledge/registry:build: > @neuledge/registry@0.0.16 build /tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode/packages/registry
+@neuledge/registry:build: > rimraf --glob dist/** && tsc -p tsconfig.build.json
+@neuledge/registry:build: 
+@neuledge/context:test: cache miss, executing ca0d28e161c2a146
+@neuledge/registry:test: cache hit, replaying logs af697af10f8d1d07
+@neuledge/registry:test: 
+@neuledge/registry:test: > @neuledge/registry@0.0.16 test /tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode/packages/registry
+@neuledge/registry:test: > vitest run
+@neuledge/registry:test: 
+@neuledge/registry:test: 
+@neuledge/registry:test: [1m[46m RUN [49m[22m [36mv4.0.18 [39m[90m/tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode/packages/registry[39m
+@neuledge/registry:test: 
+@neuledge/registry:test:  [32m✓[39m src/version-check.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 35[2mms[22m[39m
+@neuledge/registry:test:  [32m✓[39m src/definition.test.ts [2m([22m[2m30 tests[22m[2m)[22m[32m 56[2mms[22m[39m
+@neuledge/registry:test:  [32m✓[39m src/publish.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 3068[2mms[22m[39m
+@neuledge/registry:test:      [33m[2m✓[22m[39m retries a dropped connection instead of failing the package [33m 3056[2mms[22m[39m
+@neuledge/registry:test: 
+@neuledge/registry:test: [2m Test Files [22m [1m[32m3 passed[39m[22m[90m (3)[39m
+@neuledge/registry:test: [2m      Tests [22m [1m[32m41 passed[39m[22m[90m (41)[39m
+@neuledge/registry:test: [2m   Start at [22m 23:31:41
+@neuledge/registry:test: [2m   Duration [22m 3.51s[2m (transform 273ms, setup 0ms, import 683ms, tests 3.16s, environment 0ms)[22m
+@neuledge/registry:test: 
+@neuledge/context:test: 
+@neuledge/context:test: > @neuledge/context@1.2.3 test /tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode/packages/context
+@neuledge/context:test: > vitest run
+@neuledge/context:test: 
+@neuledge/context:test: 
+@neuledge/context:test: [1m[46m RUN [49m[22m [36mv4.0.18 [39m[90m/tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode/packages/context[39m
+@neuledge/context:test: 
+@neuledge/context:test:  [32m✓[39m src/server.test.ts [2m([22m[2m15 tests[22m[2m)[22m[33m 505[2mms[22m[39m
+@neuledge/context:test:  [32m✓[39m src/cli.test.ts [2m([22m[2m53 tests[22m[2m)[22m[32m 234[2mms[22m[39m
+@neuledge/context:test:  [32m✓[39m src/build.test.ts [2m([22m[2m28 tests[22m[2m)[22m[32m 72[2mms[22m[39m
+@neuledge/context:test:  [32m✓[39m src/store.test.ts [2m([22m[2m30 tests[22m[2m)[22m[32m 135[2mms[22m[39m
+@neuledge/context:test:  [32m✓[39m src/llms-txt.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 58[2mms[22m[39m
+@neuledge/context:test:  [32m✓[39m src/git.test.ts [2m([22m[2m26 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+@neuledge/context:test:  [32m✓[39m src/server.workflow.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 192[2mms[22m[39m
+@neuledge/context:test:  [32m✓[39m src/search.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 82[2mms[22m[39m
+@neuledge/context:test:  [32m✓[39m src/auth.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+@neuledge/context:test:  [32m✓[39m src/package-builder.test.ts [2m([22m[2m41 tests[22m[2m)[22m[33m 2766[2mms[22m[39m
+@neuledge/context:test:      [33m[2m✓[22m[39m numbers flat.md parts continuously across a split [33m 592[2mms[22m[39m
+@neuledge/context:test:      [33m[2m✓[22m[39m numbers flat.html parts continuously across a split [33m 964[2mms[22m[39m
+@neuledge/context:test:      [33m[2m✓[22m[39m restarts numbering at a section the split did not cut through [33m 432[2mms[22m[39m
+@neuledge/context:test: 
+@neuledge/context:test: [2m Test Files [22m [1m[32m10 passed[39m[22m[90m (10)[39m
+@neuledge/context:test: [2m      Tests [22m [1m[32m221 passed[39m[22m[90m (221)[39m
+@neuledge/context:test: [2m   Start at [22m 23:32:29
+@neuledge/context:test: [2m   Duration [22m 3.35s[2m (transform 707ms, setup 0ms, import 2.26s, tests 4.06s, environment 1ms)[22m
+@neuledge/context:test: 
+
+ Tasks:    4 successful, 4 total
+Cached:    3 cached, 4 total
+  Time:    4.141s 
+
+TEST=0

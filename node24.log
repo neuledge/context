@@ -1,0 +1,284 @@
+node=v24.19.0
+Scope: all 3 workspace projects
+Lockfile is up to date, resolution step is skipped
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Packages: +399
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+   ╭──────────────────────────────────────────╮
+   │                                          │
+   │   Update available! 10.27.0 → 11.24.0.   │
+   │   Changelog: https://pnpm.io/v/11.24.0   │
+   │     To update, run: pnpm add -g pnpm     │
+   │                                          │
+   ╰──────────────────────────────────────────╯
+
+Progress: resolved 399, reused 77, downloaded 0, added 0
+Progress: resolved 399, reused 253, downloaded 0, added 0
+Progress: resolved 399, reused 395, downloaded 4, added 397
+Progress: resolved 399, reused 395, downloaded 4, added 399, done
+.../node_modules/better-sqlite3 install$ prebuild-install || node-gyp rebuild --release
+.../esbuild@0.27.2/node_modules/esbuild postinstall$ node install.js
+.../esbuild@0.27.2/node_modules/esbuild postinstall: Done
+.../node_modules/better-sqlite3 install: (node:2955) [DEP0176] DeprecationWarning: fs.R_OK is deprecated, use fs.constants.R_OK instead
+.../node_modules/better-sqlite3 install: (Use `node --trace-deprecation ...` to show where the warning was created)
+.../node_modules/better-sqlite3 install: prebuild-install warn install No prebuilt binaries found (target=24.19.0 runtime=node arch=x64 libc= platform=linux)
+.../node_modules/better-sqlite3 install: gyp info it worked if it ends with ok
+.../node_modules/better-sqlite3 install: gyp info using node-gyp@11.5.0
+.../node_modules/better-sqlite3 install: gyp info using node@24.19.0 | linux | x64
+.../node_modules/better-sqlite3 install: gyp info find Python using Python version 3.11.15 found at "/usr/local/bin/python3"
+.../node_modules/better-sqlite3 install: gyp http GET https://nodejs.org/download/release/v24.19.0/node-v24.19.0-headers.tar.gz
+.../node_modules/better-sqlite3 install: gyp http 200 https://nodejs.org/download/release/v24.19.0/node-v24.19.0-headers.tar.gz
+.../node_modules/better-sqlite3 install: gyp http GET https://nodejs.org/download/release/v24.19.0/SHASUMS256.txt
+.../node_modules/better-sqlite3 install: gyp http 200 https://nodejs.org/download/release/v24.19.0/SHASUMS256.txt
+.../node_modules/better-sqlite3 install: gyp info spawn /usr/local/bin/python3
+.../node_modules/better-sqlite3 install: gyp info spawn args [
+.../node_modules/better-sqlite3 install: gyp info spawn args '/root/.local/share/pnpm/.tools/pnpm/10.27.0_tmp_3704_0/node_modules/pnpm/dist/node_modules/node-gyp/gyp/gyp_main.py',
+.../node_modules/better-sqlite3 install: gyp info spawn args 'binding.gyp',
+.../node_modules/better-sqlite3 install: gyp info spawn args '-f',
+.../node_modules/better-sqlite3 install: gyp info spawn args 'make',
+.../node_modules/better-sqlite3 install: gyp info spawn args '-I',
+.../node_modules/better-sqlite3 install: gyp info spawn args '/tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build/config.gypi',
+.../node_modules/better-sqlite3 install: gyp info spawn args '-I',
+.../node_modules/better-sqlite3 install: gyp info spawn args '/root/.local/share/pnpm/.tools/pnpm/10.27.0_tmp_3704_0/node_modules/pnpm/dist/node_modules/node-gyp/addon.gypi',
+.../node_modules/better-sqlite3 install: gyp info spawn args '-I',
+.../node_modules/better-sqlite3 install: gyp info spawn args '/root/.cache/node-gyp/24.19.0/include/node/common.gypi',
+.../node_modules/better-sqlite3 install: gyp info spawn args '-Dlibrary=shared_library',
+.../node_modules/better-sqlite3 install: gyp info spawn args '-Dvisibility=default',
+.../node_modules/better-sqlite3 install: gyp info spawn args '-Dnode_root_dir=/root/.cache/node-gyp/24.19.0',
+.../node_modules/better-sqlite3 install: gyp info spawn args '-Dnode_gyp_dir=/root/.local/share/pnpm/.tools/pnpm/10.27.0_tmp_3704_0/node_modules/pnpm/dist/node_modules/node-gyp',
+.../node_modules/better-sqlite3 install: gyp info spawn args '-Dnode_lib_file=/root/.cache/node-gyp/24.19.0/<(target_arch)/node.lib',
+.../node_modules/better-sqlite3 install: gyp info spawn args '-Dmodule_root_dir=/tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3',
+.../node_modules/better-sqlite3 install: gyp info spawn args '-Dnode_engine=v8',
+.../node_modules/better-sqlite3 install: gyp info spawn args '--depth=.',
+.../node_modules/better-sqlite3 install: gyp info spawn args '--no-parallel',
+.../node_modules/better-sqlite3 install: gyp info spawn args '--generator-output',
+.../node_modules/better-sqlite3 install: gyp info spawn args 'build',
+.../node_modules/better-sqlite3 install: gyp info spawn args '-Goutput_dir=.'
+.../node_modules/better-sqlite3 install: gyp info spawn args ]
+.../node_modules/better-sqlite3 install: gyp info spawn make
+.../node_modules/better-sqlite3 install: gyp info spawn args [ 'BUILDTYPE=Release', '-C', 'build' ]
+.../node_modules/better-sqlite3 install: make: Entering directory '/tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build'
+.../node_modules/better-sqlite3 install:   TOUCH ba23eeee118cd63e16015df367567cb043fed872.intermediate
+.../node_modules/better-sqlite3 install:   ACTION deps_sqlite3_gyp_locate_sqlite3_target_copy_builtin_sqlite3 ba23eeee118cd63e16015df367567cb043fed872.intermediate
+.../node_modules/better-sqlite3 install:   TOUCH Release/obj.target/deps/locate_sqlite3.stamp
+.../node_modules/better-sqlite3 install:   CC(target) Release/obj.target/sqlite3/gen/sqlite3/sqlite3.o
+.../node_modules/better-sqlite3 install: rm -f Release/obj.target/deps/sqlite3.a Release/obj.target/deps/sqlite3.a.ar-file-list; mkdir -p `dirname Release/obj.target/deps/sqlite3.a`
+.../node_modules/better-sqlite3 install: ar crs Release/obj.target/deps/sqlite3.a @Release/obj.target/deps/sqlite3.a.ar-file-list
+.../node_modules/better-sqlite3 install:   COPY Release/sqlite3.a
+.../node_modules/better-sqlite3 install:   CXX(target) Release/obj.target/better_sqlite3/src/better_sqlite3.o
+.../node_modules/better-sqlite3 install: In file included from ./src/better_sqlite3.lzz:11,
+.../node_modules/better-sqlite3 install:                  from ../src/better_sqlite3.cpp:4:
+.../node_modules/better-sqlite3 install: /root/.cache/node-gyp/24.19.0/include/node/node.h:1384:7: warning: cast between incompatible function types from 'void (*)(v8::Local<v8::Object>, v8::Local<v8::Value>, v8::Local<v8::Context>)' to 'node::addon_context_register_func' {aka 'void (*)(v8::Local<v8::Object>, v8::Local<v8::Value>, v8::Local<v8::Context>, void*)'} [-Wcast-function-type]
+.../node_modules/better-sqlite3 install:  1384 |       (node::addon_context_register_func) (regfunc),                  \
+.../node_modules/better-sqlite3 install:       |       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.../node_modules/better-sqlite3 install: /root/.cache/node-gyp/24.19.0/include/node/node.h:1402:3: note: in expansion of macro 'NODE_MODULE_CONTEXT_AWARE_X'
+.../node_modules/better-sqlite3 install:  1402 |   NODE_MODULE_CONTEXT_AWARE_X(modname, regfunc, NULL, 0)
+.../node_modules/better-sqlite3 install:       |   ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+.../node_modules/better-sqlite3 install: /root/.cache/node-gyp/24.19.0/include/node/node.h:1433:3: note: in expansion of macro 'NODE_MODULE_CONTEXT_AWARE'
+.../node_modules/better-sqlite3 install:  1433 |   NODE_MODULE_CONTEXT_AWARE(NODE_GYP_MODULE_NAME,                     \
+.../node_modules/better-sqlite3 install:       |   ^~~~~~~~~~~~~~~~~~~~~~~~~
+.../node_modules/better-sqlite3 install: ./src/better_sqlite3.lzz:67:1: note: in expansion of macro 'NODE_MODULE_INIT'
+.../node_modules/better-sqlite3 install: ./src/objects/database.lzz: In static member function 'static void Database::JS_new(const v8::FunctionCallbackInfo<v8::Value>&)':
+.../node_modules/better-sqlite3 install: ./src/objects/database.lzz:180:21: warning: variable 'status' set but not used [-Wunused-but-set-variable]
+.../node_modules/better-sqlite3 install: ./src/util/custom-table.lzz: At global scope:
+.../node_modules/better-sqlite3 install: ./src/util/custom-table.lzz:45:9: warning: missing initializer for member 'sqlite3_module::xIntegrity' [-Wmissing-field-initializers]
+.../node_modules/better-sqlite3 install: ./src/util/custom-table.lzz:72:9: warning: missing initializer for member 'sqlite3_module::xIntegrity' [-Wmissing-field-initializers]
+.../node_modules/better-sqlite3 install: ./src/util/data.lzz: In function 'v8::Local<v8::Value> Data::GetValueJS(v8::Isolate*, sqlite3_stmt*, int, bool)':
+.../node_modules/better-sqlite3 install: ./src/util/data.lzz:73:92: warning: this statement may fall through [-Wimplicit-fallthrough=]
+.../node_modules/better-sqlite3 install: ./src/util/data.lzz:73:197: note: here
+.../node_modules/better-sqlite3 install: ./src/util/data.lzz: In function 'v8::Local<v8::Value> Data::GetValueJS(v8::Isolate*, sqlite3_value*, bool)':
+.../node_modules/better-sqlite3 install: ./src/util/data.lzz:77:81: warning: this statement may fall through [-Wimplicit-fallthrough=]
+.../node_modules/better-sqlite3 install: ./src/util/data.lzz:77:175: note: here
+.../node_modules/better-sqlite3 install:   SOLINK_MODULE(target) Release/obj.target/better_sqlite3.node
+.../node_modules/better-sqlite3 install:   COPY Release/better_sqlite3.node
+.../node_modules/better-sqlite3 install:   CC(target) Release/obj.target/test_extension/deps/test_extension.o
+.../node_modules/better-sqlite3 install:   SOLINK_MODULE(target) Release/obj.target/test_extension.node
+.../node_modules/better-sqlite3 install:   COPY Release/test_extension.node
+.../node_modules/better-sqlite3 install: rm ba23eeee118cd63e16015df367567cb043fed872.intermediate
+.../node_modules/better-sqlite3 install: make: Leaving directory '/tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build'
+.../node_modules/better-sqlite3 install: gyp info ok 
+.../node_modules/better-sqlite3 install: Done
+ WARN  Failed to create bin at /tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode/packages/registry/node_modules/.bin/context. ENOENT: no such file or directory, open '/tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode/packages/context/dist/cli.js'
+
+devDependencies:
++ @biomejs/biome 2.3.10
++ @changesets/changelog-github 0.6.0
++ @changesets/cli 2.29.8
++ turbo 2.7.6
+
+. prepare$ npm run build
+packages/context prepare$ npm run build
+. prepare: npm warn Unknown env config "verify-deps-before-run". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+. prepare: npm warn Unknown env config "npm-globalconfig". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+. prepare: npm warn Unknown env config "_jsr-registry". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+packages/context prepare: npm warn Unknown env config "verify-deps-before-run". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+packages/context prepare: npm warn Unknown env config "npm-globalconfig". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+packages/context prepare: npm warn Unknown env config "_jsr-registry". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+packages/context prepare: > @neuledge/context@1.2.3 build
+packages/context prepare: > rimraf --glob dist/** && tsc -p tsconfig.build.json
+. prepare: > build
+. prepare: > turbo build
+. prepare: • turbo 2.7.6
+. prepare: • Packages in scope: @neuledge/context, @neuledge/registry
+. prepare: • Running build in 2 packages
+. prepare: • Remote caching disabled, using shared worktree cache
+. prepare: @neuledge/context:build: cache miss, executing cb5f615c6578b661
+. prepare: @neuledge/context:build: 
+. prepare: @neuledge/context:build: > @neuledge/context@1.2.3 build /tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode/packages/context
+. prepare: @neuledge/context:build: > rimraf --glob dist/** && tsc -p tsconfig.build.json
+. prepare: @neuledge/context:build: 
+packages/context prepare: npm notice
+packages/context prepare: npm notice New major version of npm available! 11.17.0 -> 12.0.2
+packages/context prepare: npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+packages/context prepare: npm notice To update run: npm install -g npm@12.0.2
+packages/context prepare: npm notice
+packages/context prepare: Done
+. prepare: @neuledge/registry:build: cache miss, executing 2e4ac5dde202a032
+. prepare: @neuledge/registry:build: 
+. prepare: @neuledge/registry:build: > @neuledge/registry@0.0.16 build /tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode/packages/registry
+. prepare: @neuledge/registry:build: > rimraf --glob dist/** && tsc -p tsconfig.build.json
+. prepare: @neuledge/registry:build: 
+. prepare:  Tasks:    2 successful, 2 total
+. prepare: Cached:    0 cached, 2 total
+. prepare:   Time:    5.649s 
+. prepare: npm notice
+. prepare: npm notice New major version of npm available! 11.17.0 -> 12.0.2
+. prepare: npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+. prepare: npm notice To update run: npm install -g npm@12.0.2
+. prepare: npm notice
+. prepare: Done
+Done in 1m 46.6s using pnpm v10.27.0
+INSTALL=0
+
+> @ build /tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode
+> turbo build
+
+• turbo 2.7.6
+• Packages in scope: @neuledge/context, @neuledge/registry
+• Running build in 2 packages
+• Remote caching disabled, using shared worktree cache
+@neuledge/context:build: cache hit, replaying logs cb5f615c6578b661
+@neuledge/context:build: 
+@neuledge/context:build: > @neuledge/context@1.2.3 build /tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode/packages/context
+@neuledge/context:build: > rimraf --glob dist/** && tsc -p tsconfig.build.json
+@neuledge/context:build: 
+@neuledge/registry:build: cache hit, replaying logs 2e4ac5dde202a032
+@neuledge/registry:build: 
+@neuledge/registry:build: > @neuledge/registry@0.0.16 build /tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode/packages/registry
+@neuledge/registry:build: > rimraf --glob dist/** && tsc -p tsconfig.build.json
+@neuledge/registry:build: 
+
+ Tasks:    2 successful, 2 total
+Cached:    2 cached, 2 total
+  Time:    45ms >>> FULL TURBO
+
+BUILD=0
+
+> @ test /tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode
+> turbo test
+
+• turbo 2.7.6
+• Packages in scope: @neuledge/context, @neuledge/registry
+• Running test in 2 packages
+• Remote caching disabled, using shared worktree cache
+@neuledge/context:build: cache hit, replaying logs cb5f615c6578b661
+@neuledge/context:build: 
+@neuledge/context:build: > @neuledge/context@1.2.3 build /tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode/packages/context
+@neuledge/context:build: > rimraf --glob dist/** && tsc -p tsconfig.build.json
+@neuledge/context:build: 
+@neuledge/registry:build: cache hit, replaying logs 2e4ac5dde202a032
+@neuledge/registry:build: 
+@neuledge/registry:build: > @neuledge/registry@0.0.16 build /tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode/packages/registry
+@neuledge/registry:build: > rimraf --glob dist/** && tsc -p tsconfig.build.json
+@neuledge/registry:build: 
+@neuledge/context:test: cache miss, executing ca0d28e161c2a146
+@neuledge/registry:test: cache miss, executing af697af10f8d1d07
+@neuledge/context:test: 
+@neuledge/context:test: > @neuledge/context@1.2.3 test /tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode/packages/context
+@neuledge/context:test: > vitest run
+@neuledge/context:test: 
+@neuledge/registry:test: 
+@neuledge/registry:test: > @neuledge/registry@0.0.16 test /tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode/packages/registry
+@neuledge/registry:test: > vitest run
+@neuledge/registry:test: 
+@neuledge/context:test: 
+@neuledge/context:test: [1m[46m RUN [49m[22m [36mv4.0.18 [39m[90m/tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode/packages/context[39m
+@neuledge/context:test: 
+@neuledge/registry:test: 
+@neuledge/registry:test: [1m[46m RUN [49m[22m [36mv4.0.18 [39m[90m/tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode/packages/registry[39m
+@neuledge/registry:test: 
+@neuledge/registry:test:  [32m✓[39m src/version-check.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 35[2mms[22m[39m
+@neuledge/registry:test:  [32m✓[39m src/definition.test.ts [2m([22m[2m30 tests[22m[2m)[22m[32m 56[2mms[22m[39m
+@neuledge/context:test: 
+@neuledge/context:test:   #  /opt/nvm/versions/node/v24.19.0/bin/node[3492]: void node::RemoveEnvironmentCleanupHook(v8::Isolate*, CleanupHook, void*) at ../src/api/hooks.cc:142
+@neuledge/context:test:   #  Assertion failed: (env) != nullptr
+@neuledge/context:test: 
+@neuledge/context:test: ----- Native stack trace -----
+@neuledge/context:test: 
+@neuledge/context:test:  1: 0x921e57 node::Assert(node::AssertionInfo const&) [/opt/nvm/versions/node/v24.19.0/bin/node]
+@neuledge/context:test:  2: 0x80969b node::RemoveEnvironmentCleanupHook(v8::Isolate*, void (*)(void*), void*) [/opt/nvm/versions/node/v24.19.0/bin/node]
+@neuledge/context:test:  3: 0x7f7f845a4d39 Statement::~Statement() [/tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build/Release/better_sqlite3.node]
+@neuledge/context:test:  4: 0x7f7f845a4e75 Statement::~Statement() [/tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode/node_modules/.pnpm/better-sqlite3@11.10.0/node_modules/better-sqlite3/build/Release/better_sqlite3.node]
+@neuledge/context:test:  5: 0xe53ccd  [/opt/nvm/versions/node/v24.19.0/bin/node]
+@neuledge/context:test:  6: 0xf065f4  [/opt/nvm/versions/node/v24.19.0/bin/node]
+@neuledge/context:test:  7: 0xf075e9  [/opt/nvm/versions/node/v24.19.0/bin/node]
+@neuledge/context:test:  8: 0xf0ba60  [/opt/nvm/versions/node/v24.19.0/bin/node]
+@neuledge/context:test:  9: 0x199e0d1  [/opt/nvm/versions/node/v24.19.0/bin/node]
+@neuledge/context:test:  [32m✓[39m src/server.test.ts [2m([22m[2m15 tests[22m[2m)[22m[33m 408[2mms[22m[39m
+@neuledge/context:test:  [32m✓[39m src/build.test.ts [2m([22m[2m28 tests[22m[2m)[22m[32m 71[2mms[22m[39m
+@neuledge/context:test:  [32m✓[39m src/cli.test.ts [2m([22m[2m53 tests[22m[2m)[22m[32m 210[2mms[22m[39m
+@neuledge/context:test:  [32m✓[39m src/store.test.ts [2m([22m[2m30 tests[22m[2m)[22m[32m 87[2mms[22m[39m
+@neuledge/context:test:  [32m✓[39m src/llms-txt.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 33[2mms[22m[39m
+@neuledge/context:test:  [32m✓[39m src/git.test.ts [2m([22m[2m26 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+@neuledge/context:test:  [32m✓[39m src/auth.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+@neuledge/context:test:  [32m✓[39m src/search.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 78[2mms[22m[39m
+@neuledge/context:test:  [32m✓[39m src/server.workflow.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 173[2mms[22m[39m
+@neuledge/context:test: [31m⎯⎯⎯⎯⎯⎯[39m[1m[41m Unhandled Errors [49m[22m[31m⎯⎯⎯⎯⎯⎯[39m
+@neuledge/context:test: [31m[1m
+@neuledge/context:test: Vitest caught 1 unhandled error during the test run.
+@neuledge/context:test: This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.[22m[39m
+@neuledge/context:test: 
+@neuledge/context:test: [31m⎯⎯⎯⎯⎯⎯[39m[1m[41m Unhandled Error [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+@neuledge/context:test: [31m[1mError[22m: [vitest-pool]: Worker forks emitted error.[39m
+@neuledge/context:test: [90m [2m❯[22m EventEmitter.<anonymous> ../../node_modules/.pnpm/vitest@4.0.18_@types+node@24.10.9_tsx@4.21.0_yaml@2.8.2/node_modules/vitest/dist/chunks/cli-api.B7PN_QUv.js:[2m8043:22[22m[39m
+@neuledge/context:test: [90m [2m❯[22m EventEmitter.emit node:events:[2m509:28[22m[39m
+@neuledge/context:test: [90m [2m❯[22m ChildProcess.emitUnexpectedExit ../../node_modules/.pnpm/vitest@4.0.18_@types+node@24.10.9_tsx@4.21.0_yaml@2.8.2/node_modules/vitest/dist/chunks/cli-api.B7PN_QUv.js:[2m7610:22[22m[39m
+@neuledge/context:test: [90m [2m❯[22m ChildProcess.emit node:events:[2m509:28[22m[39m
+@neuledge/context:test: [90m [2m❯[22m Process.ChildProcess._handle.onexit node:internal/child_process:[2m295:12[22m[39m
+@neuledge/context:test: 
+@neuledge/context:test: [31m[1mCaused by: Error[22m: Worker exited unexpectedly[39m
+@neuledge/context:test: [90m [2m❯[22m ChildProcess.emitUnexpectedExit ../../node_modules/.pnpm/vitest@4.0.18_@types+node@24.10.9_tsx@4.21.0_yaml@2.8.2/node_modules/vitest/dist/chunks/cli-api.B7PN_QUv.js:[2m7609:33[22m[39m
+@neuledge/context:test: [90m [2m❯[22m ChildProcess.emit node:events:[2m509:28[22m[39m
+@neuledge/context:test: [90m [2m❯[22m Process.ChildProcess._handle.onexit node:internal/child_process:[2m295:12[22m[39m
+@neuledge/context:test: 
+@neuledge/context:test: [31m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[39m
+@neuledge/context:test: 
+@neuledge/context:test: 
+@neuledge/context:test: [2m Test Files [22m [1m[32m9 passed[39m[22m[90m (10)[39m
+@neuledge/context:test: [2m      Tests [22m [1m[32m187 passed[39m[22m[90m (221)[39m
+@neuledge/context:test: [2m     Errors [22m [1m[31m1 error[39m[22m
+@neuledge/context:test: [2m   Start at [22m 23:31:41
+@neuledge/context:test: [2m   Duration [22m 1.89s[2m (transform 903ms, setup 0ms, import 2.62s, tests 1.07s, environment 1ms)[22m
+@neuledge/context:test: 
+@neuledge/registry:test:  [32m✓[39m src/publish.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 3068[2mms[22m[39m
+@neuledge/registry:test:      [33m[2m✓[22m[39m retries a dropped connection instead of failing the package [33m 3056[2mms[22m[39m
+@neuledge/registry:test: 
+@neuledge/registry:test: [2m Test Files [22m [1m[32m3 passed[39m[22m[90m (3)[39m
+@neuledge/registry:test: [2m      Tests [22m [1m[32m41 passed[39m[22m[90m (41)[39m
+@neuledge/registry:test: [2m   Start at [22m 23:31:41
+@neuledge/registry:test: [2m   Duration [22m 3.51s[2m (transform 273ms, setup 0ms, import 683ms, tests 3.16s, environment 0ms)[22m
+@neuledge/registry:test: 
+@neuledge/context:test: [vitest-pool]: Timeout terminating forks worker for test files /tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode/packages/context/src/package-builder.test.ts.
+@neuledge/context:test:  ELIFECYCLE  Test failed. See above for more details.
+@neuledge/context:test: ERROR: command finished with error: command (/tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode/packages/context) /root/.local/share/pnpm/.tools/pnpm/10.27.0/bin/pnpm run test exited (1)
+@neuledge/context#test: command (/tmp/claude-0/-home-user/a5a72e54-79ce-511a-b773-8b0c5f94d23f/scratchpad/wtnode/packages/context) /root/.local/share/pnpm/.tools/pnpm/10.27.0/bin/pnpm run test exited (1)
+
+ Tasks:    3 successful, 4 total
+Cached:    2 cached, 4 total
+  Time:    11.901s 
+Failed:    @neuledge/context#test
+
+ ERROR  run failed: command  exited (1)
+ ELIFECYCLE  Test failed. See above for more details.
+TEST=1
