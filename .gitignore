@@ -11,3 +11,6 @@ node_modules
 # sensitive stuff
 .env
 .mcpregistry_*
+
+# Scratch logs from local verification runs
+*.log
