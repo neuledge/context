@@ -474,7 +474,11 @@ function findMarkdownFiles(
           const matchingExt = DOCUMENTATION_EXTENSIONS.find((ext) =>
             lowerName.endsWith(ext),
           );
-          if (matchingExt) {
+          // Only at the scan root: these names mean repo housekeeping there, but
+          // deeper in a docs tree they are ordinary pages — forgejo's
+          // docs/admin/actions/security.md documents Actions security, and was
+          // being dropped as if it were a SECURITY.md policy file.
+          if (matchingExt && basePath === "") {
             const baseName = lowerName.slice(0, -matchingExt.length);
             if (IGNORED_FILES.has(baseName)) continue;
           }
