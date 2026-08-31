@@ -57,7 +57,7 @@
     "zod": "^4.3.6"
   },
   "optionalDependencies": {
-    "better-sqlite3": "^11.9.1"
+    "better-sqlite3": "^13.0.3"
   },
   "devDependencies": {
     "@total-typescript/tsconfig": "^1.0.4",
