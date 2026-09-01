@@ -73,6 +73,7 @@ jobs:
           # two arrived and went unnoticed for two days.
           prs=$(api "https://api.github.com/repos/$REPO/pulls?state=open&per_page=50")
           expect_array "$prs" "open pull requests"
+          pr_count=$(echo "$prs" | jq '[.[] | select(.draft==false)] | length')
           stale=""
           for n in $(echo "$prs" | jq -r '.[] | select(.draft == false) | .number'); do
             opened=$(echo "$prs" | jq -r --argjson n "$n" '.[] | select(.number==$n) | .created_at')
@@ -117,6 +118,12 @@ jobs:
             findings="${findings}**Release drift**"$'\n'
             findings="${findings}- \`packages/context/package.json\` is ${local_v}, npm latest is ${npm_v}"$'\n\n'
           fi
+
+          # An all-clear has to show its work. "Nothing outstanding" with no
+          # detail is indistinguishable from a check that silently did nothing,
+          # which is the failure this workflow exists to replace.
+          echo "Examined ${pr_count} open PR(s); ${failed} of the last 7 scheduled" \
+               "registry runs failed (latest: ${latest}); version ${local_v} vs npm ${npm_v}."
 
           {
             echo "findings<<SWEEP_EOF"
