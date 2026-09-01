@@ -1,5 +1,11 @@
 # @neuledge/context
 
+## 1.2.4
+
+### Patch Changes
+
+- [#127](https://github.com/neuledge/context/pull/127) [`cc56537`](https://github.com/neuledge/context/commit/cc56537ec214376c7f47edb9f2e110d92d3b027d) Thanks [@moshest](https://github.com/moshest)! - Update the optional `better-sqlite3` dependency to 13.x. It ships its own prebuilt binaries, so installing no longer compiles it from source, and it works on Node 24 — which 11.x did not.
+
 ## 1.2.3
 
 ### Patch Changes
