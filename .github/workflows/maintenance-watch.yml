@@ -1,0 +1,163 @@
+name: Maintenance Watch
+
+# Notices the things that rot quietly: contributor PRs nobody answered, a
+# nightly publish that failed, and a release that was merged but never
+# published. Detection only — it opens or updates one tracking issue and
+# never changes code.
+#
+# Why this exists as a workflow rather than a scheduled agent session: an
+# agent Routine only inherits repository access and connectors the creating
+# session can pass on, and a session started without them fires every morning
+# into an empty container and does nothing — silently, which is the worst
+# possible failure mode for a watchdog. A workflow has GITHUB_TOKEN natively.
+
+on:
+  schedule:
+    # 07:20 UTC — after the 06:00 registry update, so its result is available.
+    - cron: '20 7 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  watch:
+    name: Check for unattended work
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+      issues: write
+
+    steps:
+      - name: Checkout (only the manifest, for the version comparison)
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: packages/context/package.json
+          sparse-checkout-cone-mode: false
+
+      - name: Collect findings
+        id: collect
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          api() { curl -sS -H "Authorization: Bearer $GH_TOKEN" \
+                       -H "Accept: application/vnd.github+json" "$@"; }
+
+          # A watchdog that reports "nothing outstanding" because a call failed
+          # is worse than no watchdog. Every response is shape-checked, and an
+          # unexpected one fails the job so the red run is the alarm.
+          expect_array() {
+            if ! echo "$1" | jq -e 'type == "array"' > /dev/null 2>&1; then
+              echo "::error::$2 did not return a JSON array:" >&2
+              echo "$1" | head -c 400 >&2
+              exit 1
+            fi
+          }
+          expect_object() {
+            if ! echo "$1" | jq -e 'type == "object"' > /dev/null 2>&1; then
+              echo "::error::$2 did not return a JSON object:" >&2
+              echo "$1" | head -c 400 >&2
+              exit 1
+            fi
+          }
+
+          findings=""
+
+          # --- Open PRs with no human reply -----------------------------------
+          # A contributor PR that sits unanswered is the failure we actually hit:
+          # two arrived and went unnoticed for two days.
+          prs=$(api "https://api.github.com/repos/$REPO/pulls?state=open&per_page=50")
+          expect_array "$prs" "open pull requests"
+          stale=""
+          for n in $(echo "$prs" | jq -r '.[] | select(.draft == false) | .number'); do
+            opened=$(echo "$prs" | jq -r --argjson n "$n" '.[] | select(.number==$n) | .created_at')
+            age=$(( ( $(date -u +%s) - $(date -u -d "$opened" +%s) ) / 86400 ))
+            if [ "$age" -lt 2 ]; then continue; fi
+            # Any comment not written by a bot counts as attention.
+            comments=$(api "https://api.github.com/repos/$REPO/issues/$n/comments?per_page=100")
+            expect_array "$comments" "comments on #$n"
+            human=$(echo "$comments" | jq '[.[] | select(.user.type != "Bot")] | length')
+            if [ "$human" -eq 0 ]; then
+              title=$(echo "$prs" | jq -r --argjson n "$n" '.[] | select(.number==$n) | .title')
+              stale="${stale}- #${n} \"${title}\" — open ${age}d, no reply"$'\n'
+            fi
+          done
+          if [ -n "$stale" ]; then
+            findings="${findings}**Pull requests waiting on a reply**"$'\n'"${stale}"$'\n'
+          fi
+
+          # --- Nightly registry publish ---------------------------------------
+          # Checks the last 7 scheduled runs, not just the latest. A failure can
+          # disappear on its own because `--since 2` stops selecting the broken
+          # version once it ages out — the run goes green while the cause remains.
+          runs=$(api "https://api.github.com/repos/$REPO/actions/workflows/registry-update.yml/runs?event=schedule&per_page=7")
+          expect_object "$runs" "registry-update runs"
+          failed=$(echo "$runs" | jq '[.workflow_runs[] | select(.conclusion=="failure")] | length')
+          latest=$(echo "$runs" | jq -r '.workflow_runs[0].conclusion // "unknown"')
+          if [ "$failed" -gt 0 ]; then
+            findings="${findings}**Nightly registry publish**"$'\n'
+            findings="${findings}- ${failed} of the last 7 scheduled runs failed (most recent run: ${latest})"$'\n'
+            if [ "$latest" = "success" ]; then
+              findings="${findings}- Latest is green, but that can be the \`--since\` window moving past a broken package rather than a fix. Check the failing run's summary."$'\n'
+            fi
+            findings="${findings}"$'\n'
+          fi
+
+          # --- Release drift ---------------------------------------------------
+          # A changeset can merge and still never publish. That happened once and
+          # left a security fix sitting in main looking done.
+          local_v=$(jq -r .version packages/context/package.json 2>/dev/null || echo "")
+          npm_v=$(curl -sS https://registry.npmjs.org/@neuledge/context | jq -r '."dist-tags".latest' || echo "")
+          if [ -n "$local_v" ] && [ -n "$npm_v" ] && [ "$local_v" != "$npm_v" ]; then
+            findings="${findings}**Release drift**"$'\n'
+            findings="${findings}- \`packages/context/package.json\` is ${local_v}, npm latest is ${npm_v}"$'\n\n'
+          fi
+
+          {
+            echo "findings<<SWEEP_EOF"
+            echo "$findings"
+            echo "SWEEP_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Open or update the tracking issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          FINDINGS: ${{ steps.collect.outputs.findings }}
+        run: |
+          set -euo pipefail
+          api() { curl -sS -H "Authorization: Bearer $GH_TOKEN" \
+                       -H "Accept: application/vnd.github+json" "$@"; }
+          TITLE="Maintenance watch: items needing attention"
+
+          existing=$(api "https://api.github.com/repos/$REPO/issues?state=open&per_page=50" \
+                     | jq -r --arg t "$TITLE" '[.[] | select(.title==$t) | .number] | first // empty')
+
+          if [ -z "${FINDINGS//[[:space:]]/}" ]; then
+            if [ -n "$existing" ]; then
+              api -X PATCH "https://api.github.com/repos/$REPO/issues/$existing" \
+                  -d '{"state":"closed","state_reason":"completed"}' > /dev/null
+              echo "Nothing outstanding — closed #$existing."
+            else
+              echo "Nothing outstanding."
+            fi
+            exit 0
+          fi
+
+          stamp="Refreshed by maintenance-watch.yml on $(date -u +%Y-%m-%d). This issue closes itself once every item above clears."
+          body=$(printf '%s\n\n%s\n' "$FINDINGS" "$stamp" | jq -Rs .)
+
+          if [ -n "$existing" ]; then
+            api -X PATCH "https://api.github.com/repos/$REPO/issues/$existing" \
+                -d "{\"body\":$body}" > /dev/null
+            echo "Updated #$existing."
+          else
+            api -X POST "https://api.github.com/repos/$REPO/issues" \
+                -d "{\"title\":\"$TITLE\",\"body\":$body}" > /dev/null
+            echo "Opened a new tracking issue."
+          fi
