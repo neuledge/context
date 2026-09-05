@@ -187,31 +187,27 @@ export function loadDefinition(
 
 /**
  * Scan the registry/ directory and load all definitions.
- * Supports scoped packages via @scope subdirectories (e.g., npm/@trpc/server.yaml).
+ * Recurses into subdirectories, so a package name may contain slashes:
+ * npm/@trpc/server.yaml and go/github.com/spf13/cobra.yaml both work.
  */
 export function listDefinitions(registryDir: string): PackageDefinition[] {
   const definitions: PackageDefinition[] = [];
 
-  for (const manager of readdirSync(registryDir, { withFileTypes: true })) {
-    if (!manager.isDirectory()) continue;
-
-    const managerDir = join(registryDir, manager.name);
-    for (const entry of readdirSync(managerDir, { withFileTypes: true })) {
-      if (entry.isFile() && entry.name.endsWith(".yaml")) {
-        definitions.push(
-          loadDefinition(join(managerDir, entry.name), managerDir),
-        );
-      } else if (entry.isDirectory() && entry.name.startsWith("@")) {
-        // Scoped package directory (e.g., @trpc/)
-        const scopeDir = join(managerDir, entry.name);
-        for (const file of readdirSync(scopeDir, { withFileTypes: true })) {
-          if (!file.isFile() || !file.name.endsWith(".yaml")) continue;
-          definitions.push(
-            loadDefinition(join(scopeDir, file.name), managerDir),
-          );
-        }
+  const walk = (dir: string, managerDir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(full, managerDir);
+      } else if (entry.isFile() && entry.name.endsWith(".yaml")) {
+        definitions.push(loadDefinition(full, managerDir));
       }
     }
+  };
+
+  for (const manager of readdirSync(registryDir, { withFileTypes: true })) {
+    if (!manager.isDirectory()) continue;
+    const managerDir = join(registryDir, manager.name);
+    walk(managerDir, managerDir);
   }
 
   return definitions.sort((a, b) =>

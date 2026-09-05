@@ -220,6 +220,22 @@ describe("listDefinitions", () => {
     expect(defs[1].registry).toBe("pip");
   });
 
+  it("discovers a definition nested several directories deep", () => {
+    // Every Go module path contains slashes, so its definition file lands at
+    // go/github.com/spf13/cobra.yaml. Before the walk became recursive, this
+    // file was never loaded and the build exited 0 with no warning.
+    mkdirSync(join(tempDir, "go", "github.com", "spf13"), { recursive: true });
+    writeFileSync(
+      join(tempDir, "go", "github.com", "spf13", "cobra.yaml"),
+      'name: github.com/spf13/cobra\nversions:\n  - min_version: "1.8.0"\n    tag_pattern: "v{version}"\n    source:\n      type: git\n      url: https://github.com/spf13/cobra\n',
+    );
+
+    const defs = listDefinitions(tempDir);
+    expect(defs).toHaveLength(1);
+    expect(defs[0].name).toBe("github.com/spf13/cobra");
+    expect(defs[0].registry).toBe("go");
+  });
+
   it("discovers scoped packages in @scope subdirectories", () => {
     mkdirSync(join(tempDir, "npm"));
     mkdirSync(join(tempDir, "npm", "@trpc"), { recursive: true });

@@ -1,0 +1,11 @@
+name: github.com/spf13/cobra
+description: "A Commander for modern Go CLI interactions"
+repository: https://github.com/spf13/cobra
+
+versions:
+  - min_version: "1.8.0"
+    tag_pattern: "v{version}"
+    source:
+      type: git
+      url: https://github.com/spf13/cobra
+      docs_path: site/content
