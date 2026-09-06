@@ -1,0 +1,8 @@
+name: ci-probe-delete-me
+description: "Temporary probe: points at a branch that does not exist. Registry Validate must go red on this. Reverted in the next commit."
+repository: https://github.com/godotengine/godot-docs
+source:
+  type: git
+  url: https://github.com/godotengine/godot-docs
+  ref: this-branch-does-not-exist-xyz
+  docs_path: tutorials/scripting/gdscript
