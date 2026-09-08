@@ -7,6 +7,7 @@
  */
 
 import { inflateRawSync } from "node:zlib";
+import { compileGlob } from "./glob.js";
 
 const DOCUMENTATION_EXTENSIONS = [
   ".md",
@@ -97,19 +98,6 @@ export async function downloadAndExtractZip(
   }
 
   return files;
-}
-
-/**
- * Compile a simple glob pattern to a RegExp.
- * Supports * (any chars except /) and ** (any chars including /).
- */
-function compileGlob(pattern: string): RegExp {
-  const escaped = pattern
-    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
-    .replace(/\*\*/g, "\0")
-    .replace(/\*/g, "[^/]*")
-    .replace(/\0/g, ".*");
-  return new RegExp(`^${escaped}$`);
 }
 
 /** Get lowercase file extension including the dot. */

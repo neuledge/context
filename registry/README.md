@@ -92,6 +92,29 @@ versions:
 >
 > Outside those four directories, use **unversioned** or **versioned-by-zip**.
 
+## Excluding parts of a source
+
+`docs_path` narrows a source to one directory. When the directory you need also holds
+material that belongs to a different package, `exclude_paths` prunes it:
+
+```yaml
+source:
+  type: git
+  url: https://github.com/godotengine/godot-docs
+  ref: stable
+  exclude_paths:
+    - "tutorials/scripting/c_sharp/**"
+```
+
+Patterns are glob-style — `*` matches within a path segment, `**` across segments — and
+are matched against the path **relative to `docs_path`** when one is set, or to the
+repository root when it is not. Excluding everything is an error rather than an empty
+package.
+
+Reach for this when a wider `docs_path` would drag in a sibling language or framework
+that then outranks the docs you actually want; prefer narrowing `docs_path` when the
+content you want is already isolated in its own directory.
+
 ## Supported documentation formats
 
 Markdown (`.md`, `.mdx`), HTML, AsciiDoc (`.adoc`) and reStructuredText (`.rst`).

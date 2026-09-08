@@ -35,6 +35,7 @@ const GitSourceSchema = z.object({
    */
   ref: z.string().optional(),
   docs_path: z.string().optional(),
+  exclude_paths: z.array(z.string()).optional(), // glob patterns to exclude
   lang: z.string().default("en"),
 });
 

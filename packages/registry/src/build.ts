@@ -24,6 +24,7 @@ import {
   type UnversionedDefinition,
   type VersionedDefinition,
 } from "./definition.js";
+import { excludeFiles } from "./glob.js";
 import { downloadAndExtractZip } from "./zip.js";
 
 export interface RegistryBuildResult extends BuildResult {
@@ -82,6 +83,7 @@ export async function buildFromDefinition(
       entry.source.url,
       constructTag(entry.tag_pattern, version),
       entry.source.docs_path,
+      entry.source.exclude_paths,
       entry.source.lang,
       outputPath,
       definition,
@@ -172,10 +174,16 @@ export async function buildUnversioned(
       stdio: ["pipe", "pipe", "pipe"],
     }).trim();
 
-    const files = readLocalDocsFiles(tempDir, {
-      path: source.docs_path,
-      lang: source.lang,
-    });
+    // Filter before the emptiness check, so an over-broad exclude_paths fails
+    // loudly here instead of publishing an empty package.
+    const files = excludeFiles(
+      readLocalDocsFiles(tempDir, {
+        path: source.docs_path,
+        lang: source.lang,
+      }),
+      source.exclude_paths,
+      source.docs_path,
+    );
 
     if (files.length === 0) {
       throw new Error(
@@ -208,6 +216,7 @@ function buildFromGit(
   url: string,
   tag: string,
   docsPath: string | undefined,
+  excludePaths: string[] | undefined,
   lang: string,
   outputPath: string,
   definition: VersionedDefinition,
@@ -216,7 +225,13 @@ function buildFromGit(
   const { tempDir, cleanup } = cloneRepository(url, tag);
 
   try {
-    const files = readLocalDocsFiles(tempDir, { path: docsPath, lang });
+    // Filter before the emptiness check, so an over-broad exclude_paths fails
+    // loudly here instead of publishing an empty package.
+    const files = excludeFiles(
+      readLocalDocsFiles(tempDir, { path: docsPath, lang }),
+      excludePaths,
+      docsPath,
+    );
 
     if (files.length === 0) {
       throw new Error(`No documentation files found in ${url} at tag ${tag}`);
