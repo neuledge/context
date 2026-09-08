@@ -171,6 +171,31 @@ versions:
     expect(def.versions[0].tag_pattern).toBe("@trpc/server@{version}");
   });
 
+  it("accepts a scoped path that uses backslash separators", () => {
+    // On Windows relative() returns "@apollo\\client", which never matched the
+    // "@apollo/client" in the file, so listDefinitions() threw for every scoped
+    // definition. Reproduced here by putting a literal backslash in the filename:
+    // on Linux that is one filename rather than a separator, but the string
+    // reaching the comparison is byte-identical to what Windows produces.
+    const yaml = `
+name: "@apollo/client"
+description: "Apollo Client"
+source:
+  type: git
+  url: https://github.com/apollographql/apollo-client
+  docs_path: docs
+`;
+    const npmDir = join(tempDir, "npm");
+    mkdirSync(npmDir, { recursive: true });
+    const filePath = join(npmDir, "@apollo\\client.yaml");
+    writeFileSync(filePath, yaml);
+
+    const def = loadDefinition(filePath, npmDir);
+
+    expect(def.name).toBe("@apollo/client");
+    expect(def.registry).toBe("npm");
+  });
+
   it("throws when scoped name doesn't match path", () => {
     const yaml = `
 name: "@trpc/client"

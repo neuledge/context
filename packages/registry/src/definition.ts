@@ -167,8 +167,15 @@ export function loadDefinition(
   // Derive expected name from relative path within managerDir
   // e.g., npm/@trpc/server.yaml → @trpc/server
   // e.g., npm/next.yaml → next
+  //
+  // relative() returns platform separators, so on Windows a scoped definition
+  // yields "@apollo\\client" and never matches the "@apollo/client" in the file.
+  // Normalising unconditionally rather than only when sep is "\\" keeps one code
+  // path on every platform, so Linux CI exercises the same comparison Windows does.
   const expectedName = managerDir
-    ? relative(managerDir, filePath).replace(/\.yaml$/, "")
+    ? relative(managerDir, filePath)
+        .replace(/\.yaml$/, "")
+        .replaceAll("\\", "/")
     : basename(filePath, ".yaml");
 
   // Allow filesystem-safe encoding: colons in names are replaced with underscores
