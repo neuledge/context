@@ -1,12 +1,10 @@
 #!/usr/bin/env node
 
 import {
-  copyFileSync,
   createWriteStream,
   existsSync,
   mkdirSync,
   readdirSync,
-  renameSync,
   statSync,
   unlinkSync,
 } from "node:fs";
@@ -55,6 +53,7 @@ import {
   buildPackage,
   type MarkdownFile,
 } from "./package-builder.js";
+import { copyPackageFile, createPackageTempFile } from "./package-file.js";
 import { type SearchResult, search } from "./search.js";
 import { ContextServer } from "./server.js";
 import {
@@ -497,7 +496,7 @@ function savePackageCopy(
     destPath = join(resolvedSavePath, getPackageFileName(packageName, version));
   }
 
-  copyFileSync(sourcePath, destPath);
+  copyPackageFile(sourcePath, destPath);
   console.log(`✓ Saved to ${destPath}`);
 }
 
@@ -507,13 +506,13 @@ function ensureDataDir(): void {
 }
 
 /** Load all packages from the data directory into the store. */
-function loadPackages(store: PackageStore): void {
-  if (!existsSync(DATA_DIR)) return;
+export function loadPackages(store: PackageStore, directory = DATA_DIR): void {
+  if (!existsSync(directory)) return;
 
-  for (const file of readdirSync(DATA_DIR)) {
-    if (!file.endsWith(".db")) continue;
+  for (const file of readdirSync(directory)) {
+    if (!file.endsWith(".db") || file.startsWith(".downloading-")) continue;
     try {
-      const info = readPackageInfo(join(DATA_DIR, file));
+      const info = readPackageInfo(join(directory, file));
       store.add(info);
     } catch {
       // Skip invalid packages
@@ -648,7 +647,7 @@ function addFromFile(source: string, options: { save?: string }): void {
   const destPath = join(DATA_DIR, destName);
 
   if (resolve(sourcePath) !== destPath) {
-    copyFileSync(sourcePath, destPath);
+    copyPackageFile(sourcePath, destPath);
     console.log(`✓ Copied to ${destPath}`);
     info.path = destPath;
   }
@@ -668,47 +667,26 @@ async function addFromUrl(
 ): Promise<void> {
   console.log(`Downloading ${url}...`);
 
-  // Extract filename from URL for temp file
-  const urlObj = new URL(url);
-  const filename = basename(urlObj.pathname) || "package.db";
-
   // Download to temp location first
   ensureDataDir();
-  const tempPath = join(DATA_DIR, `.downloading-${Date.now()}-${filename}`);
+  const temp = createPackageTempFile(DATA_DIR);
 
   try {
-    await downloadFile(url, tempPath);
+    await downloadFile(url, temp.path);
     console.log(`✓ Downloaded`);
 
     // Validate the package
-    const info = readPackageInfo(tempPath);
+    const info = temp.install();
     console.log(`✓ Validated package`);
-
-    // Move to final location
-    const destName = getPackageFileName(info.name, info.version);
-    const destPath = join(DATA_DIR, destName);
-
-    // Remove old version if it exists
-    if (existsSync(destPath)) {
-      unlinkSync(destPath);
-    }
-
-    // Rename temp to final
-    renameSync(tempPath, destPath);
-    info.path = destPath;
 
     // Save to custom path if specified
     if (options.save) {
-      savePackageCopy(destPath, options.save, info.name, info.version);
+      savePackageCopy(info.path, options.save, info.name, info.version);
     }
 
     reportInstalled(info);
-  } catch (err) {
-    // Clean up temp file on error
-    if (existsSync(tempPath)) {
-      unlinkSync(tempPath);
-    }
-    throw err;
+  } finally {
+    temp.cleanup();
   }
 }
 

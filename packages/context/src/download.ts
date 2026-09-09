@@ -2,21 +2,12 @@
  * Download and install documentation packages from a registry server.
  */
 
-import {
-  createWriteStream,
-  existsSync,
-  mkdirSync,
-  renameSync,
-  unlinkSync,
-} from "node:fs";
+import { createWriteStream, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
-import {
-  getPackageFileName,
-  type PackageInfo,
-  readPackageInfo,
-} from "./store.js";
+import { createPackageTempFile } from "./package-file.js";
+import type { PackageInfo } from "./store.js";
 
 const DATA_DIR = join(homedir(), ".context", "packages");
 
@@ -75,37 +66,18 @@ export async function downloadPackage(
 
   // Download to a temp file first, then validate and move
   mkdirSync(DATA_DIR, { recursive: true });
-  const safeName = name.replaceAll("/", "__");
-  const tempPath = join(DATA_DIR, `.downloading-${Date.now()}-${safeName}.db`);
+  const temp = createPackageTempFile(DATA_DIR);
 
   try {
-    const fileStream = createWriteStream(tempPath);
+    const fileStream = createWriteStream(temp.path);
     const { Readable } = await import("node:stream");
     const nodeStream = Readable.fromWeb(
       response.body as import("stream/web").ReadableStream,
     );
     await pipeline(nodeStream, fileStream);
 
-    // Validate the package
-    const info = readPackageInfo(tempPath);
-
-    // Move to final location
-    const destPath = join(
-      DATA_DIR,
-      getPackageFileName(info.name, info.version),
-    );
-
-    if (existsSync(destPath)) {
-      unlinkSync(destPath);
-    }
-    renameSync(tempPath, destPath);
-    info.path = destPath;
-
-    return info;
-  } catch (err) {
-    if (existsSync(tempPath)) {
-      unlinkSync(tempPath);
-    }
-    throw err;
+    return temp.install();
+  } finally {
+    temp.cleanup();
   }
 }
