@@ -1,9 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   findLatestStableVersion,
   isMissingRefError,
   isTransientGitError,
   parseMonorepoTag,
+  readLocalDocsFiles,
 } from "./git.js";
 
 describe("isTransientGitError", () => {
@@ -187,5 +191,44 @@ describe("findLatestStableVersion", () => {
       const tags = ["v1.2.3", "v1.2.10", "v1.2.9"];
       expect(findLatestStableVersion(tags)).toBe("v1.2.10");
     });
+  });
+});
+
+describe("readLocalDocsFiles — repo-meta filenames", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "ctx-localdocs-"));
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const write = (rel: string, body: string): void => {
+    const full = join(dir, rel);
+    mkdirSync(join(full, ".."), { recursive: true });
+    writeFileSync(full, body);
+  };
+
+  it("skips repo-meta files at the scan root", () => {
+    write("security.md", "# Security policy\n\nReport issues to us.\n");
+    write("license.md", "# License\n\nMIT.\n");
+    write("guide.md", "# Guide\n\nContent.\n");
+
+    const paths = readLocalDocsFiles(dir).map((f) => f.path);
+
+    expect(paths).toEqual(["guide.md"]);
+  });
+
+  it("keeps a documentation page that merely shares a repo-meta filename", () => {
+    write(
+      "admin/actions/security.md",
+      "# Securing Actions\n\nThe default value of valid_volumes is an empty array.\n",
+    );
+
+    const paths = readLocalDocsFiles(dir).map((f) => f.path);
+
+    expect(paths).toEqual(["admin/actions/security.md"]);
   });
 });
