@@ -4,6 +4,7 @@ dist-packages
 dist-test
 node_modules
 .turbo
+**/.cache/context/html-index
 
 # system specific
 .DS_Store

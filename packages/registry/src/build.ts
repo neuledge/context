@@ -5,7 +5,7 @@
  * to clone repos, read docs, and build SQLite packages.
  *
  * Supports both versioned (clone at specific tag) and unversioned
- * (clone default branch) definitions. Supports git and zip sources.
+ * (clone default branch) definitions. Supports git, zip and HTML index sources.
  */
 
 import { execSync } from "node:child_process";
@@ -25,6 +25,7 @@ import {
   type VersionedDefinition,
 } from "./definition.js";
 import { excludeFiles } from "./glob.js";
+import { downloadHtmlIndex } from "./html-index.js";
 import { downloadAndExtractZip } from "./zip.js";
 
 export interface RegistryBuildResult extends BuildResult {
@@ -91,19 +92,22 @@ export async function buildFromDefinition(
     );
   }
 
-  // Zip source: resolve URL template and download
+  // Explicit releases download an archive or a pinned HTML index.
   const url = resolveUrl(entry.source.url, version);
-  const docsPath = entry.source.docs_path
-    ? resolveUrl(entry.source.docs_path, version)
-    : undefined;
-
-  const files = await downloadAndExtractZip(url, {
-    docsPath,
-    excludePaths: entry.source.exclude_paths,
-  });
+  const files =
+    entry.source.type === "html-index"
+      ? await downloadHtmlIndex(entry.source, version)
+      : await downloadAndExtractZip(url, {
+          docsPath: entry.source.docs_path
+            ? resolveUrl(entry.source.docs_path, version)
+            : undefined,
+          excludePaths: entry.source.exclude_paths,
+        });
 
   if (files.length === 0) {
-    throw new Error(`No documentation files found in ZIP from ${url}`);
+    throw new Error(
+      `No documentation files found in ${entry.source.type} source from ${url}`,
+    );
   }
 
   const result = buildPackage(outputPath, files, {

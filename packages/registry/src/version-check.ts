@@ -8,8 +8,8 @@
 import pRetry, { AbortError } from "p-retry";
 import {
   compareSemver,
+  isExplicitVersionEntry,
   isVersioned,
-  isZipVersionEntry,
   type PackageDefinition,
   resolveVersionEntry,
 } from "./definition.js";
@@ -61,12 +61,12 @@ export async function discoverVersions(
   }
 
   const fetcher = registryFetchers[definition.registry];
-  if (!fetcher) {
+  if (!fetcher || definition.versions.every(isExplicitVersionEntry)) {
     // For registries without API fetchers (e.g., python, java),
-    // extract versions from zip version entries directly
+    // explicit ZIP/HTML releases do not require a package-manager API.
     const explicitVersions: AvailableVersion[] = [];
     for (const entry of definition.versions) {
-      if (isZipVersionEntry(entry)) {
+      if (isExplicitVersionEntry(entry)) {
         for (const v of entry.versions) {
           explicitVersions.push({
             name: definition.name,

@@ -1,0 +1,12 @@
+name: systemd
+description: "systemd reference manuals: services, units, systemctl, journalctl, networking, and APIs"
+repository: https://github.com/systemd/systemd
+
+versions:
+  - versions: ["258"]
+    source:
+      type: html-index
+      url: "https://www.freedesktop.org/software/systemd/man/{version}/"
+      exclude_paths:
+        - "index.html"
+        - "systemd.directives.html"
