@@ -141,4 +141,115 @@ describe("search", () => {
 
     expect(result.results).toHaveLength(1);
   });
+
+  it.each([
+    '"ExecStart',
+    'ExecStart"',
+    '"""ExecStart',
+    '"ExecStart"',
+    '"" ExecStart',
+    '"!!!" ExecStart',
+    "ExecStart=",
+    "(ExecStart*)",
+  ])("searches literal terms in %j", (topic) => {
+    insertChunk(db, {
+      docPath: "man/systemd.service.html",
+      docTitle: "Service",
+      sectionTitle: "Commands",
+      content: "ExecStart sets the command to execute when a service starts.",
+      tokens: 20,
+    });
+    rebuildFtsIndex(db);
+
+    expect(search(db, topic).results.map((r) => r.source)).toEqual([
+      "man/systemd.service.html",
+    ]);
+  });
+
+  it.each([
+    "AND",
+    "OR",
+    "NOT",
+    "NEAR",
+  ])("treats %s as a literal word, alone and between keywords", (word) => {
+    insertChunk(db, {
+      docPath: "docs/operators.md",
+      docTitle: "Operators",
+      sectionTitle: "Example",
+      content: `ExecStart service example containing the literal word ${word}.`,
+      tokens: 20,
+    });
+    insertChunk(db, {
+      docPath: "docs/service.md",
+      docTitle: "Service",
+      sectionTitle: "Commands",
+      content: "ExecStart service example without the operator word.",
+      tokens: 20,
+    });
+    rebuildFtsIndex(db);
+
+    for (const topic of [word, `ExecStart ${word} service`]) {
+      expect(search(db, topic).results.map((r) => r.source)).toEqual([
+        "docs/operators.md",
+      ]);
+    }
+  });
+
+  it.each([
+    "",
+    " \t\n",
+    '"',
+    '""',
+    "= -- . () : * +",
+    '"!!!"',
+    "___",
+  ])("returns no results for a topic without words: %j", (topic) => {
+    rebuildFtsIndex(db);
+    expect(search(db, topic).results).toEqual([]);
+  });
+
+  it("requires adjacent words only inside paired double quotes", () => {
+    for (const [docPath, content] of [
+      ["docs/phrase.md", "Rendering server components is useful."],
+      ["docs/keywords.md", "Rendering components on the server is useful."],
+    ] as const) {
+      insertChunk(db, {
+        docPath,
+        docTitle: "Rendering",
+        sectionTitle: "Overview",
+        content,
+        tokens: 20,
+      });
+    }
+    rebuildFtsIndex(db);
+
+    expect(
+      search(db, '"server components" rendering').results.map((r) => r.source),
+    ).toEqual(["docs/phrase.md"]);
+    for (const topic of [
+      "server components rendering",
+      '"server components rendering',
+    ]) {
+      expect(
+        search(db, topic)
+          .results.map((r) => r.source)
+          .sort(),
+      ).toEqual(["docs/keywords.md", "docs/phrase.md"]);
+    }
+  });
+
+  it.each(["café", "日本語"])("preserves Unicode keywords: %s", (topic) => {
+    insertChunk(db, {
+      docPath: "docs/unicode.md",
+      docTitle: "Unicode",
+      sectionTitle: "Examples",
+      content: "Unicode examples include café and 日本語.",
+      tokens: 20,
+    });
+    rebuildFtsIndex(db);
+
+    expect(search(db, topic).results.map((r) => r.source)).toEqual([
+      "docs/unicode.md",
+    ]);
+  });
 });

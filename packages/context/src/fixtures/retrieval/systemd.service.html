@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head><title>systemd.service</title></head>
+<body>
+<h1>systemd.service</h1>
+<h2>ExecStart</h2>
+<p>ExecStart= specifies the command to execute when a service starts.
+Place ExecStart in the Service section of a unit file. This example starts
+an application after the network is available.</p>
+<pre><code class="language-ini">[Unit]
+Description=Example application
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/example --serve
+Restart=on-failure
+</code></pre>
+</body>
+</html>
