@@ -1,0 +1,9 @@
+name: systemd-guides
+description: "systemd architecture, integration, and developer guides; reference manuals are in systemd/systemd"
+repository: https://github.com/systemd/systemd
+
+source:
+  type: git
+  url: https://github.com/systemd/systemd
+  ref: v258
+  docs_path: docs

@@ -15,8 +15,8 @@ import {
   getHeadCommit,
 } from "./build.js";
 import {
+  isExplicitVersionEntry,
   isVersioned,
-  isZipVersionEntry,
   listDefinitions,
 } from "./definition.js";
 import { checkPackageExists, publishPackage } from "./publish.js";
@@ -60,7 +60,7 @@ program
       if (isVersioned(def)) {
         const ranges = def.versions
           .map((v) => {
-            if (isZipVersionEntry(v)) {
+            if (isExplicitVersionEntry(v)) {
               return v.versions.join(", ");
             }
             return `${v.min_version}${v.max_version ? `-${v.max_version}` : "+"}`;
