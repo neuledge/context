@@ -164,6 +164,72 @@ describe("discoverVersions", () => {
     );
   });
 
+  it("fetches go versions from the module proxy and strips the v prefix", async () => {
+    const goDef: VersionedDefinition = {
+      ...mockDefinition,
+      name: "github.com/spf13/cobra",
+      registry: "go",
+    };
+
+    const mockFetch = vi.mocked(fetch);
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      text: async () => "v1.10.2\nv1.9.1\nv1.8.1\n",
+    } as Response);
+
+    const versions = await discoverVersions(goDef);
+
+    // The shared isPrerelease() reads a leading "v" as a prerelease tag and
+    // discards the version, and compareSemver() returns NaN for it, so every
+    // Go version would vanish if the prefix survived this far.
+    expect(versions.map((v) => v.version)).toEqual([
+      "1.10.2",
+      "1.9.1",
+      "1.8.1",
+    ]);
+    expect(mockFetch).toHaveBeenCalledWith(
+      "https://proxy.golang.org/github.com/spf13/cobra/@v/list",
+    );
+  });
+
+  it("escapes uppercase letters in a go module path, and only those", async () => {
+    const goDef: VersionedDefinition = {
+      ...mockDefinition,
+      name: "github.com/BurntSushi/toml",
+      registry: "go",
+    };
+
+    const mockFetch = vi.mocked(fetch);
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      text: async () => "v1.5.0\n",
+    } as Response);
+
+    await discoverVersions(goDef);
+
+    // Measured against the live proxy: the unescaped path 404s, the escaped one
+    // returns 200. Slashes are path separators and must survive intact, which
+    // is why encodeURIComponent is the wrong tool here.
+    expect(mockFetch).toHaveBeenCalledWith(
+      "https://proxy.golang.org/github.com/!burnt!sushi/toml/@v/list",
+    );
+  });
+
+  it("returns nothing for a go module with no tagged releases", async () => {
+    const goDef: VersionedDefinition = {
+      ...mockDefinition,
+      name: "github.com/test/untagged",
+      registry: "go",
+    };
+
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      text: async () => "",
+    } as Response);
+
+    await expect(discoverVersions(goDef)).resolves.toEqual([]);
+  });
+
   it("throws for unsupported registry", async () => {
     const def = { ...mockDefinition, registry: "cargo" };
     await expect(discoverVersions(def)).rejects.toThrow(

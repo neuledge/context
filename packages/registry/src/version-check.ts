@@ -1,5 +1,5 @@
 /**
- * Version discovery from package registry APIs (npm, pip, maven, hex).
+ * Version discovery from package registry APIs (npm, pip, maven, hex, go).
  *
  * Queries public registry APIs to find available versions,
  * filters to defined ranges, and deduplicates to latest-patch-per-minor.
@@ -33,6 +33,7 @@ const registryFetchers: Record<string, RegistryFetcher> = {
   pip: fetchPipVersions,
   maven: fetchMavenVersions,
   hex: fetchHexVersions,
+  go: fetchGoVersions,
 };
 
 /**
@@ -218,6 +219,49 @@ async function fetchHexVersions(packageName: string): Promise<VersionInfo[]> {
     version: r.version ?? "",
     publishedAt: r.inserted_at,
   }));
+}
+
+/**
+ * Go modules, via the module proxy (https://proxy.golang.org).
+ *
+ * `packageName` is the full module path (e.g. "github.com/spf13/cobra"), which
+ * is also the definition's `name`. Three things differ from the other fetchers:
+ *
+ * - **Case escaping.** The proxy requires uppercase letters to be written as
+ *   "!" + lowercase, so "github.com/BurntSushi/toml" is requested as
+ *   "github.com/!burnt!sushi/toml". The unescaped path 404s. Slashes are path
+ *   separators and must NOT be percent-encoded, so encodeURIComponent is wrong
+ *   here.
+ * - **The "v" prefix is stripped.** Go tags are "v1.10.2"; this returns
+ *   "1.10.2" so the shared `isPrerelease` and `compareSemver` keep working
+ *   (both misread a leading "v" — isPrerelease sees a letter and discards the
+ *   version, compareSemver returns NaN). Definitions restore it with the
+ *   default tag_pattern "v{version}".
+ * - **No publish dates.** /@v/list returns bare versions. Dates need one
+ *   /@v/<version>.info request each, so `--since` filtering is unavailable
+ *   rather than expensive. publishedAt is left undefined.
+ *
+ * The response is plain text, one version per line, in no particular order,
+ * and is empty for a module with no tagged releases.
+ */
+function escapeGoModulePath(modulePath: string): string {
+  return modulePath.replace(/[A-Z]/g, (c) => `!${c.toLowerCase()}`);
+}
+
+async function fetchGoVersions(packageName: string): Promise<VersionInfo[]> {
+  const res = await fetchWithRetry(
+    `https://proxy.golang.org/${escapeGoModulePath(packageName)}/@v/list`,
+    `Go module proxy`,
+    packageName,
+  );
+
+  const body = await res.text();
+
+  return body
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("v"))
+    .map((version) => ({ version: version.slice(1) }));
 }
 
 /**
