@@ -1,0 +1,8 @@
+name: godot
+description: "Godot Engine 4 documentation — the complete class reference (every node, resource and singleton, plus the @GDScript and @GlobalScope built-in functions and constants) together with the engine tutorials: 2D and 3D, physics, animation, rendering, UI, navigation, multiplayer, shaders, plugins and exporting. For GDScript language syntax, use the gdscript package instead."
+repository: https://github.com/godotengine/godot-docs
+
+source:
+  type: git
+  url: https://github.com/godotengine/godot-docs
+  ref: stable
