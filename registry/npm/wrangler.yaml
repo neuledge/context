@@ -1,0 +1,8 @@
+name: wrangler
+description: "Cloudflare Workers CLI and developer platform"
+repository: https://github.com/cloudflare/workers-sdk
+
+source:
+  type: git
+  url: https://github.com/cloudflare/cloudflare-docs
+  docs_path: src/content/docs/workers
