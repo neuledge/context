@@ -1,5 +1,11 @@
 # @neuledge/context
 
+## 1.2.5
+
+### Patch Changes
+
+- [#137](https://github.com/neuledge/context/pull/137) [`8cc952d`](https://github.com/neuledge/context/commit/8cc952deb2127e5dff725d274b42bdfe72d4dcf7) Thanks [@TheRealBecks](https://github.com/TheRealBecks)! - Preserve code formatting in HTML documentation that uses bare preformatted blocks, including systemd's rendered DocBook manuals.
+
 ## 1.2.4
 
 ### Patch Changes
