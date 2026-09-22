@@ -36,16 +36,20 @@ interface ChunkMatch {
 }
 
 /**
- * Build an FTS5 query from user topic.
- * - Cleans special characters (keeps alphanumeric, spaces, quotes)
- * - Words are implicitly ANDed by FTS5
+ * Quote literal terms so reserved words cannot become FTS5 operators.
+ * Only paired double quotes group a phrase; unmatched quotes are ignored.
+ * Punctuation separates words, and terms/phrases are implicitly ANDed.
  */
 function buildQuery(topic: string): string {
-  return topic
-    .trim()
-    .replace(/[^\w\s"]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  const parts = topic
+    .replace(/[^\p{L}\p{N}\p{M}\s"]/gu, " ")
+    .match(/"[^"]*"|[^\s"]+/g);
+
+  return (parts ?? [])
+    .map((part) => part.replaceAll('"', "").trim())
+    .filter(Boolean)
+    .map((part) => `"${part}"`)
+    .join(" ");
 }
 
 function searchFts(db: DatabaseConnection, query: string): ChunkMatch[] {

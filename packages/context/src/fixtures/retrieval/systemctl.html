@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head><title>systemctl</title></head>
+<body>
+<h1>systemctl</h1>
+<h2>User services</h2>
+<p>Use systemctl --user to manage services belonging to the current user.
+After editing a user unit, reload the user manager, start the service,
+and inspect its status.</p>
+<pre><code class="language-sh">systemctl --user daemon-reload
+systemctl --user start example.service
+systemctl --user status example.service
+</code></pre>
+</body>
+</html>

@@ -556,6 +556,17 @@ context query nextjs 'middleware authentication'
 # Returns the same JSON format as the MCP get_docs tool
 ```
 
+Topics are literal keywords, matched together (AND). Punctuation separates words,
+so `ExecStart=`, `systemctl --user`, and `spring.main.banner-mode` can be used
+directly. Words such as `AND`, `OR`, `NOT`, and `NEAR` are searched as text;
+advanced FTS syntax is not supported.
+
+Use paired double quotes for a phrase, for example
+`context query nextjs '"server components" rendering'`. Phrase words must appear
+next to each other in order, with the usual search stemming. An unmatched double
+quote is ignored and the remaining words are searched as keywords. Empty or
+punctuation-only topics return no results. These rules also apply to MCP `get_docs`.
+
 ---
 
 ## :gear: Architecture

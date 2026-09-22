@@ -5,7 +5,7 @@ export const GET_DOCS_LIBRARY_DESCRIPTION =
   "Installed library to search (name@version). If it is not installed, use search_packages, then download_package, then retry get_docs.";
 
 export const GET_DOCS_TOPIC_DESCRIPTION =
-  "Use a short API name, keyword, or phrase (for example: 'createServer', 'cors middleware'). Search terms are all matched together, so extra words will narrow but can also eliminate results.";
+  'Use a short API name, keyword, or phrase (for example: createServer, cors middleware). Search terms are all matched together, so extra words will narrow but can also eliminate results. Punctuation separates words. Paired double quotes require a phrase ("server components"); unmatched quotes are ignored. FTS operator words are literal.';
 
 export const SEARCH_PACKAGES_DESCRIPTION =
   "Search for documentation packages available on the registry server. Use short package names like 'react', 'next', or 'fastapi'. If you find a match, call download_package, then retry get_docs. If the registry package is unavailable or insufficient, ask the user to run `context add` to build docs from source.";
