@@ -79,13 +79,37 @@ jobs:
             opened=$(echo "$prs" | jq -r --argjson n "$n" '.[] | select(.number==$n) | .created_at')
             age=$(( ( $(date -u +%s) - $(date -u -d "$opened" +%s) ) / 86400 ))
             if [ "$age" -lt 2 ]; then continue; fi
-            # Any comment not written by a bot counts as attention.
+            author=$(echo "$prs" | jq -r --argjson n "$n" '.[] | select(.number==$n) | .user.login')
+            head_sha=$(echo "$prs" | jq -r --argjson n "$n" '.[] | select(.number==$n) | .head.sha')
+            # A reply only counts if it is newer than the author's last push:
+            # anything older was already answered and then superseded by commits.
+            head_commit=$(api "https://api.github.com/repos/$REPO/commits/$head_sha")
+            expect_object "$head_commit" "head commit of #$n"
+            pushed=$(echo "$head_commit" | jq -r '.commit.committer.date // empty')
+            if [ -z "$pushed" ]; then
+              echo "::error::head commit of #$n carried no commit date:" >&2
+              echo "$head_commit" | head -c 400 >&2
+              exit 1
+            fi
+            # Attention is any response from someone who is not a bot and not
+            # the author — as an issue comment *or* as a formal review. Reviews
+            # were missed here once and made the watchdog cry wolf on #146.
             comments=$(api "https://api.github.com/repos/$REPO/issues/$n/comments?per_page=100")
             expect_array "$comments" "comments on #$n"
-            human=$(echo "$comments" | jq '[.[] | select(.user.type != "Bot")] | length')
+            reviews=$(api "https://api.github.com/repos/$REPO/pulls/$n/reviews?per_page=100")
+            expect_array "$reviews" "reviews on #$n"
+            # per_page=100 and no pagination, as above: a PR with more than 100
+            # comments or reviews has had attention by any definition.
+            human=$(jq -n --argjson c "$comments" --argjson r "$reviews" \
+                          --arg author "$author" --arg pushed "$pushed" '
+              [ ($c[] | {user, at: .created_at}), ($r[] | {user, at: .submitted_at}) ]
+              | map(select(.user.type != "Bot" and .user.login != $author))
+              | map(select(.at != null
+                           and (.at | fromdateiso8601) > ($pushed | fromdateiso8601)))
+              | length')
             if [ "$human" -eq 0 ]; then
               title=$(echo "$prs" | jq -r --argjson n "$n" '.[] | select(.number==$n) | .title')
-              stale="${stale}- #${n} \"${title}\" — open ${age}d, no reply"$'\n'
+              stale="${stale}- #${n} \"${title}\" — open ${age}d, no reply since the last push"$'\n'
             fi
           done
           if [ -n "$stale" ]; then
