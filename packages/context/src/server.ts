@@ -223,8 +223,13 @@ export class ContextServer {
   /**
    * Update the get_docs tool to include newly installed packages.
    * If get_docs doesn't exist yet, register it for the first time.
+   *
+   * Public because packages can also arrive from outside this process: `context
+   * add` writes to the data directory while a stdio server is already running.
+   * `serve` watches that directory and calls this, so the tool's `library` enum
+   * stays current without the client reconnecting.
    */
-  private refreshGetDocsTool(): void {
+  refreshGetDocsTool(): void {
     const packages = this.visiblePackages();
 
     if (this.getDocsRegistration) {
