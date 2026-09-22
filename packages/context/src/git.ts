@@ -407,6 +407,8 @@ function loadGitignore(basePath: string): Ignore {
 export interface FindMarkdownOptions {
   /** Language filter: "all" includes everything, specific code (e.g., "en") includes only that locale */
   lang?: string;
+  /** True when the scan starts at the repo root rather than inside a docs folder */
+  atRepoRoot?: boolean;
 }
 
 /**
@@ -474,11 +476,12 @@ function findMarkdownFiles(
           const matchingExt = DOCUMENTATION_EXTENSIONS.find((ext) =>
             lowerName.endsWith(ext),
           );
-          // Only at the scan root: these names mean repo housekeeping there, but
-          // deeper in a docs tree they are ordinary pages — forgejo's
+          // Only at the repo root: these names mean repo housekeeping there,
+          // but anywhere in a docs tree they are ordinary pages — forgejo's
           // docs/admin/actions/security.md documents Actions security, and was
-          // being dropped as if it were a SECURITY.md policy file.
-          if (matchingExt && basePath === "") {
+          // being dropped as if it were a SECURITY.md policy file. A docs
+          // folder is not the repo root even though the walk starts there.
+          if (matchingExt && basePath === "" && options.atRepoRoot) {
             const baseName = lowerName.slice(0, -matchingExt.length);
             if (IGNORED_FILES.has(baseName)) continue;
           }
@@ -531,7 +534,10 @@ export function readLocalDocsFiles(
   // Load gitignore from repo root
   const ig = loadGitignore(basePath);
 
-  const markdownFiles = findMarkdownFiles(searchPath, ig, "", { lang });
+  const markdownFiles = findMarkdownFiles(searchPath, ig, "", {
+    lang,
+    atRepoRoot: !docsPath,
+  });
   const files: Array<{ path: string; content: string }> = [];
   const seenHashes = new Set<string>();
 

@@ -231,4 +231,14 @@ describe("readLocalDocsFiles — repo-meta filenames", () => {
 
     expect(paths).toEqual(["admin/actions/security.md"]);
   });
+
+  it("keeps a repo-meta filename at a docs root that is not the repo root", () => {
+    write("SECURITY.md", "# Security policy\n\nReport issues to us.\n");
+    write("docs/security.md", "# Securing deployments\n\nSet valid_volumes.\n");
+    write("docs/guide.md", "# Guide\n\nContent.\n");
+
+    const paths = readLocalDocsFiles(dir, { path: "docs" }).map((f) => f.path);
+
+    expect(paths.sort()).toEqual(["docs/guide.md", "docs/security.md"]);
+  });
 });
