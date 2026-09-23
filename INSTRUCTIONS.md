@@ -83,9 +83,11 @@ Sessions here develop on one reused branch name, so it is a shared resource too:
 
 1. Before starting, check whether the branch exists on the remote carrying unmerged
    commits. If it does, a session is mid-flight — build on it or wait, never reset it.
-2. Reset it to `origin/main` only once its work has landed. Verify with
-   `git merge-base --is-ancestor`, not a PR's "merged" label — a squash-merge leaves
-   the branch's own SHAs out of `main`, so confirm the *content* landed.
+2. Reset it to `origin/main` only once its work has landed, and check the content, not
+   a PR's "merged" label. `git merge-base --is-ancestor` proves it for a merge commit,
+   but reports "not merged" after a squash-merge even though the work is in — so when
+   it says no, confirm with an empty `git diff origin/main <branch>` before concluding
+   the branch still holds work.
 3. Run `git fetch --prune` before pushing: a merged PR deletes the remote branch, and
    a stale tracking ref makes the push fail against something that no longer exists.
 4. Never force-push the shared branch.
