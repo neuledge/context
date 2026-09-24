@@ -66,6 +66,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # `published` only turns true when the publish output has `changeset
+      # publish`'s "New tag:" lines, which `pnpm -r publish` never prints. The
+      # action runs the publish script exactly when no changesets are pending,
+      # and `pnpm tags` skips tags that already exist, so gate on that instead.
       - name: Tag releases
-        if: steps.changesets.outputs.published == 'true'
+        if: steps.changesets.outputs.hasChangesets == 'false'
         run: pnpm tags
