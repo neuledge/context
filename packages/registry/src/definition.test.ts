@@ -171,7 +171,12 @@ versions:
     expect(def.versions[0].tag_pattern).toBe("@trpc/server@{version}");
   });
 
-  it("accepts a scoped path that uses backslash separators", () => {
+  // Skipped on Windows, where the backslash is a real separator and the file
+  // would land in a missing "@apollo" directory. There the scoped test above
+  // covers the same comparison natively: relative() returns "@trpc\\server".
+  // See #153.
+  const onPosix = it.skipIf(process.platform === "win32");
+  onPosix("accepts a scoped path that uses backslash separators", () => {
     // On Windows relative() returns "@apollo\\client", which never matched the
     // "@apollo/client" in the file, so listDefinitions() threw for every scoped
     // definition. Reproduced here by putting a literal backslash in the filename:

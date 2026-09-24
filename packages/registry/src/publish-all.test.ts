@@ -36,9 +36,20 @@ describe("publish-all — a failing definition must not abandon the rest", () =>
 
   const runPublishAll = (): { status: number; output: string } => {
     try {
+      // Run node itself with tsx as a loader rather than `npx tsx`: on Windows
+      // npx is a .cmd shim, which execFileSync can't spawn without a shell.
       const stdout = execFileSync(
-        "npx",
-        ["tsx", "src/cli.ts", "publish-all", "--dir", dir, "--output", out],
+        process.execPath,
+        [
+          "--import",
+          "tsx",
+          "src/cli.ts",
+          "publish-all",
+          "--dir",
+          dir,
+          "--output",
+          out,
+        ],
         { cwd: process.cwd(), encoding: "utf8", stdio: "pipe" },
       );
       return { status: 0, output: stdout };
