@@ -3,10 +3,11 @@
  */
 
 import { createHash } from "node:crypto";
-import { existsSync, unlinkSync } from "node:fs";
+import { dirname } from "node:path";
 import { type DocSection, parseDocument } from "./build.js";
 import { openDatabase } from "./database.js";
 import { REMOVED_TAGS } from "./html.js";
+import { createPackageTempFile } from "./package-file.js";
 
 /**
  * Generate a content hash for section deduplication.
@@ -569,11 +570,22 @@ export function buildPackage(
   files: MarkdownFile[],
   options: PackageBuildOptions,
 ): BuildResult {
-  // Remove existing file if present
-  if (existsSync(outputPath)) {
-    unlinkSync(outputPath);
+  const temp = createPackageTempFile(dirname(outputPath));
+  try {
+    const result = writePackage(temp.path, files, options);
+    // writePackage closes the database before validation and replacement.
+    temp.install(outputPath);
+    return { ...result, path: outputPath };
+  } finally {
+    temp.cleanup();
   }
+}
 
+function writePackage(
+  outputPath: string,
+  files: MarkdownFile[],
+  options: PackageBuildOptions,
+): BuildResult {
   const db = openDatabase(outputPath);
 
   try {

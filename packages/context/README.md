@@ -297,6 +297,12 @@ context add ./my-project --name my-lib --pkg-version 2.0 --save ./packages/
 context add ./packages/my-lib@2.0.db
 ```
 
+Rebuilds and installs stage a replacement beside the destination, then close and
+validate it before replacing the installed package. A failed build, download, or
+replacement leaves the previous package available. Temporary files are excluded
+from package discovery. If the operating system blocks replacement of an open
+file (for example, on Windows), close the reader and retry the install.
+
 ---
 
 ## :whale: Docker
