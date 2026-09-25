@@ -19,7 +19,7 @@ import {
   rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 import ignore, { type Ignore } from "ignore";
 
 /**
@@ -430,7 +430,10 @@ function findMarkdownFiles(
 
     for (const entry of entries) {
       const fullPath = join(dirPath, entry.name);
-      const relativePath = basePath ? join(basePath, entry.name) : entry.name;
+      // Stored paths always use "/" so packages built on Windows match the rest
+      const relativePath = basePath
+        ? posix.join(basePath, entry.name)
+        : entry.name;
 
       // Skip hidden entries
       if (entry.name.startsWith(".")) continue;
@@ -554,7 +557,7 @@ export function readLocalDocsFiles(
       seenHashes.add(hash);
 
       // Use relative path from docs folder for storage
-      const storagePath = docsPath ? join(docsPath, filePath) : filePath;
+      const storagePath = docsPath ? posix.join(docsPath, filePath) : filePath;
       files.push({ path: storagePath, content });
     } catch {
       // Skip files that can't be read
