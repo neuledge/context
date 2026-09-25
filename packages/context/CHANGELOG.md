@@ -1,5 +1,11 @@
 # @neuledge/context
 
+## 1.2.7
+
+### Patch Changes
+
+- [#162](https://github.com/neuledge/context/pull/162) [`e68c31f`](https://github.com/neuledge/context/commit/e68c31fc550e68d4e9b2389f327ef3df0b394e8b) Thanks [@moshest](https://github.com/moshest)! - Store documentation paths with forward slashes on Windows. Adding local or git docs on Windows saved paths like `docs\guide.md`, so the same package built on Windows and Linux had different paths.
+
 ## 1.2.6
 
 ### Patch Changes
