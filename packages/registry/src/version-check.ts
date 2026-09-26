@@ -1,5 +1,5 @@
 /**
- * Version discovery from package registry APIs (npm, pip, maven, hex).
+ * Version discovery from package registry APIs (npm, pip, maven, hex, go).
  *
  * Queries public registry APIs to find available versions,
  * filters to defined ranges, and deduplicates to latest-patch-per-minor.
@@ -33,6 +33,16 @@ const registryFetchers: Record<string, RegistryFetcher> = {
   pip: fetchPipVersions,
   maven: fetchMavenVersions,
   hex: fetchHexVersions,
+  go: fetchGoVersions,
+};
+
+type PublishDateResolver = (
+  packageName: string,
+  version: string,
+) => Promise<string | undefined>;
+
+const publishDateResolvers: Record<string, PublishDateResolver> = {
+  go: fetchGoPublishedAt,
 };
 
 /**
@@ -88,23 +98,41 @@ export async function discoverVersions(
     ? new Date(Date.now() - options.since * 24 * 60 * 60 * 1000)
     : undefined;
 
-  const filtered = allVersions.filter((v) => {
-    // Skip prereleases
-    if (isPrerelease(v.version)) return false;
+  const inRange = allVersions.filter(
+    (v) =>
+      !isPrerelease(v.version) && resolveVersionEntry(definition, v.version),
+  );
 
-    // Must match a defined version range
-    if (!resolveVersionEntry(definition, v.version)) return false;
+  // Without this, a definition whose releases all fail the filter above (e.g.
+  // Go's "+incompatible" builds) discovers nothing and exits 0.
+  if (allVersions.length > 0 && inRange.length === 0) {
+    console.warn(
+      `  WARNING ${definition.registry}/${definition.name}: ${allVersions.length} versions published, none match the defined ranges (prereleases and build metadata such as "+incompatible" are skipped)`,
+    );
+  }
 
-    // Filter by publish date
-    if (sinceDate && v.publishedAt) {
-      if (new Date(v.publishedAt) < sinceDate) return false;
-    }
-
-    return true;
-  });
+  const filtered = inRange.filter(
+    (v) => !sinceDate || !v.publishedAt || new Date(v.publishedAt) >= sinceDate,
+  );
 
   // Keep only latest patch per minor version
-  const latestPerMinor = deduplicateToLatestPatch(filtered);
+  let latestPerMinor = deduplicateToLatestPatch(filtered);
+
+  // Registries that list versions without dates get them looked up here, after
+  // dedup, so only the surviving versions cost a request.
+  const resolveDate = publishDateResolvers[definition.registry];
+  if (sinceDate && resolveDate) {
+    latestPerMinor = await Promise.all(
+      latestPerMinor.map(async (v) => ({
+        ...v,
+        publishedAt:
+          v.publishedAt ?? (await resolveDate(definition.name, v.version)),
+      })),
+    );
+    latestPerMinor = latestPerMinor.filter(
+      (v) => !v.publishedAt || new Date(v.publishedAt) >= sinceDate,
+    );
+  }
 
   // Sort by semver descending (newest first)
   latestPerMinor.sort((a, b) => compareSemver(b.version, a.version));
@@ -218,6 +246,67 @@ async function fetchHexVersions(packageName: string): Promise<VersionInfo[]> {
     version: r.version ?? "",
     publishedAt: r.inserted_at,
   }));
+}
+
+/**
+ * Go modules, via the module proxy (https://proxy.golang.org).
+ *
+ * `packageName` is the full module path (e.g. "github.com/spf13/cobra"), which
+ * is also the definition's `name`. Three things differ from the other fetchers:
+ *
+ * - **Case escaping.** The proxy requires uppercase letters to be written as
+ *   "!" + lowercase, so "github.com/BurntSushi/toml" is requested as
+ *   "github.com/!burnt!sushi/toml". The unescaped path 404s. Slashes are path
+ *   separators and must NOT be percent-encoded, so encodeURIComponent is wrong
+ *   here.
+ * - **The "v" prefix is stripped.** Go tags are "v1.10.2"; this returns
+ *   "1.10.2" so the shared `isPrerelease` and `compareSemver` keep working
+ *   (both misread a leading "v" — isPrerelease sees a letter and discards the
+ *   version, compareSemver returns NaN). Definitions restore it with the
+ *   default tag_pattern "v{version}".
+ * - **No publish dates in the list.** /@v/list returns bare versions. Each
+ *   date is one /@v/<version>.info request, so they are looked up only under
+ *   `--since`, and only for versions that survive dedup (fetchGoPublishedAt).
+ *
+ * The response is plain text, one version per line, in no particular order,
+ * and is empty for a module with no tagged releases.
+ */
+function goProxyUrl(modulePath: string, suffix: string): string {
+  const escaped = modulePath
+    .replace(/[A-Z]/g, (c) => `!${c.toLowerCase()}`)
+    .split("/")
+    .map(encodeURIComponent)
+    .join("/");
+  return `https://proxy.golang.org/${escaped}/@v/${suffix}`;
+}
+
+async function fetchGoVersions(packageName: string): Promise<VersionInfo[]> {
+  const res = await fetchWithRetry(
+    goProxyUrl(packageName, "list"),
+    `Go module proxy`,
+    packageName,
+  );
+
+  const body = await res.text();
+
+  return body
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("v"))
+    .map((version) => ({ version: version.slice(1) }));
+}
+
+async function fetchGoPublishedAt(
+  packageName: string,
+  version: string,
+): Promise<string | undefined> {
+  const res = await fetchWithRetry(
+    goProxyUrl(packageName, `v${version}.info`),
+    `Go module proxy`,
+    packageName,
+  );
+  const info = (await res.json()) as { Time?: string };
+  return info.Time;
 }
 
 /**

@@ -164,6 +164,196 @@ describe("discoverVersions", () => {
     );
   });
 
+  it("fetches go versions from the module proxy and strips the v prefix", async () => {
+    const goDef: VersionedDefinition = {
+      ...mockDefinition,
+      name: "github.com/spf13/cobra",
+      registry: "go",
+    };
+
+    const mockFetch = vi.mocked(fetch);
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      text: async () => "v1.10.2\nv1.9.1\nv1.8.1\n",
+    } as Response);
+
+    const versions = await discoverVersions(goDef);
+
+    // The shared isPrerelease() reads a leading "v" as a prerelease tag and
+    // discards the version, and compareSemver() returns NaN for it, so every
+    // Go version would vanish if the prefix survived this far.
+    expect(versions.map((v) => v.version)).toEqual([
+      "1.10.2",
+      "1.9.1",
+      "1.8.1",
+    ]);
+    expect(mockFetch).toHaveBeenCalledWith(
+      "https://proxy.golang.org/github.com/spf13/cobra/@v/list",
+    );
+  });
+
+  it("escapes uppercase letters in a go module path, and only those", async () => {
+    const goDef: VersionedDefinition = {
+      ...mockDefinition,
+      name: "github.com/BurntSushi/toml",
+      registry: "go",
+    };
+
+    const mockFetch = vi.mocked(fetch);
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      text: async () => "v1.5.0\n",
+    } as Response);
+
+    await discoverVersions(goDef);
+
+    // Measured against the live proxy: the unescaped path 404s, the escaped one
+    // returns 200. Slashes are path separators and must survive intact, which
+    // is why encodeURIComponent is the wrong tool here.
+    expect(mockFetch).toHaveBeenCalledWith(
+      "https://proxy.golang.org/github.com/!burnt!sushi/toml/@v/list",
+    );
+  });
+
+  it("ignores go list lines without a v prefix instead of mangling them", async () => {
+    const goDef: VersionedDefinition = {
+      ...mockDefinition,
+      name: "github.com/spf13/cobra",
+      registry: "go",
+    };
+
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      text: async () => "v1.10.2\n12.1.0\n",
+    } as Response);
+
+    // Without the guard, "12.1.0" loses its first character and is reported
+    // as a real release, "2.1.0".
+    const versions = await discoverVersions(goDef);
+    expect(versions.map((v) => v.version)).toEqual(["1.10.2"]);
+  });
+
+  it("percent-encodes go module path segments but keeps slashes", async () => {
+    const goDef: VersionedDefinition = {
+      ...mockDefinition,
+      name: "github.com/test/a#b",
+      registry: "go",
+    };
+
+    const mockFetch = vi.mocked(fetch);
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      text: async () => "",
+    } as Response);
+
+    await discoverVersions(goDef);
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "https://proxy.golang.org/github.com/test/a%23b/@v/list",
+    );
+  });
+
+  describe("go --since", () => {
+    const goDef: VersionedDefinition = {
+      ...mockDefinition,
+      name: "github.com/spf13/cobra",
+      registry: "go",
+    };
+    const daysAgo = (n: number) =>
+      new Date(Date.now() - n * 24 * 60 * 60 * 1000).toISOString();
+
+    const mockProxy = (times: Record<string, string>) =>
+      vi.mocked(fetch).mockImplementation(async (url) => {
+        const u = String(url);
+        if (u.endsWith("/@v/list")) {
+          return {
+            ok: true,
+            text: async () => "v1.10.2\nv1.9.1\nv1.9.0\n",
+          } as Response;
+        }
+        const version = u.match(/\/@v\/v(.+)\.info$/)?.[1] ?? "";
+        return {
+          ok: true,
+          json: async () => ({ Version: `v${version}`, Time: times[version] }),
+        } as Response;
+      });
+
+    it("looks up dates for versions surviving dedup, and filters on them", async () => {
+      mockProxy({ "1.10.2": daysAgo(1), "1.9.1": daysAgo(30) });
+
+      const versions = await discoverVersions(goDef, { since: 7 });
+
+      expect(versions.map((v) => v.version)).toEqual(["1.10.2"]);
+      const infoCalls = vi
+        .mocked(fetch)
+        .mock.calls.map(([u]) => String(u))
+        .filter((u) => u.endsWith(".info"));
+      // 1.9.0 is deduplicated away before any date lookup.
+      expect(infoCalls.sort()).toEqual([
+        "https://proxy.golang.org/github.com/spf13/cobra/@v/v1.10.2.info",
+        "https://proxy.golang.org/github.com/spf13/cobra/@v/v1.9.1.info",
+      ]);
+    });
+
+    it("makes no date requests without --since", async () => {
+      mockProxy({});
+
+      await discoverVersions(goDef);
+
+      expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("warns when versions exist but none match, e.g. go +incompatible", async () => {
+    const goDef: VersionedDefinition = {
+      ...mockDefinition,
+      name: "github.com/docker/docker",
+      registry: "go",
+    };
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      text: async () => "v25.0.10+incompatible\nv24.0.9+incompatible\n",
+    } as Response);
+
+    await expect(discoverVersions(goDef)).resolves.toEqual([]);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("go/github.com/docker/docker: 2 versions"),
+    );
+  });
+
+  it("does not warn when only --since filters everything out", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        versions: { "2.0.0": {} },
+        time: { "2.0.0": "2020-01-01T00:00:00Z" },
+      }),
+    } as Response);
+
+    await expect(
+      discoverVersions(mockDefinition, { since: 2 }),
+    ).resolves.toEqual([]);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("returns nothing for a go module with no tagged releases", async () => {
+    const goDef: VersionedDefinition = {
+      ...mockDefinition,
+      name: "github.com/test/untagged",
+      registry: "go",
+    };
+
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      text: async () => "",
+    } as Response);
+
+    await expect(discoverVersions(goDef)).resolves.toEqual([]);
+  });
+
   it("throws for unsupported registry", async () => {
     const def = { ...mockDefinition, registry: "cargo" };
     await expect(discoverVersions(def)).rejects.toThrow(
