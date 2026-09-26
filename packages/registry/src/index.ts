@@ -7,6 +7,9 @@ export {
   constructTag,
   type GitSource,
   type GitVersionEntry,
+  type HtmlIndexSource,
+  type HtmlIndexVersionEntry,
+  isExplicitVersionEntry,
   isGitVersionEntry,
   isVersioned,
   isZipVersionEntry,
@@ -21,6 +24,7 @@ export {
   type ZipSource,
   type ZipVersionEntry,
 } from "./definition.js";
+export { downloadHtmlIndex } from "./html-index.js";
 export {
   checkPackageExists,
   type PackageMetadata,

@@ -1,0 +1,111 @@
+name: Registry Validate
+
+# Builds the registry definitions a pull request adds or changes.
+#
+# ci.yml lints, builds and tests the TypeScript packages; nothing there reads
+# registry/*.yaml. A definition naming a branch or docs_path that does not
+# exist therefore passes review and CI, and first fails at 06:00 UTC in the
+# nightly registry-update — long after the PR that introduced it is merged and
+# out of mind. This closes that gap by building the changed definitions on the
+# pull request itself.
+#
+# Only changed definitions are built, so cost scales with the diff rather than
+# with the 113-and-growing registry.
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'registry/**/*.yaml'
+      - 'registry/**/*.yml'
+
+permissions: {}
+
+concurrency:
+  group: registry-validate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build-changed:
+    name: Build changed definitions
+    runs-on: ubuntu-latest
+    # A definition can pull a large documentation repository; godot builds
+    # ~8M tokens from 3.5k files. Generous, but bounded.
+    timeout-minutes: 45
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.27.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build each changed definition
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          # Added or modified only: a deleted definition has nothing to build.
+          changed=$(git diff --name-only --diff-filter=AM "$BASE_SHA" "$HEAD_SHA" \
+                    -- 'registry/**/*.yaml' 'registry/**/*.yml')
+
+          if [ -z "$changed" ]; then
+            echo "No definition files added or modified."
+            exit 0
+          fi
+
+          echo "Changed definition files:"
+          echo "$changed" | sed 's/^/  /'
+          echo
+
+          failed=""
+          built=0
+
+          while IFS= read -r file; do
+            [ -n "$file" ] || continue
+
+            # The CLI selects by the definition's `name` field, which need not
+            # match the filename (registry/hex/phoenix.yaml is "phoenix").
+            name=$(sed -n 's/^name:[[:space:]]*//p' "$file" | head -1 | tr -d '"'"'"'' | tr -d '\r')
+            if [ -z "$name" ]; then
+              echo "::error file=$file::no top-level 'name:' field found"
+              failed="${failed} ${file}"
+              continue
+            fi
+
+            echo "::group::Building ${name} (${file})"
+            if pnpm --filter @neuledge/registry test-registry test "$name"; then
+              built=$((built + 1))
+              echo "::endgroup::"
+            else
+              echo "::endgroup::"
+              echo "::error file=$file::definition '${name}' failed to build"
+              failed="${failed} ${name}"
+            fi
+          done <<< "$changed"
+
+          echo
+          if [ -n "$failed" ]; then
+            echo "Failed to build:${failed}"
+            exit 1
+          fi
+          echo "Built ${built} definition(s) successfully."

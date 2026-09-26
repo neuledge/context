@@ -1,0 +1,9 @@
+name: gdscript
+description: "GDScript language syntax for Godot 4 — keywords, operators, control flow and match, classes and inheritance, functions and lambdas, static typing, @export and the annotation catalog, signals and await, doc comments, the warning system, and the official style guide. Language syntax only: for the built-in functions (preload, load, inst, range, str, print, push_error) and for engine APIs and node classes, use the godot package instead."
+repository: https://github.com/godotengine/godot-docs
+
+source:
+  type: git
+  url: https://github.com/godotengine/godot-docs
+  ref: stable
+  docs_path: tutorials/scripting/gdscript

@@ -15,12 +15,12 @@ import {
   getHeadCommit,
 } from "./build.js";
 import {
+  isExplicitVersionEntry,
   isVersioned,
-  isZipVersionEntry,
   listDefinitions,
 } from "./definition.js";
 import { checkPackageExists, publishPackage } from "./publish.js";
-import { discoverVersions } from "./version-check.js";
+import { type AvailableVersion, discoverVersions } from "./version-check.js";
 
 const DEFAULT_REGISTRY_DIR = resolve(
   import.meta.dirname,
@@ -60,7 +60,7 @@ program
       if (isVersioned(def)) {
         const ranges = def.versions
           .map((v) => {
-            if (isZipVersionEntry(v)) {
+            if (isExplicitVersionEntry(v)) {
               return v.versions.join(", ");
             }
             return `${v.min_version}${v.max_version ? `-${v.max_version}` : "+"}`;
@@ -225,10 +225,25 @@ program
     const failures: { id: string; error: string }[] = [];
 
     for (const def of definitions) {
-      const versions = await discoverVersions(def, {
-        since: opts.since ? Number(opts.since) : undefined,
-        latest: opts.latest ? Number(opts.latest) : undefined,
-      });
+      // Discovery talks to a third-party registry API, so it can fail for
+      // reasons that have nothing to do with this package — a 404 for a renamed
+      // module, a 429, an upstream outage. Record it like a build failure
+      // instead of letting it throw out of the loop: definitions are processed
+      // in sorted order, so an unguarded throw here silently abandons every
+      // package after this one and prints no summary at all.
+      let versions: AvailableVersion[];
+      try {
+        versions = await discoverVersions(def, {
+          since: opts.since ? Number(opts.since) : undefined,
+          latest: opts.latest ? Number(opts.latest) : undefined,
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        const id = `${def.registry}/${def.name}`;
+        console.error(`  FAILED ${id} (version discovery): ${message}`);
+        failures.push({ id, error: message });
+        continue;
+      }
 
       for (const ver of versions) {
         const id = `${def.registry}/${def.name}@${ver.version}`;

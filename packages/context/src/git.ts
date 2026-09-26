@@ -19,7 +19,7 @@ import {
   rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 import ignore, { type Ignore } from "ignore";
 
 /**
@@ -407,6 +407,8 @@ function loadGitignore(basePath: string): Ignore {
 export interface FindMarkdownOptions {
   /** Language filter: "all" includes everything, specific code (e.g., "en") includes only that locale */
   lang?: string;
+  /** True when the scan starts at the repo root rather than inside a docs folder */
+  atRepoRoot?: boolean;
 }
 
 /**
@@ -428,7 +430,10 @@ function findMarkdownFiles(
 
     for (const entry of entries) {
       const fullPath = join(dirPath, entry.name);
-      const relativePath = basePath ? join(basePath, entry.name) : entry.name;
+      // Stored paths always use "/" so packages built on Windows match the rest
+      const relativePath = basePath
+        ? posix.join(basePath, entry.name)
+        : entry.name;
 
       // Skip hidden entries
       if (entry.name.startsWith(".")) continue;
@@ -474,7 +479,12 @@ function findMarkdownFiles(
           const matchingExt = DOCUMENTATION_EXTENSIONS.find((ext) =>
             lowerName.endsWith(ext),
           );
-          if (matchingExt) {
+          // Only at the repo root: these names mean repo housekeeping there,
+          // but anywhere in a docs tree they are ordinary pages — forgejo's
+          // docs/admin/actions/security.md documents Actions security, and was
+          // being dropped as if it were a SECURITY.md policy file. A docs
+          // folder is not the repo root even though the walk starts there.
+          if (matchingExt && basePath === "" && options.atRepoRoot) {
             const baseName = lowerName.slice(0, -matchingExt.length);
             if (IGNORED_FILES.has(baseName)) continue;
           }
@@ -527,7 +537,10 @@ export function readLocalDocsFiles(
   // Load gitignore from repo root
   const ig = loadGitignore(basePath);
 
-  const markdownFiles = findMarkdownFiles(searchPath, ig, "", { lang });
+  const markdownFiles = findMarkdownFiles(searchPath, ig, "", {
+    lang,
+    atRepoRoot: !docsPath,
+  });
   const files: Array<{ path: string; content: string }> = [];
   const seenHashes = new Set<string>();
 
@@ -544,7 +557,7 @@ export function readLocalDocsFiles(
       seenHashes.add(hash);
 
       // Use relative path from docs folder for storage
-      const storagePath = docsPath ? join(docsPath, filePath) : filePath;
+      const storagePath = docsPath ? posix.join(docsPath, filePath) : filePath;
       files.push({ path: storagePath, content });
     } catch {
       // Skip files that can't be read

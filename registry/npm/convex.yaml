@@ -1,0 +1,8 @@
+name: convex
+description: "The reactive backend-as-a-service for fullstack TypeScript apps"
+repository: https://github.com/get-convex/convex-backend
+
+source:
+  type: git
+  url: https://github.com/get-convex/convex-backend
+  docs_path: npm-packages/docs

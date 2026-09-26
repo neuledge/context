@@ -1,5 +1,29 @@
 # @neuledge/context
 
+## 1.2.7
+
+### Patch Changes
+
+- [#162](https://github.com/neuledge/context/pull/162) [`e68c31f`](https://github.com/neuledge/context/commit/e68c31fc550e68d4e9b2389f327ef3df0b394e8b) Thanks [@moshest](https://github.com/moshest)! - Store documentation paths with forward slashes on Windows. Adding local or git docs on Windows saved paths like `docs\guide.md`, so the same package built on Windows and Linux had different paths.
+
+## 1.2.6
+
+### Patch Changes
+
+- [#125](https://github.com/neuledge/context/pull/125) [`8663d2f`](https://github.com/neuledge/context/commit/8663d2f91ebef45afe0cd7c3d517134e88dc6705) Thanks [@JayOfTheKeyboard](https://github.com/JayOfTheKeyboard)! - Only skip repo-meta filenames (`security`, `license`, `changelog`, `contributing`, and the rest) when the scan starts at the repository root. They were matched by basename at every depth, and also at the top of a `docs_path` folder, so an ordinary documentation page that happens to share one of those names was dropped without a word. `context add` on the forgejo docs lost `docs/admin/actions/security.md`, the only source in that repo for `container.valid_volumes`, and still reported success. `docker/docs` and `excalidraw/excalidraw` lose pages to the same rule.
+
+## 1.2.5
+
+### Patch Changes
+
+- [#137](https://github.com/neuledge/context/pull/137) [`8cc952d`](https://github.com/neuledge/context/commit/8cc952deb2127e5dff725d274b42bdfe72d4dcf7) Thanks [@TheRealBecks](https://github.com/TheRealBecks)! - Preserve code formatting in HTML documentation that uses bare preformatted blocks, including systemd's rendered DocBook manuals.
+
+## 1.2.4
+
+### Patch Changes
+
+- [#127](https://github.com/neuledge/context/pull/127) [`cc56537`](https://github.com/neuledge/context/commit/cc56537ec214376c7f47edb9f2e110d92d3b027d) Thanks [@moshest](https://github.com/moshest)! - Update the optional `better-sqlite3` dependency to 13.x. It ships its own prebuilt binaries, so installing no longer compiles it from source, and it works on Node 24 — which 11.x did not.
+
 ## 1.2.3
 
 ### Patch Changes

@@ -4,6 +4,7 @@ dist-packages
 dist-test
 node_modules
 .turbo
+**/.cache/context/html-index
 
 # system specific
 .DS_Store
@@ -11,3 +12,6 @@ node_modules
 # sensitive stuff
 .env
 .mcpregistry_*
+
+# Scratch logs from local verification runs
+*.log

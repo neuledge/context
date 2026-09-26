@@ -90,8 +90,17 @@ jobs:
         run: pnpm build
 
   test:
-    name: Test
-    runs-on: ubuntu-latest
+    # Linux keeps the plain "Test" name so existing required checks still match.
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: Test
+          - os: windows-latest
+            name: Test (Windows)
 
     steps:
       - name: Checkout code
