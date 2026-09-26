@@ -1,4 +1,4 @@
-name: strapi
+name: "@strapi/strapi"
 description: "Leading open-source headless CMS for Node.js"
 repository: https://github.com/strapi/strapi
 
