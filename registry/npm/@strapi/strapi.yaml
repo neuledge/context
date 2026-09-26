@@ -2,10 +2,9 @@ name: "@strapi/strapi"
 description: "Leading open-source headless CMS for Node.js"
 repository: https://github.com/strapi/strapi
 
-versions:
-  - min_version: "5.0.0"
-    source:
-      type: git
-      url: https://github.com/strapi/strapi
-      docs_path: docs
-    tag_pattern: "v{version}"
+# The strapi/strapi repo's docs/ folder is contributor documentation; user docs
+# live in strapi/documentation, whose tags are site versions, not releases.
+source:
+  type: git
+  url: https://github.com/strapi/documentation
+  docs_path: docusaurus/docs/cms

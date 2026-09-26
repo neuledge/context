@@ -2,8 +2,8 @@ name: "@angular/core"
 description: "Platform for building mobile and desktop web applications"
 repository: https://github.com/angular/angular
 
-# Starts at 20.3: Angular's older minors were tagged without the "v" prefix
-# (e.g. 18.2.14), so "v{version}" only resolves from 20.3 onward.
+# Starts at 20.3: several older minors were tagged without the "v" prefix
+# (e.g. 18.2.14, 20.2.4), so "v{version}" only resolves for every minor from 20.3.
 versions:
   - min_version: "20.3.0"
     source:
