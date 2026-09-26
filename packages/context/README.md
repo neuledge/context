@@ -623,6 +623,7 @@ Yes! The `registry/` directory has YAML definitions organized by package manager
 - **`registry/npm/`** — JavaScript/TypeScript (Next.js, React, Tailwind, etc.)
 - **`registry/pip/`** — Python (FastAPI, Flask, Django, Pydantic)
 - **`registry/maven/`** — Java (Spring Boot, JUnit, Micrometer)
+- **`registry/go/`** — Go modules, by full module path (Cobra)
 
 To add a package, create a YAML file. Two source types are supported:
 
@@ -661,7 +662,7 @@ versions:
         - "changelog.html"
 ```
 
-Version discovery is supported for npm, PyPI, and Maven Central. See existing definitions for examples.
+Version discovery is supported for npm, PyPI, Maven Central, Hex, and the Go module proxy. See existing definitions for examples.
 
 ---
 

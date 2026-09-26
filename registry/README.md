@@ -17,6 +17,12 @@ registry/pip/fastapi.yaml        → pip/fastapi
 registry/npm/@trpc/server.yaml   → npm/@trpc/server     (scoped: use a subdirectory)
 ```
 
+Go modules use the full module path, so every slash becomes a subdirectory:
+
+```
+registry/go/github.com/spf13/cobra.yaml   → go/github.com/spf13/cobra
+```
+
 Maven coordinates use `_` in place of `:`, since `:` isn't filesystem-safe:
 
 ```
@@ -72,7 +78,7 @@ versions:
 
 `{version}` is substituted in both `url` and `docs_path`.
 
-### Versioned by git tag — **only for npm, pip, maven and hex**
+### Versioned by git tag — **only for npm, pip, maven, hex and go**
 
 ```yaml
 versions:
@@ -84,13 +90,37 @@ versions:
       docs_path: docs
 ```
 
-> **This shape only works in `npm/`, `pip/`, `maven/` and `hex/`.** Those are the only
+> **This shape only works in `npm/`, `pip/`, `maven/`, `hex/` and `go/`.** Those are the only
 > registries with a version-discovery API, and this shape asks "which versions exist?"
 > before matching them against `min_version`. In any other directory there is nothing
 > to ask, so the build fails with `Unsupported registry: <dir>` — and because one bad
 > definition fails the whole nightly publish, it takes every other package down with it.
 >
-> Outside those four directories, use **unversioned**, **versioned-by-zip**, or **versioned HTML index**.
+> Outside those five directories, use **unversioned**, **versioned-by-zip**, or **versioned HTML index**.
+
+#### Go modules
+
+Versions come from `proxy.golang.org`. Two things differ from the other registries:
+
+- **Modules in a subdirectory tag with that directory as a prefix.** A module at
+  `github.com/aws/aws-sdk-go-v2/config` is released as the tag `config/v1.31.1`, not
+  `v1.31.1`, so the default `tag_pattern` names a tag that doesn't exist and the version
+  is skipped as "not published yet", every night. Put the subdirectory in the pattern:
+
+  ```yaml
+  versions:
+    - min_version: "1.31.0"
+      tag_pattern: "config/v{version}"
+      source:
+        type: git
+        url: https://github.com/aws/aws-sdk-go-v2
+        docs_path: config
+  ```
+
+- **`+incompatible` releases are not discovered.** Modules that reached v2+ before adopting
+  Go modules (e.g. `github.com/docker/docker`) publish versions like `v25.0.10+incompatible`,
+  which are skipped with the prereleases. Discovery logs a warning when a module has
+  versions but none match; use **unversioned** for these for now.
 
 
 ### Versioned HTML index — for published reference manuals
