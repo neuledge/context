@@ -558,7 +558,8 @@ context query nextjs 'middleware authentication'
 
 Topics are literal keywords, matched together (AND). Punctuation separates words,
 so `ExecStart=`, `systemctl --user`, and `spring.main.banner-mode` can be used
-directly. Words such as `AND`, `OR`, `NOT`, and `NEAR` are searched as text;
+directly. Underscores stay inside a word, so `spring_boot` matches the identifier
+rather than the two words apart. Words such as `AND`, `OR`, `NOT`, and `NEAR` are searched as text;
 advanced FTS syntax is not supported.
 
 Use paired double quotes for a phrase, for example

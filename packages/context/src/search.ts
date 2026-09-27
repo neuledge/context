@@ -38,11 +38,12 @@ interface ChunkMatch {
 /**
  * Quote literal terms so reserved words cannot become FTS5 operators.
  * Only paired double quotes group a phrase; unmatched quotes are ignored.
- * Punctuation separates words, and terms/phrases are implicitly ANDed.
+ * Punctuation separates words, except "_", which keeps snake_case identifiers
+ * together as one phrase. Terms/phrases are implicitly ANDed.
  */
 function buildQuery(topic: string): string {
   const parts = topic
-    .replace(/[^\p{L}\p{N}\p{M}\s"]/gu, " ")
+    .replace(/[^\p{L}\p{N}\p{M}_\s"]/gu, " ")
     .match(/"[^"]*"|[^\s"]+/g);
 
   return (parts ?? [])

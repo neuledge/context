@@ -202,6 +202,7 @@ describe("search", () => {
     '""',
     "= -- . () : * +",
     '"!!!"',
+    "_",
     "___",
   ])("returns no results for a topic without words: %j", (topic) => {
     rebuildFtsIndex(db);
@@ -236,6 +237,26 @@ describe("search", () => {
           .sort(),
       ).toEqual(["docs/keywords.md", "docs/phrase.md"]);
     }
+  });
+
+  it("keeps snake_case identifiers as adjacent phrases", () => {
+    for (const [docPath, content] of [
+      ["docs/ident.md", "Set the spring_boot option to enable it."],
+      ["docs/apart.md", "Spring apps boot fast; boot logs show spring events."],
+    ] as const) {
+      insertChunk(db, {
+        docPath,
+        docTitle: "Config",
+        sectionTitle: "Options",
+        content,
+        tokens: 20,
+      });
+    }
+    rebuildFtsIndex(db);
+
+    expect(search(db, "spring_boot").results.map((r) => r.source)).toEqual([
+      "docs/ident.md",
+    ]);
   });
 
   it.each(["café", "日本語"])("preserves Unicode keywords: %s", (topic) => {
