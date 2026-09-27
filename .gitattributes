@@ -1,1 +1,4 @@
 **/assets/*.gif filter=lfs diff=lfs merge=lfs -text
+
+# Retrieval fixtures are compared byte-for-byte in tests, so keep LF on Windows checkouts too
+packages/context/src/fixtures/** text eol=lf
