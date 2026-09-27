@@ -1,5 +1,13 @@
 # @neuledge/context
 
+## 1.2.8
+
+### Patch Changes
+
+- [#168](https://github.com/neuledge/context/pull/168) [`6a0681c`](https://github.com/neuledge/context/commit/6a0681c4c2cd7a3e41d825a5770451cee6f1ecd2) Thanks [@moshest](https://github.com/moshest)! - Keep underscores inside search words, so snake_case identifiers like `spring_boot` match the identifier instead of the separate words.
+
+- [#146](https://github.com/neuledge/context/pull/146) [`4fdd94b`](https://github.com/neuledge/context/commit/4fdd94b2cf965503899b1d3ccfd6f27e4f9b8e8d) Thanks [@TheRealBecks](https://github.com/TheRealBecks)! - Handle search topics as literal keywords with optional quoted phrases, preventing malformed quotes and FTS operator words from causing SQLite errors. Preserve Unicode keywords and add local ingestion-to-retrieval regression fixtures.
+
 ## 1.2.7
 
 ### Patch Changes
