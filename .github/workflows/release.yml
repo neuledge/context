@@ -13,6 +13,8 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
+    outputs:
+      hasChangesets: ${{ steps.changesets.outputs.hasChangesets }}
 
     permissions:
       contents: write
@@ -73,3 +75,78 @@ jobs:
       - name: Tag releases
         if: steps.changesets.outputs.hasChangesets == 'false'
         run: pnpm tags
+
+  # A separate job so an MCP Registry failure shows on its own without marking
+  # the npm release as failed.
+  mcp-registry:
+    name: Publish to MCP Registry
+    needs: release
+    # Same gate as "Tag releases": `published` never turns true here.
+    if: needs.release.outputs.hasChangesets == 'false'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      # `mcp-publisher login github-oidc` exchanges this job's OIDC token for
+      # publish rights on io.github.neuledge/*, so no registry secret is stored.
+      id-token: write
+
+    env:
+      # Bump when the registry rejects logins with "invalid audience".
+      MCP_PUBLISHER_VERSION: v1.8.1
+      MCP_PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      # Publish only a version the MCP Registry lacks, so pushes that release
+      # nothing new are no-ops and a failed publish is retried by the next one.
+      - name: Check MCP Registry version
+        id: check
+        run: |
+          version=$(jq -r .version packages/context/package.json)
+          name=$(jq -r .name server.json)
+          status=$(curl -s -o /dev/null -w '%{http_code}' \
+            "https://registry.modelcontextprotocol.io/v0/servers/${name/\//%2F}/versions/$version")
+          case "$status" in
+            200) echo "$name@$version is already in the MCP Registry" ;;
+            404) echo "version=$version" >> "$GITHUB_OUTPUT" ;;
+            *) echo "Unexpected MCP Registry status $status"; exit 1 ;;
+          esac
+
+      - name: Install mcp-publisher
+        if: steps.check.outputs.version
+        run: |
+          curl -fsSL -o mcp-publisher.tar.gz \
+            "https://github.com/modelcontextprotocol/registry/releases/download/$MCP_PUBLISHER_VERSION/mcp-publisher_linux_amd64.tar.gz"
+          echo "$MCP_PUBLISHER_SHA256  mcp-publisher.tar.gz" | sha256sum -c -
+          tar xzf mcp-publisher.tar.gz mcp-publisher
+
+      - name: Set version in server.json
+        if: steps.check.outputs.version
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          jq --arg v "$VERSION" '.version = $v | .packages[0].version = $v' server.json > server.tmp
+          mv server.tmp server.json
+
+      # The registry checks the npm package's mcpName, so wait until npm serves
+      # the version that was just published.
+      - name: Wait for npm
+        if: steps.check.outputs.version
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          for _ in $(seq 20); do
+            [ "$(npm view "@neuledge/context@$VERSION" version)" = "$VERSION" ] && exit 0
+            sleep 15
+          done
+          echo "@neuledge/context@$VERSION is not on npm"
+          exit 1
+
+      - name: Publish server
+        if: steps.check.outputs.version
+        run: |
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish

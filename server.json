@@ -6,12 +6,12 @@
     "url": "https://github.com/neuledge/context",
     "source": "github"
   },
-  "version": "0.2.3",
+  "version": "1.2.9",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@neuledge/context",
-      "version": "0.2.3",
+      "version": "1.2.9",
       "transport": {
         "type": "stdio"
       }
