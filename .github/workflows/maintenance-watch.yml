@@ -120,10 +120,16 @@ jobs:
           # Checks the last 7 scheduled runs, not just the latest. A failure can
           # disappear on its own because `--since 2` stops selecting the broken
           # version once it ages out — the run goes green while the cause remains.
-          runs=$(api "https://api.github.com/repos/$REPO/actions/workflows/registry-update.yml/runs?event=schedule&per_page=7")
+          # Filter and order client-side: the `event=schedule` query has served a
+          # stale result (newest run weeks old, July/August failures included)
+          # and raised false alarms twice, so neither its filter nor its order
+          # is trusted. 100 unfiltered runs span well over 7 scheduled ones.
+          runs=$(api "https://api.github.com/repos/$REPO/actions/workflows/registry-update.yml/runs?per_page=100")
           expect_object "$runs" "registry-update runs"
-          failed=$(echo "$runs" | jq '[.workflow_runs[] | select(.conclusion=="failure")] | length')
-          latest=$(echo "$runs" | jq -r '.workflow_runs[0].conclusion // "unknown"')
+          recent=$(echo "$runs" | jq '[.workflow_runs[] | select(.event=="schedule")]
+                                      | sort_by(.created_at) | reverse | .[:7]')
+          failed=$(echo "$recent" | jq '[.[] | select(.conclusion=="failure")] | length')
+          latest=$(echo "$recent" | jq -r '.[0].conclusion // "unknown"')
           if [ "$failed" -gt 0 ]; then
             findings="${findings}**Nightly registry publish**"$'\n'
             findings="${findings}- ${failed} of the last 7 scheduled runs failed (most recent run: ${latest})"$'\n'
