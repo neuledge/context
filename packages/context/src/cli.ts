@@ -65,6 +65,7 @@ import {
   packageKey,
   readPackageInfo,
 } from "./store.js";
+import { watchDirectory } from "./watch.js";
 
 type SourceType = "file" | "url" | "git" | "local-dir" | "website";
 
@@ -506,18 +507,32 @@ function ensureDataDir(): void {
   mkdirSync(DATA_DIR, { recursive: true });
 }
 
-/** Load all packages from the data directory into the store. */
+/**
+ * Sync the store with the data directory: add or update what is on disk, drop
+ * what is not.
+ *
+ * Called once at startup and again whenever the directory changes, so removals
+ * have to be handled too, not only additions.
+ */
 function loadPackages(store: PackageStore): void {
-  if (!existsSync(DATA_DIR)) return;
+  const onDisk = new Set<string>();
 
-  for (const file of readdirSync(DATA_DIR)) {
-    if (!file.endsWith(".db")) continue;
-    try {
-      const info = readPackageInfo(join(DATA_DIR, file));
-      store.add(info);
-    } catch {
-      // Skip invalid packages
+  if (existsSync(DATA_DIR)) {
+    for (const file of readdirSync(DATA_DIR)) {
+      if (!file.endsWith(".db")) continue;
+      try {
+        const info = readPackageInfo(join(DATA_DIR, file));
+        store.add(info);
+        onDisk.add(packageKey(info));
+      } catch {
+        // Skip invalid packages
+      }
     }
+  }
+
+  for (const pkg of store.list()) {
+    const key = packageKey(pkg);
+    if (!onDisk.has(key)) store.remove(key);
   }
 }
 
@@ -1217,6 +1232,17 @@ program
       }
 
       const server = new ContextServer(store, { allowedLibraries });
+
+      // `context add` runs in a separate process, so a long-lived stdio server
+      // would otherwise serve the package list it read at startup until the
+      // client reconnected. Skipped under --libs, which pins the session to a
+      // fixed library set on purpose.
+      if (!allowedLibraries) {
+        watchDirectory(DATA_DIR, () => {
+          loadPackages(store);
+          server.refreshGetDocsTool();
+        });
+      }
 
       if (options.http !== undefined) {
         const port =
