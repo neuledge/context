@@ -1,10 +1,11 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   compareSemver,
   constructTag,
+  isGitVersionEntry,
   isVersioned,
   isZipVersionEntry,
   listDefinitions,
@@ -329,6 +330,28 @@ describe("resolveVersionEntry", () => {
     expect(entry).toBeDefined();
     // Should match the first entry (15.0.0+), not the second
     expect(entry?.max_version).toBeUndefined();
+  });
+
+  it("resolves the correct docs_path for Effect 3.x and 4.x releases", () => {
+    const registryDir = resolve(import.meta.dirname, "../../..", "registry");
+    const def = loadDefinition(join(registryDir, "npm", "effect.yaml"));
+    if (!isVersioned(def)) throw new Error("expected versioned definition");
+
+    const v3 = resolveVersionEntry(def, "3.14.0");
+    expect(v3).toBeDefined();
+    if (!v3 || !isGitVersionEntry(v3)) throw new Error("expected git entry");
+    expect(v3.source.docs_path).toBe("docs");
+
+    const v4 = resolveVersionEntry(def, "4.0.0");
+    expect(v4).toBeDefined();
+    if (!v4 || !isGitVersionEntry(v4)) throw new Error("expected git entry");
+    expect(v4.source.docs_path).toBe("ai-docs/src");
+
+    const v4Later = resolveVersionEntry(def, "4.2.0");
+    expect(v4Later).toBeDefined();
+    if (!v4Later || !isGitVersionEntry(v4Later))
+      throw new Error("expected git entry");
+    expect(v4Later.source.docs_path).toBe("ai-docs/src");
   });
 });
 
