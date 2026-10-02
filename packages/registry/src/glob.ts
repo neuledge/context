@@ -1,6 +1,7 @@
 /**
  * Glob matching for `exclude_paths`, shared by the zip and git source builders.
  */
+import type { IngestionDiagnostic } from "@neuledge/context";
 
 /**
  * Compile a simple glob pattern to a RegExp.
@@ -26,6 +27,7 @@ export function excludeFiles<T extends { path: string }>(
   files: T[],
   excludePaths: string[] | undefined,
   docsPath?: string,
+  diagnostics?: IngestionDiagnostic[],
 ): T[] {
   if (!excludePaths?.length) return files;
 
@@ -37,6 +39,14 @@ export function excludeFiles<T extends { path: string }>(
       prefix && file.path.startsWith(prefix)
         ? file.path.slice(prefix.length)
         : file.path;
-    return !patterns.some((re) => re.test(relative));
+    const excluded = patterns.some((re) => re.test(relative));
+    if (excluded)
+      diagnostics?.push({
+        path: file.path,
+        kind: "file",
+        outcome: "excluded",
+        reason: "exclude_paths",
+      });
+    return !excluded;
   });
 }

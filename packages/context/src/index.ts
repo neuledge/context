@@ -46,6 +46,15 @@ export {
 } from "./git.js";
 export { parseHtml } from "./html.js";
 export {
+  createIngestionReport,
+  formatIngestionSummary,
+  type IngestionDiagnostic,
+  IngestionError,
+  type IngestionReport,
+  ingestionErrorReason,
+  validateIngestion,
+} from "./ingestion.js";
+export {
   type BuildResult,
   buildPackage,
   type MarkdownFile,

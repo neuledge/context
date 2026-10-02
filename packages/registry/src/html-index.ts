@@ -3,6 +3,11 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import {
+  type IngestionDiagnostic,
+  IngestionError,
+  ingestionErrorReason,
+} from "@neuledge/context";
 import { parseHTML } from "linkedom";
 import type { HtmlIndexSource } from "./definition.js";
 import { compileGlob } from "./glob.js";
@@ -62,16 +67,28 @@ function indexLinks(
   index: URL,
   root: URL,
   source: HtmlIndexSource,
+  diagnostics?: IngestionDiagnostic[],
 ): URL[] {
   const { document } = parseHTML(html);
   const excluded = source.exclude_paths?.map(compileGlob) ?? [];
   const urls = new Set<string>();
+  const seenLinks = new Set<string>();
   for (const anchor of document.querySelectorAll("a[href]")) {
     const url = scopedUrl(anchor.getAttribute("href") ?? "", index, root);
     if (!url || !HTML_PATH.test(url.pathname) || url.href === index.href)
       continue;
+    if (seenLinks.has(url.href)) continue;
+    seenLinks.add(url.href);
     const path = decodeURIComponent(url.pathname.slice(root.pathname.length));
-    if (excluded.some((pattern) => pattern.test(path))) continue;
+    if (excluded.some((pattern) => pattern.test(path))) {
+      diagnostics?.push({
+        path,
+        kind: "file",
+        outcome: "excluded",
+        reason: "exclude_paths",
+      });
+      continue;
+    }
     urls.add(url.href);
     if (urls.size > source.max_pages) {
       throw new Error(
@@ -253,7 +270,7 @@ async function fetchPage(
 export async function downloadHtmlIndex(
   source: HtmlIndexSource,
   version: string,
-  options: { cacheDir?: string } = {},
+  options: { cacheDir?: string; diagnostics?: IngestionDiagnostic[] } = {},
 ): Promise<Array<{ path: string; content: string }>> {
   const index = resolveIndexUrl(source.url, version);
   const root = new URL(".", index);
@@ -266,16 +283,19 @@ export async function downloadHtmlIndex(
     new URL(indexPage.finalUrl),
     root,
     source,
+    options.diagnostics,
   );
   const pages = new Map<string, CachedPage>();
   let totalBytes = Buffer.byteLength(indexPage.content);
   let cursor = 0;
   let failure: unknown;
   const worker = async () => {
+    let path = ".";
     try {
       while (!controller.signal.aborted) {
         const url = urls[cursor++];
         if (!url) return;
+        path = decodeURIComponent(url.pathname.slice(root.pathname.length));
         const page = await fetchPage(url, root, cacheDir, controller.signal);
         totalBytes += Buffer.byteLength(page.content);
         if (totalBytes > MAX_TOTAL_BYTES)
@@ -283,7 +303,19 @@ export async function downloadHtmlIndex(
         pages.set(url.href, page);
       }
     } catch (error) {
-      if (!controller.signal.aborted) failure = error;
+      if (!controller.signal.aborted) {
+        const diagnostic: IngestionDiagnostic = {
+          path,
+          kind: "file",
+          outcome: "read-error",
+          reason: ingestionErrorReason(error),
+        };
+        options.diagnostics?.push(diagnostic);
+        failure = new IngestionError(
+          ingestionErrorReason(error),
+          options.diagnostics ?? [diagnostic],
+        );
+      }
       controller.abort();
     }
   };
@@ -291,17 +323,27 @@ export async function downloadHtmlIndex(
     Array.from({ length: Math.min(source.concurrency, urls.length) }, worker),
   );
   if (failure) throw failure;
-  const seen = new Set<string>();
+  const seen = new Map<string, string>();
   const files: Array<{ path: string; content: string }> = [];
   // Stable order chooses the same alias regardless of download completion order.
   for (const url of urls) {
     const page = pages.get(url.href);
     if (!page) throw new Error(`HTML page was not downloaded: ${url}`);
     const hash = digest(page.content);
-    if (seen.has(hash)) continue;
-    seen.add(hash);
+    const path = decodeURIComponent(url.pathname.slice(root.pathname.length));
+    if (seen.has(hash)) {
+      options.diagnostics?.push({
+        path,
+        kind: "file",
+        outcome: "duplicate",
+        reason: "Identical document content",
+        duplicateOf: seen.get(hash),
+      });
+      continue;
+    }
+    seen.set(hash, path);
     files.push({
-      path: decodeURIComponent(url.pathname.slice(root.pathname.length)),
+      path,
       content: page.content,
     });
   }

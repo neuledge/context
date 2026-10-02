@@ -205,5 +205,34 @@ pnpm --filter @neuledge/registry registry build <name>
 A healthy build reports a few hundred sections. A handful usually means `docs_path` is
 pointing at the wrong directory.
 
+Build and publication logs also summarize ingestion outcomes. For a detailed JSON
+report, or to reject unexpected document loss during local validation, use:
+
+```bash
+pnpm --filter @neuledge/registry registry build <name> [version] --diagnostics ingestion.json
+pnpm --filter @neuledge/registry registry build <name> [version] --strict --diagnostics ingestion.json
+```
+
+Git, ZIP, and HTML-index sources share the same report vocabulary: `excluded`,
+`duplicate`, `read-error`, `parse-error`, `empty`, and `indexed`. Entries name
+relative paths and give reasons; duplicate documents identify the retained path
+when available. Git paths are relative to the checkout, ZIP paths to `docs_path`,
+and HTML paths to the pinned index directory. Directory exclusions are reported
+without walking their descendants, and unrelated source-code files are omitted.
+
+The summary distinguishes discovered documentation candidates, selected files
+(excluding intentional exclusions and duplicates), indexed documents, and stored
+sections after deduplication. Counts cover the selected source scope, not files
+outside `docs_path` or links outside the pinned HTML directory. Failed source
+downloads still abort the build; failure reports may contain only outcomes
+collected before the abort.
+
+`--strict` fails on read errors, parse errors, and documents producing no sections.
+It does not reject exclusions or duplicates, and validation failures leave any
+existing output package unchanged. The report is written on strict failure too.
+The default remains a tolerant build with visible diagnostics. For library use,
+`buildFromDefinition` and `buildUnversioned` accept an optional final
+`{ strict, diagnostics }` argument and return `diagnostics` with the build result.
+
 Then open the PR. New definitions are welcome — the registry is only as good as its
 coverage.

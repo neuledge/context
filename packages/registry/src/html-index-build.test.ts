@@ -135,6 +135,7 @@ describe("HTML index registry integration", () => {
     expect(downloadHtmlIndex).toHaveBeenCalledWith(
       expect.objectContaining({ type: "html-index" }),
       "258",
+      { diagnostics: expect.any(Array) },
     );
   });
 

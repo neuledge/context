@@ -12,6 +12,7 @@ import {
 } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  type Dirent,
   existsSync,
   mkdtempSync,
   readdirSync,
@@ -21,6 +22,11 @@ import {
 import { tmpdir } from "node:os";
 import { join, posix } from "node:path";
 import ignore, { type Ignore } from "ignore";
+import {
+  type IngestionDiagnostic,
+  IngestionError,
+  ingestionErrorReason,
+} from "./ingestion.js";
 
 /**
  * Generate a content hash for deduplication.
@@ -421,6 +427,8 @@ export interface FindMarkdownOptions {
   lang?: string;
   /** True when the scan starts at the repo root rather than inside a docs folder */
   atRepoRoot?: boolean;
+  diagnostics?: IngestionDiagnostic[];
+  diagnosticRoot?: string;
 }
 
 /**
@@ -436,96 +444,95 @@ function findMarkdownFiles(
 ): string[] {
   const files: string[] = [];
   const lang = options.lang?.toLowerCase();
-
+  let entries: Dirent[];
   try {
-    const entries = readdirSync(dirPath, { withFileTypes: true });
-
-    for (const entry of entries) {
-      const fullPath = join(dirPath, entry.name);
-      // Stored paths always use "/" so packages built on Windows match the rest
-      const relativePath = basePath
-        ? posix.join(basePath, entry.name)
-        : entry.name;
-
-      // Skip hidden entries
-      if (entry.name.startsWith(".")) continue;
-
-      // Check gitignore (directories need trailing slash for gitignore matching)
-      const pathToCheck = entry.isDirectory()
-        ? `${relativePath}/`
-        : relativePath;
-      if (ig.ignores(pathToCheck)) continue;
-
-      if (entry.isDirectory()) {
-        // Skip test, internal, and other non-doc directories
-        const dirName = entry.name.toLowerCase();
-        if (
-          IGNORED_DIRS.has(dirName) ||
-          (options.atRepoRoot && REPO_ROOT_IGNORED_DIRS.has(dirName))
-        ) {
-          continue;
-        }
-
-        // Filter locale directories unless --lang all or specific lang matches
-        if (isLocaleDir(entry.name)) {
-          // Include if: all languages, matching lang, or default to English
-          if (
-            lang === "all" ||
-            lang === dirName ||
-            (!lang && dirName === "en")
-          ) {
-            files.push(
-              ...findMarkdownFiles(fullPath, ig, relativePath, options),
-            );
-          }
-          // Skip other locales by default
-        } else {
-          files.push(...findMarkdownFiles(fullPath, ig, relativePath, options));
-        }
-      } else if (entry.isFile()) {
-        const lowerName = entry.name.toLowerCase();
-        const hasDocumentationExtension = DOCUMENTATION_EXTENSIONS.some((ext) =>
-          lowerName.endsWith(ext),
-        );
-
-        if (hasDocumentationExtension) {
-          // Skip non-doc markdown files
-          // Find matching extension to remove it for checking ignored files
-          const matchingExt = DOCUMENTATION_EXTENSIONS.find((ext) =>
-            lowerName.endsWith(ext),
-          );
-          // Only at the repo root: these names mean repo housekeeping there,
-          // but anywhere in a docs tree they are ordinary pages — forgejo's
-          // docs/admin/actions/security.md documents Actions security, and was
-          // being dropped as if it were a SECURITY.md policy file. A docs
-          // folder is not the repo root even though the walk starts there.
-          if (matchingExt && basePath === "" && options.atRepoRoot) {
-            const baseName = lowerName.slice(0, -matchingExt.length);
-            if (IGNORED_FILES.has(baseName)) continue;
-          }
-          // Skip test fixture files (e.g., component.expect.md, hook.test.md)
-          if (matchingExt) {
-            const nameWithoutExt = lowerName.slice(0, -matchingExt.length);
-            const nameParts = nameWithoutExt.split(".");
-            if (nameParts.length > 1) {
-              const lastPart = nameParts[nameParts.length - 1] || "";
-              if (FIXTURE_SUFFIXES.includes(lastPart)) {
-                continue;
-              }
-            }
-          }
-          files.push(relativePath);
-        }
-      }
-    }
-  } catch {
-    // Directory read failed
+    entries = readdirSync(dirPath, { withFileTypes: true });
+  } catch (error) {
+    options.diagnostics?.push({
+      path: posix.join(options.diagnosticRoot ?? "", basePath) || ".",
+      kind: "directory",
+      outcome: "read-error",
+      reason: ingestionErrorReason(error),
+    });
+    return files;
   }
 
+  for (const entry of entries) {
+    const fullPath = join(dirPath, entry.name);
+    const relativePath = basePath
+      ? posix.join(basePath, entry.name)
+      : entry.name;
+    const matchingExt = DOCUMENTATION_EXTENSIONS.find((ext) =>
+      entry.name.toLowerCase().endsWith(ext),
+    );
+    const exclude = (reason: string) => {
+      // Do not flood the report with unrelated source-code files.
+      if (entry.isDirectory() || matchingExt)
+        options.diagnostics?.push({
+          path: posix.join(options.diagnosticRoot ?? "", relativePath),
+          kind: entry.isDirectory() ? "directory" : "file",
+          outcome: "excluded",
+          reason,
+        });
+    };
+    if (entry.name.startsWith(".")) {
+      exclude("hidden");
+      continue;
+    }
+    const pathToCheck = entry.isDirectory() ? `${relativePath}/` : relativePath;
+    if (ig.ignores(pathToCheck)) {
+      exclude("gitignore");
+      continue;
+    }
+
+    if (entry.isDirectory()) {
+      const dirName = entry.name.toLowerCase();
+      if (
+        IGNORED_DIRS.has(dirName) ||
+        (options.atRepoRoot && REPO_ROOT_IGNORED_DIRS.has(dirName))
+      ) {
+        exclude("directory-filter");
+        continue;
+      }
+      if (
+        isLocaleDir(entry.name) &&
+        lang !== "all" &&
+        lang !== dirName &&
+        !(!lang && dirName === "en")
+      ) {
+        exclude("language-filter");
+        continue;
+      }
+      files.push(...findMarkdownFiles(fullPath, ig, relativePath, options));
+    } else if (entry.isFile() && matchingExt) {
+      const baseName = entry.name.toLowerCase().slice(0, -matchingExt.length);
+      if (
+        basePath === "" &&
+        options.atRepoRoot &&
+        IGNORED_FILES.has(baseName)
+      ) {
+        exclude("repo-metadata");
+        continue;
+      }
+      const nameParts = baseName.split(".");
+      if (
+        nameParts.length > 1 &&
+        FIXTURE_SUFFIXES.includes(nameParts[nameParts.length - 1] || "")
+      ) {
+        exclude("test-fixture");
+        continue;
+      }
+      files.push(relativePath);
+    } else if (matchingExt) {
+      exclude("not-a-regular-file");
+    }
+  }
   return files;
 }
 
 export interface ReadLocalDocsOptions {
+  /** Collect exclusions, duplicates and read failures without logging. */
+  diagnostics?: IngestionDiagnostic[];
   /** Path to docs folder within the repository */
   path?: string;
   /** Language filter: "all" includes everything, specific code (e.g., "en") includes only that locale */
@@ -542,11 +549,21 @@ export function readLocalDocsFiles(
   basePath: string,
   options: ReadLocalDocsOptions = {},
 ): Array<{ path: string; content: string }> {
-  const { path: docsPath, lang } = options;
+  const { path: docsPath, lang, diagnostics } = options;
   const searchPath = docsPath ? join(basePath, docsPath) : basePath;
 
   if (!existsSync(searchPath)) {
-    throw new Error(`Directory not found: ${searchPath}`);
+    const entry: IngestionDiagnostic = {
+      path: docsPath ?? ".",
+      kind: "directory",
+      outcome: "read-error",
+      reason: "ENOENT",
+    };
+    diagnostics?.push(entry);
+    throw new IngestionError(
+      `Directory not found: ${searchPath}`,
+      diagnostics ?? [entry],
+    );
   }
 
   // Load gitignore from repo root
@@ -555,11 +572,14 @@ export function readLocalDocsFiles(
   const markdownFiles = findMarkdownFiles(searchPath, ig, "", {
     lang,
     atRepoRoot: !docsPath,
+    diagnostics,
+    diagnosticRoot: docsPath,
   });
   const files: Array<{ path: string; content: string }> = [];
-  const seenHashes = new Set<string>();
+  const seenHashes = new Map<string, string>();
 
   for (const filePath of markdownFiles) {
+    const storagePath = docsPath ? posix.join(docsPath, filePath) : filePath;
     try {
       const fullPath = join(searchPath, filePath);
       const content = readFileSync(fullPath, "utf-8");
@@ -567,15 +587,24 @@ export function readLocalDocsFiles(
       // Skip duplicate content (keep first occurrence)
       const hash = contentHash(content);
       if (seenHashes.has(hash)) {
+        diagnostics?.push({
+          path: storagePath,
+          kind: "file",
+          outcome: "duplicate",
+          reason: "Identical document content",
+          duplicateOf: seenHashes.get(hash),
+        });
         continue;
       }
-      seenHashes.add(hash);
-
-      // Use relative path from docs folder for storage
-      const storagePath = docsPath ? posix.join(docsPath, filePath) : filePath;
+      seenHashes.set(hash, storagePath);
       files.push({ path: storagePath, content });
-    } catch {
-      // Skip files that can't be read
+    } catch (error) {
+      diagnostics?.push({
+        path: storagePath,
+        kind: "file",
+        outcome: "read-error",
+        reason: ingestionErrorReason(error),
+      });
     }
   }
 

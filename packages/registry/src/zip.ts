@@ -7,6 +7,11 @@
  */
 
 import { inflateRawSync } from "node:zlib";
+import {
+  type IngestionDiagnostic,
+  IngestionError,
+  ingestionErrorReason,
+} from "@neuledge/context";
 import { compileGlob } from "./glob.js";
 
 const DOCUMENTATION_EXTENSIONS = [
@@ -57,7 +62,11 @@ interface ZipEntry {
  */
 export async function downloadAndExtractZip(
   url: string,
-  options?: { docsPath?: string; excludePaths?: string[] },
+  options?: {
+    docsPath?: string;
+    excludePaths?: string[];
+    diagnostics?: IngestionDiagnostic[];
+  },
 ): Promise<Array<{ path: string; content: string }>> {
   const response = await fetch(url);
   if (!response.ok) {
@@ -88,13 +97,43 @@ export async function downloadAndExtractZip(
 
     // Skip default ignored files (by basename)
     const basename = relativePath.split("/").pop() ?? "";
-    if (IGNORED_FILES.has(basename)) continue;
+    if (IGNORED_FILES.has(basename)) {
+      options?.diagnostics?.push({
+        path: relativePath,
+        kind: "file",
+        outcome: "excluded",
+        reason: "generated-navigation",
+      });
+      continue;
+    }
 
     // Apply custom exclude patterns against relative path
-    if (excludePatterns?.some((re) => re.test(relativePath))) continue;
+    if (excludePatterns?.some((re) => re.test(relativePath))) {
+      options?.diagnostics?.push({
+        path: relativePath,
+        kind: "file",
+        outcome: "excluded",
+        reason: "exclude_paths",
+      });
+      continue;
+    }
 
-    const content = extractEntry(buffer, entry);
-    files.push({ path: relativePath, content });
+    try {
+      const content = extractEntry(buffer, entry);
+      files.push({ path: relativePath, content });
+    } catch (error) {
+      const diagnostic: IngestionDiagnostic = {
+        path: relativePath,
+        kind: "file",
+        outcome: "read-error",
+        reason: ingestionErrorReason(error),
+      };
+      options?.diagnostics?.push(diagnostic);
+      throw new IngestionError(
+        `Could not extract ${relativePath}: ${ingestionErrorReason(error)}`,
+        options?.diagnostics ?? [diagnostic],
+      );
+    }
   }
 
   return files;

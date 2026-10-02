@@ -14,6 +14,8 @@ import {
   type BuildResult,
   buildPackage,
   cloneRepository,
+  type IngestionDiagnostic,
+  IngestionError,
   readLocalDocsFiles,
 } from "@neuledge/context";
 import {
@@ -34,6 +36,11 @@ export interface RegistryBuildResult extends BuildResult {
   version: string;
   /** Git commit SHA that was built (for skip-if-unchanged checks) */
   sourceCommit?: string;
+}
+
+export interface RegistryBuildOptions {
+  strict?: boolean;
+  diagnostics?: IngestionDiagnostic[];
 }
 
 /**
@@ -64,7 +71,9 @@ export async function buildFromDefinition(
   definition: VersionedDefinition,
   version: string,
   outputDir: string,
+  options: RegistryBuildOptions = {},
 ): Promise<RegistryBuildResult> {
+  const diagnostics = options.diagnostics ?? [];
   const entry = resolveVersionEntry(definition, version);
   if (!entry) {
     throw new Error(
@@ -89,6 +98,7 @@ export async function buildFromDefinition(
       outputPath,
       definition,
       version,
+      { ...options, diagnostics },
     );
   }
 
@@ -96,21 +106,25 @@ export async function buildFromDefinition(
   const url = resolveUrl(entry.source.url, version);
   const files =
     entry.source.type === "html-index"
-      ? await downloadHtmlIndex(entry.source, version)
+      ? await downloadHtmlIndex(entry.source, version, { diagnostics })
       : await downloadAndExtractZip(url, {
           docsPath: entry.source.docs_path
             ? resolveUrl(entry.source.docs_path, version)
             : undefined,
+          diagnostics,
           excludePaths: entry.source.exclude_paths,
         });
 
   if (files.length === 0) {
-    throw new Error(
+    throw new IngestionError(
       `No documentation files found in ${entry.source.type} source from ${url}`,
+      diagnostics,
     );
   }
 
   const result = buildPackage(outputPath, files, {
+    diagnostics,
+    strict: options.strict,
     name: definition.name,
     version,
     description: definition.description,
@@ -133,7 +147,9 @@ export async function buildFromDefinition(
 export async function buildUnversioned(
   definition: UnversionedDefinition,
   outputDir: string,
+  options: RegistryBuildOptions = {},
 ): Promise<RegistryBuildResult> {
+  const diagnostics = options.diagnostics ?? [];
   const version = "latest";
   const { source } = definition;
   const safeName = definition.name.replace(/\//g, "-");
@@ -145,14 +161,20 @@ export async function buildUnversioned(
   if (source.type === "zip") {
     const files = await downloadAndExtractZip(source.url, {
       docsPath: source.docs_path,
+      diagnostics,
       excludePaths: source.exclude_paths,
     });
 
     if (files.length === 0) {
-      throw new Error(`No documentation files found in ZIP from ${source.url}`);
+      throw new IngestionError(
+        `No documentation files found in ZIP from ${source.url}`,
+        diagnostics,
+      );
     }
 
     const result = buildPackage(outputPath, files, {
+      diagnostics,
+      strict: options.strict,
       name: definition.name,
       version,
       description: definition.description,
@@ -184,18 +206,23 @@ export async function buildUnversioned(
       readLocalDocsFiles(tempDir, {
         path: source.docs_path,
         lang: source.lang,
+        diagnostics,
       }),
       source.exclude_paths,
       source.docs_path,
+      diagnostics,
     );
 
     if (files.length === 0) {
-      throw new Error(
+      throw new IngestionError(
         `No documentation files found in ${source.url} (default branch)`,
+        diagnostics,
       );
     }
 
     const result = buildPackage(outputPath, files, {
+      diagnostics,
+      strict: options.strict,
       name: definition.name,
       version,
       description: definition.description,
@@ -225,23 +252,31 @@ function buildFromGit(
   outputPath: string,
   definition: VersionedDefinition,
   version: string,
+  options: RegistryBuildOptions,
 ): RegistryBuildResult {
+  const diagnostics = options.diagnostics ?? [];
   const { tempDir, cleanup } = cloneRepository(url, tag);
 
   try {
     // Filter before the emptiness check, so an over-broad exclude_paths fails
     // loudly here instead of publishing an empty package.
     const files = excludeFiles(
-      readLocalDocsFiles(tempDir, { path: docsPath, lang }),
+      readLocalDocsFiles(tempDir, { path: docsPath, lang, diagnostics }),
       excludePaths,
       docsPath,
+      diagnostics,
     );
 
     if (files.length === 0) {
-      throw new Error(`No documentation files found in ${url} at tag ${tag}`);
+      throw new IngestionError(
+        `No documentation files found in ${url} at tag ${tag}`,
+        diagnostics,
+      );
     }
 
     const result = buildPackage(outputPath, files, {
+      diagnostics,
+      strict: options.strict,
       name: definition.name,
       version,
       description: definition.description,

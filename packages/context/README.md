@@ -297,6 +297,37 @@ context add ./my-project --name my-lib --pkg-version 2.0 --save ./packages/
 context add ./packages/my-lib@2.0.db
 ```
 
+Builds print an ingestion summary: discovered documentation files, selected files,
+indexed documents and sections, plus exclusions, duplicates, read/parse failures,
+and empty documents. To inspect paths and reasons, write a JSON report:
+
+```bash
+context add ./my-project --diagnostics ingestion.json
+context add ./my-project --strict --diagnostics ingestion.json
+```
+
+`--strict` rejects unreadable files/directories, parser failures, and documents
+that produce no sections before changing the installed package. Intentional
+exclusions and duplicate content remain acceptable. The JSON report is also
+written when strict validation fails. These options apply to documentation
+builds, not installation of prebuilt `.db` files.
+
+The report has `schemaVersion`, `summary`, and per-path `entries`. Discovered
+files are documentation candidates actually visited within the selected source;
+selected files exclude intentional exclusions and duplicates. Indexed sections
+count only sections stored after deduplication. Pruned directories appear once
+with their exclusion reason; their contents are not scanned or counted. Unrelated
+source-code files are omitted. Git/local paths are relative to the repository
+root, including an explicit docs path.
+
+Library callers receive the report as `BuildResult.diagnostics`; the existing
+`skippedFiles` field still counts only split/parse failures. To include source
+selection and read outcomes, pass the same `IngestionDiagnostic[]` to
+`readLocalDocsFiles(..., { diagnostics })` and
+`buildPackage(..., { name, version, diagnostics, strict })`. Strict failures throw
+`IngestionError`, whose `diagnostics` property contains the report. Library code
+does not log diagnostics.
+
 ---
 
 ## :whale: Docker
