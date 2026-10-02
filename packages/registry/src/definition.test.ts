@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   compareSemver,
@@ -561,5 +561,36 @@ describe("resolveUrl", () => {
     expect(resolveUrl("https://example.com/docs.zip", "1.0")).toBe(
       "https://example.com/docs.zip",
     );
+  });
+});
+
+describe("effect docs path regression", () => {
+  it("resolves docs_path for 3.14.21 (docs) and 4.0.0 (ai-docs/src)", () => {
+    const def = loadDefinition(
+      resolve(import.meta.dirname, "../../..", "registry/npm/effect.yaml"),
+    );
+
+    expect(def.name).toBe("effect");
+    if (!isVersioned(def)) throw new Error("expected versioned");
+
+    const v3 = resolveVersionEntry(def, "3.14.21");
+    expect(v3).toMatchObject({
+      source: {
+        type: "git",
+        url: "https://github.com/Effect-TS/effect",
+        docs_path: "docs",
+      },
+      tag_pattern: "effect@{version}",
+    });
+
+    const v4 = resolveVersionEntry(def, "4.0.0");
+    expect(v4).toMatchObject({
+      source: {
+        type: "git",
+        url: "https://github.com/Effect-TS/effect",
+        docs_path: "ai-docs/src",
+      },
+      tag_pattern: "effect@{version}",
+    });
   });
 });
