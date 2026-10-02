@@ -30,16 +30,20 @@ registry/maven/org.springframework.boot_spring-boot.yaml
 ```
 
 **If the project isn't distributed by a package manager at all** — a language runtime,
-a daemon, a CLI tool — give it a directory named after the project containing a single
-self-named file. That's how the language runtimes are already done:
+a daemon, a CLI tool — give it a directory named after the project, with one
+self-named file per package. A single-package project gets a single file, which is
+how the language runtimes are already done:
 
 ```
 registry/python/python.yaml
 registry/java/java.yaml
 ```
 
-So Docker, Kubernetes, Podman and systemd would be `registry/docker/docker.yaml`,
-`registry/kubernetes/kubernetes.yaml`, and so on.
+So Docker, Kubernetes and Podman would be `registry/docker/docker.yaml`,
+`registry/kubernetes/kubernetes.yaml`, `registry/podman/podman.yaml`, and so on.
+A project that ships more than one package gets more than one file in the same
+directory — systemd, for example, has `registry/systemd/systemd.yaml` and
+`registry/systemd/systemd-guides.yaml`.
 
 The `name:` field inside the file must match the path, or loading fails.
 

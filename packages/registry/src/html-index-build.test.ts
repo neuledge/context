@@ -147,7 +147,6 @@ describe("HTML index registry integration", () => {
     const guides = loadDefinition(join(root, "systemd-guides.yaml"));
     expect(guides.source).toMatchObject({
       type: "git",
-      ref: "v258",
       docs_path: "docs",
     });
   });

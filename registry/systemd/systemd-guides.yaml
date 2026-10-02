@@ -5,5 +5,4 @@ repository: https://github.com/systemd/systemd
 source:
   type: git
   url: https://github.com/systemd/systemd
-  ref: v258
   docs_path: docs
