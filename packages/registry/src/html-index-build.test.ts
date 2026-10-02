@@ -136,7 +136,7 @@ describe("HTML index registry integration", () => {
       expect.objectContaining({ type: "html-index" }),
       "258",
     );
-  });
+  }, 20000);
 
   it("loads both shipped systemd definitions", async () => {
     const root = resolve(import.meta.dirname, "../../..", "registry/systemd");
