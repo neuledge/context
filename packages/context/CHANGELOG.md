@@ -1,5 +1,17 @@
 # @neuledge/context
 
+## 1.2.11
+
+### Patch Changes
+
+- [#147](https://github.com/neuledge/context/pull/147) [`c846a41`](https://github.com/neuledge/context/commit/c846a412a57be20cd0a18466adde650a7e29432e) Thanks [@TheRealBecks](https://github.com/TheRealBecks)! - Preserve installed documentation when a rebuild or install fails. Stage and validate replacements before renaming them into place, and keep temporary databases out of package discovery.
+
+- [#175](https://github.com/neuledge/context/pull/175) [`6193b5c`](https://github.com/neuledge/context/commit/6193b5c40e2630fa75a1ca22fc8fefede596c03e) Thanks [@JayOfTheKeyboard](https://github.com/JayOfTheKeyboard)! - Keep bold, italic, link and inline-code text in section titles. Only a heading's top-level text was read, so words inside formatting or links were dropped from the title, which has the highest search weight. In the Python docs, 300 of 6,475 sections lost words (`Numeric Types — int, float, complex` became `Numeric Types — , , `), including 152 FAQ and guide sections whose heading is a link and which were titled "Introduction". Markdown was hit too: `## Using [superjson](...)` became "Using ". Heading permalinks such as Sphinx's "¶" stay out of the title.
+
+- [#180](https://github.com/neuledge/context/pull/180) [`ed85073`](https://github.com/neuledge/context/commit/ed8507342d59fcc39661bf1af2ae542570f6a63e) Thanks [@TheRealBecks](https://github.com/TheRealBecks)! - Preserve language fences and code indentation when HTML pre/code blocks contain surrounding formatting whitespace or comments.
+
+- [#185](https://github.com/neuledge/context/pull/185) [`ef14e81`](https://github.com/neuledge/context/commit/ef14e81baa9b7b941e3d38b81e0df766f101367e) Thanks [@human0-bot](https://github.com/apps/human0-bot)! - Clean up abandoned `.context-*` package staging directories left behind by a hard shutdown. The next download or setup now reclaims them when their recorded owner process is gone.
+
 ## 1.2.10
 
 ### Patch Changes
