@@ -20,6 +20,7 @@ import {
 import { initDatabase } from "./database.js";
 import { downloadPackage } from "./download.js";
 import { buildPackage } from "./package-builder.js";
+import { sweepAbandonedStaging } from "./staging.js";
 import { loadPackages, PackageStore, readPackageInfo } from "./store.js";
 
 vi.mock("node:os", async (importOriginal) => {
@@ -107,10 +108,15 @@ describe.each([
     } else if (stage === "validation") {
       vi.mocked(fetch).mockResolvedValueOnce(new Response("invalid database"));
     } else {
-      vi.mocked(renameSync).mockImplementationOnce(() => {
-        throw Object.assign(new Error("Destination is in use"), {
-          code: "EPERM",
-        });
+      const renameNormally = vi.mocked(renameSync).getMockImplementation();
+      if (!renameNormally) throw new Error("Missing renameSync implementation");
+      vi.mocked(renameSync).mockImplementation((source, destination) => {
+        if (destination === PACKAGE_PATH) {
+          throw Object.assign(new Error("Destination is in use"), {
+            code: "EPERM",
+          });
+        }
+        return renameNormally(source, destination);
       });
     }
 
@@ -223,6 +229,57 @@ it("uses independent staging files for simultaneous downloads of the same packag
     expect((await downloads[1].pending).path).toBe(PACKAGE_PATH);
     expect(new Uint8Array(readFileSync(PACKAGE_PATH))).toEqual(payload);
     expect(readdirSync(DATA_DIR)).toEqual(["test-lib@1.0.0.db"]);
+  } finally {
+    for (const { resume } of downloads) resume();
+    await Promise.allSettled(downloads.map(({ pending }) => pending));
+  }
+});
+
+it("keeps active staged writes during a staging sweep", async () => {
+  seed(true);
+  const downloads = [0, 1].map(() => {
+    let started: () => void = () => {};
+    let resume: () => void = () => {};
+    const paused = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const gate = new Promise<void>((resolve) => {
+      resume = resolve;
+    });
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(
+        new ReadableStream(
+          {
+            async pull(controller) {
+              started();
+              await gate;
+              controller.enqueue(payload);
+              controller.close();
+            },
+          },
+          { highWaterMark: 0 },
+        ),
+      ),
+    );
+    return { paused, resume, pending: download() };
+  });
+  const stagingDirectories = () =>
+    readdirSync(DATA_DIR).filter((file) => file.startsWith(".context-"));
+
+  try {
+    await Promise.all(downloads.map(({ paused }) => paused));
+    expect(stagingDirectories()).toHaveLength(2);
+
+    // Both staged writes are owned by this live process; the sweep must keep
+    // them so their downloads can still complete.
+    sweepAbandonedStaging(DATA_DIR);
+    expect(stagingDirectories()).toHaveLength(2);
+
+    for (const { resume } of downloads) resume();
+    await Promise.all(downloads.map(({ pending }) => pending));
+
+    expect(readdirSync(DATA_DIR)).toEqual(["test-lib@1.0.0.db"]);
+    expect(new Uint8Array(readFileSync(PACKAGE_PATH))).toEqual(payload);
   } finally {
     for (const { resume } of downloads) resume();
     await Promise.allSettled(downloads.map(({ pending }) => pending));

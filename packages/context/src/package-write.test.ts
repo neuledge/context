@@ -89,8 +89,11 @@ function injectFailure(stage: string): void {
       throw failure;
     });
   } else if (stage === "replacement") {
-    vi.mocked(renameSync).mockImplementationOnce(() => {
-      throw failure;
+    const renameNormally = vi.mocked(renameSync).getMockImplementation();
+    if (!renameNormally) throw new Error("Missing renameSync implementation");
+    vi.mocked(renameSync).mockImplementation((source, destination) => {
+      if (destination === outputPath) throw failure;
+      return renameNormally(source, destination);
     });
   } else {
     vi.mocked(openDatabase).mockImplementationOnce((path, options) => {
@@ -226,8 +229,13 @@ it.each([
 ])("preserves the old package when rename fails with %s", (code) => {
   buildPackage(outputPath, documents("original"), OPTIONS);
   const original = readFileSync(outputPath);
-  vi.mocked(renameSync).mockImplementationOnce(() => {
-    throw Object.assign(new Error("Destination is in use"), { code });
+  const renameNormally = vi.mocked(renameSync).getMockImplementation();
+  if (!renameNormally) throw new Error("Missing renameSync implementation");
+  vi.mocked(renameSync).mockImplementation((source, destination) => {
+    if (destination === outputPath) {
+      throw Object.assign(new Error("Destination is in use"), { code });
+    }
+    return renameNormally(source, destination);
   });
   expect(() =>
     buildPackage(outputPath, documents("replacement"), OPTIONS),

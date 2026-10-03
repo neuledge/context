@@ -55,6 +55,7 @@ import {
 import { copyPackageFile, createPackageTempFile } from "./package-file.js";
 import { type SearchResult, search } from "./search.js";
 import { ContextServer } from "./server.js";
+import { ensurePackagesDirectory } from "./staging.js";
 import {
   getPackageFileName,
   isAllowedLibrary,
@@ -500,9 +501,9 @@ function savePackageCopy(
   console.log(`✓ Saved to ${destPath}`);
 }
 
-/** Ensure data directory exists. */
+/** Ensure data directory exists and reclaim abandoned staging left in it. */
 function ensureDataDir(): void {
-  mkdirSync(DATA_DIR, { recursive: true });
+  ensurePackagesDirectory(DATA_DIR);
 }
 
 /**

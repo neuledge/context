@@ -2,11 +2,12 @@
  * Download and install documentation packages from a registry server.
  */
 
-import { createWriteStream, mkdirSync } from "node:fs";
+import { createWriteStream } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { createPackageTempFile } from "./package-file.js";
+import { ensurePackagesDirectory } from "./staging.js";
 import type { PackageInfo } from "./store.js";
 
 const DATA_DIR = join(homedir(), ".context", "packages");
@@ -65,7 +66,7 @@ export async function downloadPackage(
   }
 
   // Download to a temp file first, then validate and move
-  mkdirSync(DATA_DIR, { recursive: true });
+  ensurePackagesDirectory(DATA_DIR);
   const temp = createPackageTempFile(DATA_DIR);
 
   try {
