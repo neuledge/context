@@ -246,7 +246,7 @@ describe("sweepAbandonedStaging", () => {
     expect(readFileSync(legacy, "utf8")).toEqual("partial download");
   });
 
-  it("sweeps are safe to run concurrently", async () => {
+  it("sweeping twice is idempotent", async () => {
     const stagingDirectory = stageFixture("fixture");
     writeOwnerMetadata(stagingDirectory, {
       version: OWNER_VERSION,
