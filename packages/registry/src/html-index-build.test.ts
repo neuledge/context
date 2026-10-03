@@ -149,5 +149,6 @@ describe("HTML index registry integration", () => {
       type: "git",
       docs_path: "docs",
     });
+    expect(guides.source).not.toHaveProperty("ref");
   });
 });
