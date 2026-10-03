@@ -246,7 +246,7 @@ describe("sweepAbandonedStaging", () => {
     expect(readFileSync(legacy, "utf8")).toEqual("partial download");
   });
 
-  it("sweeping twice is idempotent", async () => {
+  it("sweeping twice is idempotent", () => {
     const stagingDirectory = stageFixture("fixture");
     writeOwnerMetadata(stagingDirectory, {
       version: OWNER_VERSION,
@@ -257,10 +257,8 @@ describe("sweepAbandonedStaging", () => {
       throw Object.assign(new Error("No such process"), { code: "ESRCH" });
     });
 
-    await Promise.all([
-      sweepAbandonedStaging(directory),
-      sweepAbandonedStaging(directory),
-    ]);
+    sweepAbandonedStaging(directory);
+    sweepAbandonedStaging(directory);
 
     expect(readdirSync(directory)).toEqual([]);
   });
