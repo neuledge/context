@@ -8,22 +8,25 @@
  * (clone default branch) definitions. Supports git, zip and HTML index sources.
  */
 
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import {
   type BuildResult,
   buildPackage,
   cloneRepository,
+  initDatabase,
   readLocalDocsFiles,
 } from "@neuledge/context";
 import {
   constructTag,
   isGitVersionEntry,
+  type PackageDefinition,
   resolveUrl,
   resolveVersionEntry,
   type UnversionedDefinition,
   type VersionedDefinition,
 } from "./definition.js";
+import { createBuildFingerprint, getIngestionRevision } from "./fingerprint.js";
 import { excludeFiles } from "./glob.js";
 import { downloadHtmlIndex } from "./html-index.js";
 import { downloadAndExtractZip } from "./zip.js";
@@ -44,17 +47,50 @@ export function getHeadCommit(url: string, ref?: string): string {
   // Must match the ref the package is built from. Asking for HEAD while building
   // a branch compares two unrelated commits, so the skip-if-unchanged check never
   // fires and the package is rebuilt and republished on every run.
-  const output = execSync(`git ls-remote ${url} ${ref ?? "HEAD"}`, {
-    encoding: "utf-8",
-    stdio: ["pipe", "pipe", "pipe"],
-  }).trim();
+  const requested = ref ?? "HEAD";
+  const output = execFileSync(
+    "git",
+    ["ls-remote", url, requested, `${requested}^{}`],
+    {
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    },
+  ).trim();
 
-  // Format: "<sha>\tHEAD"
-  const sha = output.split("\t")[0];
+  const refs = new Map(
+    output.split("\n").map((line) => {
+      const [sha, name] = line.split("\t");
+      return [name, sha];
+    }),
+  );
+  // Match clone --branch: prefer a branch, and peel annotated tags to commits.
+  const sha =
+    refs.get(`refs/heads/${requested}`) ??
+    refs.get(`${requested}^{}`) ??
+    refs.get(`refs/tags/${requested}^{}`) ??
+    refs.get(requested) ??
+    refs.get(`refs/tags/${requested}`);
   if (!sha) {
-    throw new Error(`Failed to get HEAD commit for ${url}`);
+    throw new Error(`Git reference ${requested} not found in upstream ${url}`);
   }
   return sha;
+}
+
+function fingerprintOptions(
+  definition: PackageDefinition,
+  version: string,
+  sourceCommit?: string,
+) {
+  const ingestionRevision = getIngestionRevision();
+  return {
+    ingestionRevision,
+    buildFingerprint: createBuildFingerprint(
+      definition,
+      version,
+      sourceCommit,
+      ingestionRevision,
+    ),
+  };
 }
 
 /**
@@ -65,6 +101,7 @@ export async function buildFromDefinition(
   version: string,
   outputDir: string,
 ): Promise<RegistryBuildResult> {
+  await initDatabase();
   const entry = resolveVersionEntry(definition, version);
   if (!entry) {
     throw new Error(
@@ -115,6 +152,7 @@ export async function buildFromDefinition(
     version,
     description: definition.description,
     sourceUrl: definition.repository ?? url,
+    ...fingerprintOptions(definition, version),
   });
 
   return {
@@ -134,6 +172,7 @@ export async function buildUnversioned(
   definition: UnversionedDefinition,
   outputDir: string,
 ): Promise<RegistryBuildResult> {
+  await initDatabase();
   const version = "latest";
   const { source } = definition;
   const safeName = definition.name.replace(/\//g, "-");
@@ -157,6 +196,7 @@ export async function buildUnversioned(
       version,
       description: definition.description,
       sourceUrl: definition.repository ?? source.url,
+      ...fingerprintOptions(definition, version),
     });
 
     return {
@@ -172,7 +212,7 @@ export async function buildUnversioned(
 
   try {
     // Get the commit SHA of the cloned HEAD
-    const sourceCommit = execSync("git rev-parse HEAD", {
+    const sourceCommit = execFileSync("git", ["rev-parse", "HEAD"], {
       cwd: tempDir,
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "pipe"],
@@ -201,6 +241,7 @@ export async function buildUnversioned(
       description: definition.description,
       sourceUrl: definition.repository ?? source.url,
       sourceCommit,
+      ...fingerprintOptions(definition, version, sourceCommit),
     });
 
     return {
@@ -229,6 +270,11 @@ function buildFromGit(
   const { tempDir, cleanup } = cloneRepository(url, tag);
 
   try {
+    const sourceCommit = execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: tempDir,
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    }).trim();
     // Filter before the emptiness check, so an over-broad exclude_paths fails
     // loudly here instead of publishing an empty package.
     const files = excludeFiles(
@@ -246,6 +292,8 @@ function buildFromGit(
       version,
       description: definition.description,
       sourceUrl: definition.repository ?? url,
+      sourceCommit,
+      ...fingerprintOptions(definition, version, sourceCommit),
     });
 
     return {
@@ -253,6 +301,7 @@ function buildFromGit(
       name: definition.name,
       registry: definition.registry,
       version,
+      sourceCommit,
     };
   } finally {
     cleanup();

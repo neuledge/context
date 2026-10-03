@@ -57,6 +57,8 @@ export interface PackageMetadata {
   name: string;
   version: string;
   source_commit?: string;
+  build_fingerprint?: string;
+  ingestion_revision?: string;
 }
 
 /**
@@ -101,19 +103,27 @@ export async function publishPackage(
   const url = `${getServerUrl()}/packages/${encodeURIComponent(registry)}/${encodeURIComponent(name)}/${encodeURIComponent(version)}`;
   const body = readFileSync(dbPath);
 
-  // Re-uploading an identical package is safe: the server keys on
-  // registry/name/version, so a retry after a dropped connection overwrites
-  // rather than duplicating.
-  await requestWithRetry(
-    url,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${getPublishKey()}`,
-        "Content-Type": "application/octet-stream",
+  try {
+    await requestWithRetry(
+      url,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${getPublishKey()}`,
+          "Content-Type": "application/octet-stream",
+        },
+        body,
       },
-      body,
-    },
-    () => `Failed to publish ${registry}/${name}@${version}`,
-  );
+      () => `Failed to publish ${registry}/${name}@${version}`,
+    );
+  } catch (error) {
+    if (error instanceof Error && error.message.includes(": 409 ")) {
+      throw new Error(
+        `${error.message}. The registry rejected replacement of this published version. ` +
+          `The rebuilt artifact is preserved at ${dbPath}. Use a registry-supported replacement or artifact revision; --force cannot override the server's policy.`,
+        { cause: error },
+      );
+    }
+    throw error;
+  }
 }

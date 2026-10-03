@@ -24,6 +24,10 @@ export interface PackageBuildOptions {
   sourceUrl?: string;
   /** Git commit SHA used to build this package (for skip-if-unchanged checks) */
   sourceCommit?: string;
+  /** Deterministic registry build inputs, used for publication freshness. */
+  buildFingerprint?: string;
+  /** Automatically generated revision of the ingestion implementation. */
+  ingestionRevision?: string;
 }
 
 export interface MarkdownFile {
@@ -622,6 +626,12 @@ function writePackage(
     }
     if (options.sourceCommit) {
       insertMeta.run("source_commit", options.sourceCommit);
+    }
+    if (options.buildFingerprint) {
+      insertMeta.run("build_fingerprint", options.buildFingerprint);
+    }
+    if (options.ingestionRevision) {
+      insertMeta.run("ingestion_revision", options.ingestionRevision);
     }
 
     // Parse and insert chunks

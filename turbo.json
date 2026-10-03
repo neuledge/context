@@ -1,5 +1,6 @@
 {
   "$schema": "https://turborepo.com/schema.json",
+  "globalDependencies": ["scripts/generate-ingestion-revision.mjs"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

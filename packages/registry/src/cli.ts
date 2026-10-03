@@ -9,17 +9,13 @@ import { mkdirSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 import { type BuildResult, isMissingRefError } from "@neuledge/context";
 import { Command } from "commander";
-import {
-  buildFromDefinition,
-  buildUnversioned,
-  getHeadCommit,
-} from "./build.js";
+import { buildFromDefinition, buildUnversioned } from "./build.js";
 import {
   isExplicitVersionEntry,
   isVersioned,
   listDefinitions,
 } from "./definition.js";
-import { checkPackageExists, publishPackage } from "./publish.js";
+import { publishDefinition } from "./publication.js";
 import { type AvailableVersion, discoverVersions } from "./version-check.js";
 
 const DEFAULT_REGISTRY_DIR = resolve(
@@ -139,69 +135,34 @@ program
     "Output directory for build artifacts",
     "./dist-packages",
   )
+  .option(
+    "--force",
+    "Rebuild and upload even when already published or unchanged",
+  )
   .action(async (name, version, opts) => {
     const def = findDefinition(opts.dir, name);
     mkdirSync(opts.output, { recursive: true });
 
-    if (isVersioned(def)) {
-      if (!version) {
-        throw new Error(
-          `Version required for versioned package "${name}". Use: registry publish ${name} <version>`,
-        );
-      }
-
-      // Check if already published
-      const existing = await checkPackageExists(
-        def.registry,
-        def.name,
-        version,
+    if (isVersioned(def) && !version) {
+      throw new Error(
+        `Version required for versioned package "${name}". Use: registry publish ${name} <version>`,
       );
-      if (existing) {
-        console.log(
-          `Already published: ${def.registry}/${def.name}@${version}`,
-        );
-        return;
-      }
-
-      console.log(`Building ${def.registry}/${def.name}@${version}...`);
-      const result = await buildFromDefinition(def, version, opts.output);
-      console.log(`Built: ${result.path} (${formatBuilt(result)})`);
-
-      console.log(`Publishing ${def.registry}/${def.name}@${version}...`);
-      await publishPackage(def.registry, def.name, version, result.path);
-      console.log(`Published: ${def.registry}/${def.name}@${version}`);
-    } else {
-      // Unversioned: check source_commit to skip if unchanged
-      const existing = await checkPackageExists(
-        def.registry,
-        def.name,
-        "latest",
-      );
-      if (existing?.source_commit && def.source.type === "git") {
-        const currentCommit = getHeadCommit(def.source.url, def.source.ref);
-        if (currentCommit === existing.source_commit) {
-          console.log(
-            `Skipping ${def.registry}/${def.name}@latest (source unchanged: ${currentCommit.slice(0, 8)})`,
-          );
-          return;
-        }
-      }
-
-      console.log(
-        `Building ${def.registry}/${def.name}@latest (unversioned)...`,
-      );
-      const result = await buildUnversioned(def, opts.output);
-      console.log(`Built: ${result.path} (${formatBuilt(result)})`);
-
-      console.log(`Publishing ${def.registry}/${def.name}@latest...`);
-      await publishPackage(def.registry, def.name, "latest", result.path);
-      console.log(`Published: ${def.registry}/${def.name}@latest`);
     }
+    await publishDefinition(
+      def,
+      isVersioned(def) ? version : "latest",
+      opts.output,
+      {
+        force: opts.force,
+      },
+    );
   });
 
 program
   .command("publish-all")
-  .description("Check all definitions, build and publish missing versions")
+  .description(
+    "Check all definitions, build and publish missing or stale versions",
+  )
   .option("--dir <path>", "Registry directory", DEFAULT_REGISTRY_DIR)
   .option(
     "--output <path>",
@@ -215,6 +176,10 @@ program
   .option(
     "--latest <count>",
     "Only the N most recent minor versions per package",
+  )
+  .option(
+    "--force",
+    "Rebuild and upload even when already published or unchanged",
   )
   .action(async (opts) => {
     const definitions = listDefinitions(opts.dir);
@@ -248,65 +213,20 @@ program
       for (const ver of versions) {
         const id = `${def.registry}/${def.name}@${ver.version}`;
         try {
-          if (isVersioned(def)) {
-            // Check if already published
-            const existing = await checkPackageExists(
-              def.registry,
-              def.name,
-              ver.version,
-            );
-            if (existing) {
-              skipped++;
-              continue;
-            }
-
-            console.log(`Building ${id}...`);
-            const result = await buildFromDefinition(
-              def,
-              ver.version,
-              opts.output,
-            );
-            console.log(`  Built (${formatBuilt(result)})`);
-
-            console.log(`  Publishing...`);
-            await publishPackage(
-              def.registry,
-              def.name,
-              ver.version,
-              result.path,
-            );
-            console.log(`  Published`);
-
-            // Clean up build artifact to save disk space
-            rmSync(result.path, { force: true });
-          } else {
-            // Unversioned: check source_commit
-            const existing = await checkPackageExists(
-              def.registry,
-              def.name,
-              "latest",
-            );
-            if (existing?.source_commit && def.source.type === "git") {
-              const currentCommit = getHeadCommit(
-                def.source.url,
-                def.source.ref,
-              );
-              if (currentCommit === existing.source_commit) {
-                skipped++;
-                continue;
-              }
-            }
-
-            console.log(`Building ${id}...`);
-            const result = await buildUnversioned(def, opts.output);
-            console.log(`  Built (${formatBuilt(result)})`);
-
-            console.log(`  Publishing...`);
-            await publishPackage(def.registry, def.name, "latest", result.path);
-            console.log(`  Published`);
-
-            rmSync(result.path, { force: true });
+          const result = await publishDefinition(
+            def,
+            ver.version,
+            opts.output,
+            {
+              force: opts.force,
+            },
+          );
+          if (!result) {
+            skipped++;
+            continue;
           }
+          // Keep failed uploads on disk for recovery; remove successful artifacts.
+          rmSync(result.path, { force: true });
 
           succeeded++;
         } catch (err) {
@@ -327,7 +247,7 @@ program
     // Summary
     console.log(`\n--- Summary ---`);
     console.log(`Succeeded: ${succeeded}`);
-    console.log(`Skipped (already published): ${skipped}`);
+    console.log(`Skipped (up to date or legacy metadata): ${skipped}`);
     console.log(`Failed: ${failures.length}`);
 
     if (failures.length > 0) {
