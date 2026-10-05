@@ -113,14 +113,12 @@ describe("watchDirectory", () => {
   it("survives an ENOSPC watcher error and re-attaches", () => {
     vi.useFakeTimers();
     const callback = vi.fn();
-    const onError = vi.fn();
     const fake = makeFakeWatch();
     const stop = watchDirectory("/packages", callback, {
       watchFn: fake.watchFn,
       exists: () => true,
       debounceMs: 200,
       retryMs: 50,
-      onError,
     });
 
     expect(fake.handles).toHaveLength(1);
@@ -130,7 +128,6 @@ describe("watchDirectory", () => {
     });
 
     first?.emitError(enospc);
-    expect(onError).toHaveBeenCalledWith(enospc);
     expect(first?.closed).toBe(true);
 
     // After the retry interval a fresh watcher is attached.

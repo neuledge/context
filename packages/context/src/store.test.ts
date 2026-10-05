@@ -171,23 +171,24 @@ describe("store", () => {
       expect(keys).toEqual(["test-lib@1.0.0"]);
     });
 
-    it("keeps an entry when a transient stat failure cannot confirm absence", () => {
-      const store = new PackageStore();
-      // Longer than any supported filesystem's PATH_MAX, so stat fails with
-      // ENAMETOOLONG rather than ENOENT: absence is not positively confirmed.
-      const tooLong = join(TEST_DIR, "x".repeat(10_000));
-      store.add({
-        name: "kept",
+    it("keeps entries when the directory temporarily disappears and reconciles once it returns", () => {
+      createTestPackage(TEST_PACKAGE_PATH, {
+        name: "test-lib",
         version: "1.0.0",
-        path: tooLong,
-        sizeBytes: 0,
-        sectionCount: 0,
       });
+      const store = new PackageStore();
+      store.add(readPackageInfo(TEST_PACKAGE_PATH));
 
+      // Removing the directory is not proof its package was removed; the live
+      // store must survive the temporary disappearance without pruning.
+      rmSync(TEST_DIR, { recursive: true });
       reloadPackages(store, TEST_DIR);
-
       expect(store.list()).toHaveLength(1);
-      expect(store.get("kept@1.0.0")?.path).toBe(tooLong);
+
+      // Once the directory is back (empty), the now-confirmed absence prunes.
+      mkdirSync(TEST_DIR, { recursive: true });
+      reloadPackages(store, TEST_DIR);
+      expect(store.list()).toHaveLength(0);
     });
 
     it("adds a package installed after the initial load", () => {

@@ -36,8 +36,6 @@ export interface WatchDirectoryOptions {
   watchFn?: WatchFn;
   /** Path existence check, injectable for tests. */
   exists?: (path: string) => boolean;
-  /** Called for non-fatal watcher errors (for example ENOSPC). */
-  onError?: (error: Error) => void;
 }
 
 const defaultWatchFn: WatchFn = (directory, listener) =>
@@ -139,8 +137,7 @@ export function watchDirectory(
     schedule();
   };
 
-  const handleError = (error: Error): void => {
-    options.onError?.(error);
+  const handleError = (): void => {
     detach();
     scheduleRetry();
   };
@@ -155,9 +152,9 @@ export function watchDirectory(
       watcher = watchFn(directory, handleEvent);
       watcher.on("error", handleError);
       watcher.unref?.();
-    } catch (error) {
+    } catch {
       // `watch` can throw synchronously (missing directory, resource limits).
-      handleError(error as Error);
+      handleError();
     }
   };
 
