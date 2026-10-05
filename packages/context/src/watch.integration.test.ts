@@ -1,4 +1,10 @@
-import { existsSync, mkdirSync, rmSync, symlinkSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  renameSync,
+  rmSync,
+  symlinkSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -96,10 +102,13 @@ describe("serve package reload integration", () => {
     expect(beforeGetDocs).toBeDefined();
     expect(JSON.stringify(beforeGetDocs)).not.toContain("newpkg@1.0.0");
 
-    // Install a package the same way `context add` does — as a new .db file in
-    // the watched package directory.
+    // Install a package the way `context add` does: write the database fully
+    // outside the watched directory, then atomically rename it into place.
+    // Writing the .db in place would let the watcher observe a half-written
+    // file on Windows (where the create event can fire before writes finish).
     const pkgPath = join(packagesDir, "newpkg@1.0.0.db");
-    const db = createTestDb(pkgPath, { name: "newpkg", version: "1.0.0" });
+    const stagingPath = join(testHome, "newpkg@1.0.0.staging.db");
+    const db = createTestDb(stagingPath, { name: "newpkg", version: "1.0.0" });
     insertChunk(db, {
       docPath: "docs/intro.md",
       docTitle: "Introduction",
@@ -109,6 +118,8 @@ describe("serve package reload integration", () => {
     });
     rebuildFtsIndex(db);
     db.close();
+
+    renameSync(stagingPath, pkgPath);
 
     await withTimeout(notified, 10_000, "tools/list_changed notification");
 

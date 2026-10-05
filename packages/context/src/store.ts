@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { type DatabaseConnection, openDatabase } from "./database.js";
 import { getMetaValue, getSectionCount, validatePackageSchema } from "./db.js";
 
@@ -197,6 +197,19 @@ export function loadPackages(store: PackageStore, directory: string): void {
 }
 
 /**
+ * A single path component cannot exceed this many characters on the filesystems
+ * we support (NTFS allows 255 UTF-16 code units; ext4 and APFS allow 255
+ * bytes). A package path with a longer name component can never resolve to a
+ * real database file, so a stat failure on it is not proof that a previously
+ * indexed file was deleted.
+ */
+const MAX_PATH_COMPONENT_LENGTH = 255;
+
+function isUnrepresentablePackagePath(path: string): boolean {
+  return basename(path).length > MAX_PATH_COMPONENT_LENGTH;
+}
+
+/**
  * True only when a package file is positively gone: `stat` reports ENOENT (the
  * file does not exist) or ENOTDIR (a path component is not a directory, so the
  * file cannot exist there). Permission errors and other transient failures are
@@ -208,7 +221,19 @@ function isFileConfirmedAbsent(path: string): boolean {
     return false;
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
-    return code === "ENOENT" || code === "ENOTDIR";
+    if (code !== "ENOENT" && code !== "ENOTDIR") {
+      return false;
+    }
+
+    // Windows reports ENOENT for paths it cannot resolve — including a name
+    // component longer than the filesystem supports — exactly as it does for a
+    // genuinely missing file. Keep such entries: the failure is not proof of
+    // absence.
+    if (isUnrepresentablePackagePath(path)) {
+      return false;
+    }
+
+    return true;
   }
 }
 
