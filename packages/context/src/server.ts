@@ -223,8 +223,12 @@ export class ContextServer {
   /**
    * Update the get_docs tool to include newly installed packages.
    * If get_docs doesn't exist yet, register it for the first time.
+   *
+   * Public so the long-running `serve` command can refresh the tool after a
+   * package is installed or removed by a separate `context add`/`remove`
+   * process. Notifies connected MCP clients that the tool list changed.
    */
-  private refreshGetDocsTool(): void {
+  public refreshGetDocsTool(): void {
     const packages = this.visiblePackages();
 
     if (this.getDocsRegistration) {

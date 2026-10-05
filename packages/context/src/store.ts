@@ -196,6 +196,55 @@ export function loadPackages(store: PackageStore, directory: string): void {
   }
 }
 
+/**
+ * True only when a package file is positively gone: `stat` reports ENOENT (the
+ * file does not exist) or ENOTDIR (a path component is not a directory, so the
+ * file cannot exist there). Permission errors and other transient failures are
+ * not proof of absence, so the entry is kept.
+ */
+function isFileConfirmedAbsent(path: string): boolean {
+  try {
+    statSync(path);
+    return false;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    return code === "ENOENT" || code === "ENOTDIR";
+  }
+}
+
+/**
+ * Reconcile a live store with the packages on disk: add newly installed
+ * packages and drop entries whose files are gone. A package whose file still
+ * exists but cannot be read (a partial or unreadable database) is left
+ * untouched — its absence is not confirmed, and a later reload may succeed once
+ * the writer finishes.
+ */
+export function reloadPackages(store: PackageStore, directory: string): void {
+  let files: string[];
+  try {
+    files = existsSync(directory) ? readdirSync(directory) : [];
+  } catch {
+    // The directory cannot be inspected; keep the store as-is rather than drop
+    // entries whose absence cannot be confirmed.
+    return;
+  }
+
+  for (const file of files) {
+    if (!file.endsWith(".db") || file.startsWith(".downloading-")) continue;
+    try {
+      store.add(readPackageInfo(join(directory, file)));
+    } catch {
+      // Keep any existing entry: the file is still present.
+    }
+  }
+
+  for (const pkg of store.list()) {
+    if (isFileConfirmedAbsent(pkg.path)) {
+      store.remove(packageKey(pkg));
+    }
+  }
+}
+
 /** Read package info from a database file. */
 export function readPackageInfo(packagePath: string): PackageInfo {
   const db = openDatabase(packagePath, { readonly: true });

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -15,6 +15,7 @@ import {
   type PackageInfo,
   PackageStore,
   readPackageInfo,
+  reloadPackages,
 } from "./store.js";
 import { createTestDb, insertChunk, rebuildFtsIndex } from "./test-utils.js";
 
@@ -109,6 +110,97 @@ describe("store", () => {
       db.close();
 
       expect(() => readPackageInfo(path)).toThrow("missing name or version");
+    });
+  });
+
+  describe("reloadPackages", () => {
+    it("keeps an already loaded package whose file exists but cannot be read", () => {
+      createTestPackage(TEST_PACKAGE_PATH, {
+        name: "test-lib",
+        version: "1.0.0",
+      });
+      const store = new PackageStore();
+      store.add(readPackageInfo(TEST_PACKAGE_PATH));
+
+      // Corrupt the file so the next read fails, but leave it on disk.
+      writeFileSync(TEST_PACKAGE_PATH, "not a database");
+
+      reloadPackages(store, TEST_DIR);
+
+      expect(store.list()).toHaveLength(1);
+      expect(store.get("test-lib@1.0.0")?.path).toBe(TEST_PACKAGE_PATH);
+    });
+
+    it("ignores `.downloading-*` staging files", () => {
+      createTestPackage(TEST_PACKAGE_PATH, {
+        name: "test-lib",
+        version: "1.0.0",
+      });
+
+      // A staged download whose temporary name still ends in `.db`.
+      const stagedPath = join(TEST_DIR, ".downloading-123-staged.db");
+      createTestPackage(stagedPath, { name: "staged", version: "9.9.9" });
+
+      const store = new PackageStore();
+      reloadPackages(store, TEST_DIR);
+
+      const names = store.list().map((p) => p.name);
+      expect(names).toContain("test-lib");
+      expect(names).not.toContain("staged");
+    });
+
+    it("removes an entry only once its file is confirmed absent", () => {
+      createTestPackage(TEST_PACKAGE_PATH, {
+        name: "test-lib",
+        version: "1.0.0",
+      });
+      const secondPath = join(TEST_DIR, "other@2.0.0.db");
+      createTestPackage(secondPath, { name: "other", version: "2.0.0" });
+
+      const store = new PackageStore();
+      store.add(readPackageInfo(TEST_PACKAGE_PATH));
+      store.add(readPackageInfo(secondPath));
+
+      // Delete only the second package's file.
+      rmSync(secondPath);
+
+      reloadPackages(store, TEST_DIR);
+
+      const keys = store.list().map((p) => `${p.name}@${p.version}`);
+      expect(keys).toEqual(["test-lib@1.0.0"]);
+    });
+
+    it("keeps an entry when a transient stat failure cannot confirm absence", () => {
+      const store = new PackageStore();
+      // Longer than any supported filesystem's PATH_MAX, so stat fails with
+      // ENAMETOOLONG rather than ENOENT: absence is not positively confirmed.
+      const tooLong = join(TEST_DIR, "x".repeat(10_000));
+      store.add({
+        name: "kept",
+        version: "1.0.0",
+        path: tooLong,
+        sizeBytes: 0,
+        sectionCount: 0,
+      });
+
+      reloadPackages(store, TEST_DIR);
+
+      expect(store.list()).toHaveLength(1);
+      expect(store.get("kept@1.0.0")?.path).toBe(tooLong);
+    });
+
+    it("adds a package installed after the initial load", () => {
+      const store = new PackageStore();
+      reloadPackages(store, TEST_DIR);
+      expect(store.list()).toHaveLength(0);
+
+      createTestPackage(TEST_PACKAGE_PATH, {
+        name: "test-lib",
+        version: "1.0.0",
+      });
+      reloadPackages(store, TEST_DIR);
+
+      expect(store.get("test-lib")?.version).toBe("1.0.0");
     });
   });
 

@@ -64,7 +64,9 @@ import {
   PackageStore,
   packageKey,
   readPackageInfo,
+  reloadPackages,
 } from "./store.js";
+import { watchDirectory } from "./watch.js";
 
 type SourceType = "file" | "url" | "git" | "local-dir" | "website";
 
@@ -1160,6 +1162,9 @@ program
       libs?: string[];
     }) => {
       const store = new PackageStore();
+      // Ensure the package directory exists before the initial scan and watcher
+      // setup, so a first run with a fresh HOME still starts a real watcher.
+      ensureDataDir();
       loadPackages(store, DATA_DIR);
 
       const allowedLibraries = options.libs
@@ -1183,6 +1188,9 @@ program
       const server = new ContextServer(store, { allowedLibraries });
 
       if (options.http !== undefined) {
+        // HTTP serves each session its own ContextServer, so a root-server
+        // watcher could not refresh those sessions. Keep watching scoped to the
+        // single-server stdio transport below.
         const port =
           typeof options.http === "string"
             ? Number.parseInt(options.http, 10)
@@ -1192,6 +1200,16 @@ program
         const { port: actualPort } = await server.startHTTP({ port, host });
         console.error(`Listening on http://${host}:${actualPort}/mcp`);
       } else {
+        // Reload the package store and refresh the get_docs tool (notifying the
+        // MCP client) whenever a separate `context add`/`remove` changes the
+        // package directory on disk. The watcher is unref'd and recovers from
+        // watch errors and directory removal, so it never keeps the process
+        // alive or crashes the server.
+        watchDirectory(DATA_DIR, () => {
+          reloadPackages(store, DATA_DIR);
+          server.refreshGetDocsTool();
+        });
+
         await server.start();
       }
     },
