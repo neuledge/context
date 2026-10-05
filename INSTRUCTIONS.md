@@ -49,7 +49,8 @@ When modifying packages that are published (check for `"private": true` in packa
   Short summary of the change from user's perspective
   ```
 - Bump types: `patch` (bug fixes), `minor` (new features), `major` (breaking changes)
-- Skip changesets for: docs-only changes, test-only changes, internal tooling
+- Runtime dependency refreshes need a changeset even when the declared ranges and public API are unchanged, because the resolved versions users install do change.
+- Skip changesets for: docs-only changes, test-only changes, internal tooling, and development-tool-only dependency refreshes
 
 Why: Changesets automate versioning and changelog generation, ensuring users know what changed between releases.
 
