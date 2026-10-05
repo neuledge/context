@@ -1118,6 +1118,34 @@ export function resolveRemoveTarget(
   return { pkg: exact };
 }
 
+/**
+ * Remove a package file, distinguishing "already gone" from a real failure.
+ *
+ * `unlinkSync` throws `ENOENT` when the file was already removed (for example
+ * by a concurrent cleanup); that still counts as removed. Any other error, or
+ * the file still existing afterward (a locked file on Windows can survive the
+ * unlink attempt), is a failure the caller must report rather than claiming
+ * success.
+ */
+export function removePackageFile(
+  path: string,
+): { removed: true } | { removed: false; reason: string } {
+  try {
+    unlinkSync(path);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT") {
+      return { removed: false, reason: (error as Error).message };
+    }
+  }
+
+  if (existsSync(path)) {
+    return { removed: false, reason: `file still exists at ${path}` };
+  }
+
+  return { removed: true };
+}
+
 program
   .command("remove")
   .description("Remove a documentation package")
@@ -1133,11 +1161,12 @@ program
       process.exit(1);
     }
 
-    // Delete file from disk
-    try {
-      unlinkSync(target.pkg.path);
-    } catch {
-      // Ignore deletion errors
+    const result = removePackageFile(target.pkg.path);
+    if (!result.removed) {
+      console.error(
+        `Error: Failed to remove ${packageKey(target.pkg)}: ${result.reason}`,
+      );
+      process.exit(1);
     }
 
     console.log(`Removed: ${packageKey(target.pkg)}`);
@@ -1200,17 +1229,20 @@ program
         const { port: actualPort } = await server.startHTTP({ port, host });
         console.error(`Listening on http://${host}:${actualPort}/mcp`);
       } else {
-        // Reload the package store and refresh the get_docs tool (notifying the
-        // MCP client) whenever a separate `context add`/`remove` changes the
-        // package directory on disk. The watcher is unref'd and recovers from
-        // watch errors and directory removal, so it never keeps the process
-        // alive or crashes the server.
+        await server.start();
+
+        // Start watching only after `start()` has registered the tools: an
+        // early watch event must not register `get_docs` through
+        // `refreshGetDocsTool()` before the initial registration, which would
+        // register it twice. The watcher reloads the store and refreshes
+        // `get_docs` (notifying the MCP client) whenever a separate
+        // `context add`/`remove` changes the package directory on disk. It is
+        // unref'd and recovers from watch errors and directory removal, so it
+        // never keeps the process alive or crashes the server.
         watchDirectory(DATA_DIR, () => {
           reloadPackages(store, DATA_DIR);
           server.refreshGetDocsTool();
         });
-
-        await server.start();
       }
     },
   );

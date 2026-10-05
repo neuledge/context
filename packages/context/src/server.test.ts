@@ -4,7 +4,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import type { DatabaseConnection } from "./database.js";
 import { initDatabase } from "./database.js";
 import {
@@ -120,6 +128,25 @@ describe("ContextServer", () => {
       }
     } finally {
       if (existsSync(testDir)) rmSync(testDir, { recursive: true });
+    }
+  });
+
+  it("sends exactly one tools/list_changed notification when get_docs is refreshed", async () => {
+    const ctx = new ContextServer(new PackageStore());
+    // `startHTTP` registers get_docs, so the refresh below takes the update
+    // path rather than the first-registration path.
+    const { server } = await ctx.startHTTP({ port: 0 });
+
+    try {
+      const send = vi.spyOn(ctx.server, "sendToolListChanged");
+
+      ctx.refreshGetDocsTool();
+
+      // The SDK's tool update already sends tools/list_changed; the server
+      // must not add a second one on top.
+      expect(send).toHaveBeenCalledTimes(1);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
     }
   });
 });

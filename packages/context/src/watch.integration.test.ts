@@ -86,7 +86,10 @@ describe("serve package reload integration", () => {
     const transport = new StdioClientTransport({
       command: process.execPath,
       args: ["--import", "tsx", join(testHome, "bin", "context"), "serve"],
-      env: { HOME: testHome },
+      // Node's `os.homedir()` reads `HOME` on POSIX but `USERPROFILE` on
+      // Windows, so set both to redirect the package directory to the
+      // per-test temp HOME on every platform.
+      env: { HOME: testHome, USERPROFILE: testHome },
       cwd: PKG_DIR,
       stderr: "pipe",
     });

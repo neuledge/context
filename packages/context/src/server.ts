@@ -226,13 +226,14 @@ export class ContextServer {
    *
    * Public so the long-running `serve` command can refresh the tool after a
    * package is installed or removed by a separate `context add`/`remove`
-   * process. Notifies connected MCP clients that the tool list changed.
+   * process. The SDK sends `tools/list_changed` itself after both the update
+   * and the first registration, so callers must not send a second one.
    */
   public refreshGetDocsTool(): void {
     const packages = this.visiblePackages();
 
     if (this.getDocsRegistration) {
-      // Update existing tool with new enum
+      // Update existing tool with new enum. `update` sends tools/list_changed.
       this.getDocsRegistration.update({
         paramsSchema: {
           library: this.buildGetDocsLibrarySchema(packages),
@@ -249,10 +250,9 @@ export class ContextServer {
         },
       });
     } else {
+      // First registration also sends tools/list_changed via the SDK.
       this.registerGetDocsTool(packages);
     }
-
-    this.mcp.sendToolListChanged();
   }
 
   private handleGetDocs(

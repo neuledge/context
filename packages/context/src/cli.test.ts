@@ -1,10 +1,14 @@
-import { describe, expect, it, vi } from "vitest";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   detectSourceType,
   fetchWebPage,
   packageNameFromUrl,
   parseLibSpec,
   parseRegistryPackage,
+  removePackageFile,
   resolveAllowedLibraries,
   resolveLlmsTxtUrls,
   resolveRemoveTarget,
@@ -581,5 +585,47 @@ describe("resolveRemoveTarget", () => {
     expect(resolveRemoveTarget("missing", installed)).toEqual({
       error: ["Package not found: missing"],
     });
+  });
+});
+
+describe("removePackageFile", () => {
+  const dir = join(
+    tmpdir(),
+    `context-remove-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
+
+  beforeEach(() => {
+    mkdirSync(dir, { recursive: true });
+  });
+
+  afterEach(() => {
+    if (existsSync(dir)) rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("removes an existing file", () => {
+    const file = join(dir, "react@18.0.0.db");
+    writeFileSync(file, "db");
+
+    expect(removePackageFile(file)).toEqual({ removed: true });
+    expect(existsSync(file)).toBe(false);
+  });
+
+  it("treats an already missing file as removed", () => {
+    expect(removePackageFile(join(dir, "missing.db"))).toEqual({
+      removed: true,
+    });
+  });
+
+  it("reports failure when the file cannot be removed", () => {
+    // `unlink` fails for a directory on every supported platform and the path
+    // remains afterward, which exercises the failure branch without platform
+    // specific filesystem tricks.
+    const dirPath = join(dir, "not-a-file.db");
+    mkdirSync(dirPath);
+
+    const result = removePackageFile(dirPath);
+
+    expect(result.removed).toBe(false);
+    expect(existsSync(dirPath)).toBe(true);
   });
 });
