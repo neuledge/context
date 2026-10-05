@@ -1,5 +1,15 @@
 # @neuledge/context
 
+## 1.3.0
+
+### Minor Changes
+
+- [#187](https://github.com/neuledge/context/pull/187) [`7623d67`](https://github.com/neuledge/context/commit/7623d676adb744df40951ec055a8deff66b0e082) Thanks [@human0-bot](https://github.com/apps/human0-bot)! - For stdio sessions, `context serve` now watches the installed packages directory and reloads `get_docs` (notifying connected MCP clients) when a package is installed or removed by a separate `context add` or `context remove` process. `ContextServer.refreshGetDocsTool()` is now a public, supported API. `context remove` now reports unlink failures (including a file that survives the unlink attempt) instead of claiming success.
+
+### Patch Changes
+
+- [#188](https://github.com/neuledge/context/pull/188) [`1997d3c`](https://github.com/neuledge/context/commit/1997d3c4b69fd950dad284d985252a53007bdebe) Thanks [@human0-bot](https://github.com/apps/human0-bot)! - Refresh runtime dependencies to their latest compatible versions.
+
 ## 1.2.11
 
 ### Patch Changes
