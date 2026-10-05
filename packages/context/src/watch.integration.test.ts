@@ -130,4 +130,58 @@ describe("serve package reload integration", () => {
     const afterGetDocs = after.tools.find((tool) => tool.name === "get_docs");
     expect(JSON.stringify(afterGetDocs)).toContain("newpkg@1.0.0");
   }, 20_000);
+
+  it("serves → removes a package → refreshes get_docs and notifies the MCP client", async () => {
+    const started = new Client({ name: "test-client", version: "1.0.0" });
+    client = started;
+
+    const notified = new Promise<void>((resolve) => {
+      started.setNotificationHandler(ToolListChangedNotificationSchema, () => {
+        resolve();
+      });
+    });
+
+    // Pre-install a package before `serve` starts so it can be removed while
+    // the server is running. Writing it in place is fine here: the watcher is
+    // created only after the initial scan.
+    mkdirSync(packagesDir, { recursive: true });
+    const pkgPath = join(packagesDir, "removepkg@1.0.0.db");
+    const db = createTestDb(pkgPath, { name: "removepkg", version: "1.0.0" });
+    insertChunk(db, {
+      docPath: "docs/intro.md",
+      docTitle: "Introduction",
+      sectionTitle: "Start",
+      content: "Welcome to removepkg.",
+      tokens: 3,
+    });
+    rebuildFtsIndex(db);
+    db.close();
+
+    const transport = new StdioClientTransport({
+      command: process.execPath,
+      args: ["--import", "tsx", join(testHome, "bin", "context"), "serve"],
+      env: { HOME: testHome, USERPROFILE: testHome },
+      cwd: PKG_DIR,
+      stderr: "pipe",
+    });
+
+    await started.connect(transport);
+
+    const before = await started.listTools();
+    const beforeGetDocs = before.tools.find((tool) => tool.name === "get_docs");
+    expect(beforeGetDocs).toBeDefined();
+    expect(JSON.stringify(beforeGetDocs)).toContain("removepkg@1.0.0");
+
+    // Remove the package the way `context remove` would: delete the database
+    // file. The watcher must reload the store, refresh `get_docs`, and notify
+    // the connected client.
+    rmSync(pkgPath);
+
+    await withTimeout(notified, 10_000, "tools/list_changed notification");
+
+    const after = await started.listTools();
+    const afterGetDocs = after.tools.find((tool) => tool.name === "get_docs");
+    expect(afterGetDocs).toBeDefined();
+    expect(JSON.stringify(afterGetDocs)).not.toContain("removepkg@1.0.0");
+  }, 20_000);
 });
