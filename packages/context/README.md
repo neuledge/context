@@ -548,6 +548,8 @@ context serve --libs react next@15.0.4
 
 The HTTP transport uses the [MCP Streamable HTTP](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http) protocol, enabling multiple clients on the local network to connect to a single server instance. The endpoint is available at `http://<host>:<port>/mcp`.
 
+Running stdio sessions reload automatically. While a stdio `context serve` is connected, a separate `context add` or `context remove` updates the server's installed-package list and refreshes the `get_docs` tool, so the connected MCP client picks up the change via a `tools/list_changed` notification without reconnecting or restarting the server. This live reload is stdio-only: an HTTP server started with `--http` does not watch the package directory, so restart it to see packages added or removed by the CLI.
+
 ### `context query <library> <topic>`
 
 Query documentation directly from the command line. Useful for testing and debugging.

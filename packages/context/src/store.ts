@@ -182,12 +182,20 @@ export class PackageStore {
   }
 }
 
+/**
+ * True for package database files. Staged `.downloading-*` downloads are
+ * excluded: their names may end in `.db` before the write is finished.
+ */
+function isPackageFile(file: string): boolean {
+  return file.endsWith(".db") && !file.startsWith(".downloading-");
+}
+
 /** Load installed packages, ignoring staged downloads and invalid databases. */
 export function loadPackages(store: PackageStore, directory: string): void {
   if (!existsSync(directory)) return;
 
   for (const file of readdirSync(directory)) {
-    if (!file.endsWith(".db") || file.startsWith(".downloading-")) continue;
+    if (!isPackageFile(file)) continue;
     try {
       store.add(readPackageInfo(join(directory, file)));
     } catch {
@@ -255,7 +263,7 @@ export function reloadPackages(store: PackageStore, directory: string): void {
   }
 
   for (const file of files) {
-    if (!file.endsWith(".db") || file.startsWith(".downloading-")) continue;
+    if (!isPackageFile(file)) continue;
     try {
       store.add(readPackageInfo(join(directory, file)));
     } catch {

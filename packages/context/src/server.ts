@@ -205,18 +205,37 @@ export class ContextServer {
   }
 
   private registerGetDocsTool(packages: PackageInfo[]): void {
+    const paramsSchema = {
+      library: this.buildGetDocsLibrarySchema(packages),
+      topic: z.string().describe(GET_DOCS_TOPIC_DESCRIPTION),
+    };
+    const callback = async ({
+      library,
+      topic,
+    }: {
+      library: string;
+      topic: string;
+    }) => {
+      return this.handleGetDocs(library, topic);
+    };
+
+    // Registration is exactly-once: an early `refreshGetDocsTool()` (before
+    // `start()`) already registered the tool, so a later `registerTools()`
+    // updates the existing registration instead of registering it a second
+    // time and hitting the SDK's "already registered" error.
+    if (this.getDocsRegistration) {
+      // `update` sends tools/list_changed itself via the SDK when connected.
+      this.getDocsRegistration.update({ paramsSchema, callback });
+      return;
+    }
+
     this.getDocsRegistration = this.mcp.registerTool(
       "get_docs",
       {
         description: GET_DOCS_DESCRIPTION,
-        inputSchema: {
-          library: this.buildGetDocsLibrarySchema(packages),
-          topic: z.string().describe(GET_DOCS_TOPIC_DESCRIPTION),
-        },
+        inputSchema: paramsSchema,
       },
-      async ({ library, topic }) => {
-        return this.handleGetDocs(library, topic);
-      },
+      callback,
     );
   }
 
@@ -230,29 +249,7 @@ export class ContextServer {
    * and the first registration, so callers must not send a second one.
    */
   public refreshGetDocsTool(): void {
-    const packages = this.visiblePackages();
-
-    if (this.getDocsRegistration) {
-      // Update existing tool with new enum. `update` sends tools/list_changed.
-      this.getDocsRegistration.update({
-        paramsSchema: {
-          library: this.buildGetDocsLibrarySchema(packages),
-          topic: z.string().describe(GET_DOCS_TOPIC_DESCRIPTION),
-        },
-        callback: async ({
-          library,
-          topic,
-        }: {
-          library: string;
-          topic: string;
-        }) => {
-          return this.handleGetDocs(library, topic);
-        },
-      });
-    } else {
-      // First registration also sends tools/list_changed via the SDK.
-      this.registerGetDocsTool(packages);
-    }
+    this.registerGetDocsTool(this.visiblePackages());
   }
 
   private handleGetDocs(

@@ -149,6 +149,30 @@ describe("ContextServer", () => {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
   });
+
+  it("registers get_docs exactly once when refresh races startup", async () => {
+    const ctx = new ContextServer(new PackageStore());
+    const registerTool = vi.spyOn(ctx.server, "registerTool");
+
+    // A caller (or an eager refresh) may invoke the public refresh method
+    // before `start()`/`startHTTP()` registers the tools.
+    ctx.refreshGetDocsTool();
+
+    const { server } = await ctx.startHTTP({ port: 0 });
+
+    try {
+      // A package change racing startup is another refresh of the same tool,
+      // and must take the update path rather than registering get_docs again.
+      ctx.refreshGetDocsTool();
+
+      const getDocsCalls = registerTool.mock.calls.filter(
+        ([name]) => name === "get_docs",
+      );
+      expect(getDocsCalls).toHaveLength(1);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
 });
 
 describe("ContextServer integration", () => {

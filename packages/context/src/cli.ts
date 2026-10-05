@@ -1229,20 +1229,20 @@ program
         const { port: actualPort } = await server.startHTTP({ port, host });
         console.error(`Listening on http://${host}:${actualPort}/mcp`);
       } else {
-        await server.start();
-
-        // Start watching only after `start()` has registered the tools: an
-        // early watch event must not register `get_docs` through
-        // `refreshGetDocsTool()` before the initial registration, which would
-        // register it twice. The watcher reloads the store and refreshes
-        // `get_docs` (notifying the MCP client) whenever a separate
-        // `context add`/`remove` changes the package directory on disk. It is
-        // unref'd and recovers from watch errors and directory removal, so it
-        // never keeps the process alive or crashes the server.
+        // Start watching before `server.start()` so a package change during
+        // startup is not missed. `refreshGetDocsTool()` is exactly-once, so an
+        // early watch event may register `get_docs` and `start()` updates it
+        // rather than registering it a second time. The watcher reloads the
+        // store and refreshes `get_docs` (notifying the MCP client) whenever a
+        // separate `context add`/`remove` changes the package directory on
+        // disk. It is unref'd and recovers from watch errors and directory
+        // removal, so it never keeps the process alive or crashes the server.
         watchDirectory(DATA_DIR, () => {
           reloadPackages(store, DATA_DIR);
           server.refreshGetDocsTool();
         });
+
+        await server.start();
       }
     },
   );

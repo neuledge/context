@@ -12,6 +12,7 @@ import {
   compareVersions,
   getPackageFileName,
   isAllowedLibrary,
+  loadPackages,
   type PackageInfo,
   PackageStore,
   readPackageInfo,
@@ -201,6 +202,24 @@ describe("store", () => {
       reloadPackages(store, TEST_DIR);
 
       expect(store.get("test-lib")?.version).toBe("1.0.0");
+    });
+  });
+
+  describe("loadPackages", () => {
+    it("loads package databases and ignores `.downloading-*` staging files", () => {
+      createTestPackage(TEST_PACKAGE_PATH, {
+        name: "test-lib",
+        version: "1.0.0",
+      });
+      const stagedPath = join(TEST_DIR, ".downloading-123-staged.db");
+      createTestPackage(stagedPath, { name: "staged", version: "9.9.9" });
+
+      const store = new PackageStore();
+      loadPackages(store, TEST_DIR);
+
+      const names = store.list().map((p) => p.name);
+      expect(names).toContain("test-lib");
+      expect(names).not.toContain("staged");
     });
   });
 
