@@ -7,19 +7,20 @@
 
 import { mkdirSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
-import { type BuildResult, isMissingRefError } from "@neuledge/context";
+import { isMissingRefError } from "@neuledge/context";
 import { Command } from "commander";
 import {
   buildFromDefinition,
   buildUnversioned,
-  getHeadCommit,
+  MissingSourceRefError,
 } from "./build.js";
 import {
   isExplicitVersionEntry,
   isVersioned,
   listDefinitions,
 } from "./definition.js";
-import { checkPackageExists, publishPackage } from "./publish.js";
+import { formatBuilt } from "./format.js";
+import { publishDefinition } from "./publication.js";
 import { type AvailableVersion, discoverVersions } from "./version-check.js";
 
 const DEFAULT_REGISTRY_DIR = resolve(
@@ -31,19 +32,6 @@ const DEFAULT_REGISTRY_DIR = resolve(
 const program = new Command()
   .name("registry")
   .description("Build context documentation packages from definitions");
-
-/**
- * Describe a finished build.
- *
- * Skipped files are named rather than counted silently: a file too malformed to
- * parse is dropped on its own so one bad document can't fail the build, which is
- * only safe if the count reaches whoever is reading the log.
- */
-function formatBuilt(result: BuildResult): string {
-  const skipped =
-    result.skippedFiles > 0 ? `, ${result.skippedFiles} files skipped` : "";
-  return `${result.sectionCount} sections, ${result.totalTokens} tokens${skipped}`;
-}
 
 program
   .command("list")
@@ -139,69 +127,34 @@ program
     "Output directory for build artifacts",
     "./dist-packages",
   )
+  .option(
+    "--force",
+    "Rebuild and upload even when already published or unchanged",
+  )
   .action(async (name, version, opts) => {
     const def = findDefinition(opts.dir, name);
     mkdirSync(opts.output, { recursive: true });
 
-    if (isVersioned(def)) {
-      if (!version) {
-        throw new Error(
-          `Version required for versioned package "${name}". Use: registry publish ${name} <version>`,
-        );
-      }
-
-      // Check if already published
-      const existing = await checkPackageExists(
-        def.registry,
-        def.name,
-        version,
+    if (isVersioned(def) && !version) {
+      throw new Error(
+        `Version required for versioned package "${name}". Use: registry publish ${name} <version>`,
       );
-      if (existing) {
-        console.log(
-          `Already published: ${def.registry}/${def.name}@${version}`,
-        );
-        return;
-      }
-
-      console.log(`Building ${def.registry}/${def.name}@${version}...`);
-      const result = await buildFromDefinition(def, version, opts.output);
-      console.log(`Built: ${result.path} (${formatBuilt(result)})`);
-
-      console.log(`Publishing ${def.registry}/${def.name}@${version}...`);
-      await publishPackage(def.registry, def.name, version, result.path);
-      console.log(`Published: ${def.registry}/${def.name}@${version}`);
-    } else {
-      // Unversioned: check source_commit to skip if unchanged
-      const existing = await checkPackageExists(
-        def.registry,
-        def.name,
-        "latest",
-      );
-      if (existing?.source_commit && def.source.type === "git") {
-        const currentCommit = getHeadCommit(def.source.url, def.source.ref);
-        if (currentCommit === existing.source_commit) {
-          console.log(
-            `Skipping ${def.registry}/${def.name}@latest (source unchanged: ${currentCommit.slice(0, 8)})`,
-          );
-          return;
-        }
-      }
-
-      console.log(
-        `Building ${def.registry}/${def.name}@latest (unversioned)...`,
-      );
-      const result = await buildUnversioned(def, opts.output);
-      console.log(`Built: ${result.path} (${formatBuilt(result)})`);
-
-      console.log(`Publishing ${def.registry}/${def.name}@latest...`);
-      await publishPackage(def.registry, def.name, "latest", result.path);
-      console.log(`Published: ${def.registry}/${def.name}@latest`);
     }
+    await publishDefinition(
+      def,
+      isVersioned(def) ? version : "latest",
+      opts.output,
+      {
+        force: opts.force,
+      },
+    );
   });
 
 program
   .command("publish-all")
-  .description("Check all definitions, build and publish missing versions")
+  .description(
+    "Check all definitions, build and publish missing or stale versions",
+  )
   .option("--dir <path>", "Registry directory", DEFAULT_REGISTRY_DIR)
   .option(
     "--output <path>",
@@ -216,12 +169,21 @@ program
     "--latest <count>",
     "Only the N most recent minor versions per package",
   )
+  .option(
+    "--force",
+    "Rebuild and upload even when already published or unchanged",
+  )
   .action(async (opts) => {
     const definitions = listDefinitions(opts.dir);
     mkdirSync(opts.output, { recursive: true });
 
     let succeeded = 0;
     let skipped = 0;
+    const skipReasons = new Map<string, number>();
+    const recordSkip = (reason: string) => {
+      skipped++;
+      skipReasons.set(reason, (skipReasons.get(reason) ?? 0) + 1);
+    };
     const failures: { id: string; error: string }[] = [];
 
     for (const def of definitions) {
@@ -248,74 +210,34 @@ program
       for (const ver of versions) {
         const id = `${def.registry}/${def.name}@${ver.version}`;
         try {
-          if (isVersioned(def)) {
-            // Check if already published
-            const existing = await checkPackageExists(
-              def.registry,
-              def.name,
-              ver.version,
-            );
-            if (existing) {
-              skipped++;
-              continue;
-            }
-
-            console.log(`Building ${id}...`);
-            const result = await buildFromDefinition(
-              def,
-              ver.version,
-              opts.output,
-            );
-            console.log(`  Built (${formatBuilt(result)})`);
-
-            console.log(`  Publishing...`);
-            await publishPackage(
-              def.registry,
-              def.name,
-              ver.version,
-              result.path,
-            );
-            console.log(`  Published`);
-
-            // Clean up build artifact to save disk space
-            rmSync(result.path, { force: true });
-          } else {
-            // Unversioned: check source_commit
-            const existing = await checkPackageExists(
-              def.registry,
-              def.name,
-              "latest",
-            );
-            if (existing?.source_commit && def.source.type === "git") {
-              const currentCommit = getHeadCommit(
-                def.source.url,
-                def.source.ref,
-              );
-              if (currentCommit === existing.source_commit) {
-                skipped++;
-                continue;
-              }
-            }
-
-            console.log(`Building ${id}...`);
-            const result = await buildUnversioned(def, opts.output);
-            console.log(`  Built (${formatBuilt(result)})`);
-
-            console.log(`  Publishing...`);
-            await publishPackage(def.registry, def.name, "latest", result.path);
-            console.log(`  Published`);
-
-            rmSync(result.path, { force: true });
+          const result = await publishDefinition(
+            def,
+            ver.version,
+            opts.output,
+            {
+              force: opts.force,
+              quietSkips: true,
+              onSkip: recordSkip,
+            },
+          );
+          if (!result) {
+            continue;
           }
+          // Keep failed uploads on disk for recovery; remove successful artifacts.
+          rmSync(result.path, { force: true });
 
           succeeded++;
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
-          // A registry can publish a version before its git tag is pushed.
-          // Skip (don't fail) — the next run picks it up once the tag lands.
-          if (isMissingRefError(message)) {
-            console.log(`  Skipping ${id} (git tag not published yet)`);
-            skipped++;
+          // Tags can disappear after publication or not have been pushed yet.
+          if (
+            err instanceof MissingSourceRefError ||
+            isMissingRefError(message)
+          ) {
+            console.warn(
+              `  WARNING ${id}: source tag unavailable; skipping (${message})`,
+            );
+            recordSkip("source tag unavailable");
             continue;
           }
           console.error(`  FAILED ${id}: ${message}`);
@@ -327,7 +249,10 @@ program
     // Summary
     console.log(`\n--- Summary ---`);
     console.log(`Succeeded: ${succeeded}`);
-    console.log(`Skipped (already published): ${skipped}`);
+    console.log(`Skipped: ${skipped}`);
+    for (const [reason, count] of skipReasons) {
+      console.log(`  ${reason}: ${count}`);
+    }
     console.log(`Failed: ${failures.length}`);
 
     if (failures.length > 0) {

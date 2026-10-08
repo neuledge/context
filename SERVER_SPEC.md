@@ -67,7 +67,7 @@ Returns an empty array `[]` when no packages match. Results are sorted by versio
 GET /packages/<registry>/<name>/<version>
 ```
 
-Check if a package version exists and return its metadata. Used by the publish pipeline for idempotency (skip already-published versions) and by unversioned packages to compare `source_commit`.
+Check if a package version exists and return its metadata. The publish pipeline compares `build_fingerprint` to skip packages whose source, resolved definition, and ingestion implementation are unchanged.
 
 **Response `200 OK`:**
 
@@ -76,7 +76,9 @@ Check if a package version exists and return its metadata. Used by the publish p
   "registry": "npm",
   "name": "nextjs",
   "version": "15.1.0",
-  "source_commit": "abc1234"
+  "source_commit": "abc1234",
+  "build_fingerprint": "<SHA-256 of build inputs>",
+  "ingestion_revision": "<automatically generated SHA-256>"
 }
 ```
 
@@ -87,7 +89,22 @@ Check if a package version exists and return its metadata. Used by the publish p
 | `registry` | string | Package manager |
 | `name` | string | Package name |
 | `version` | string | Semver version or `"latest"` |
-| `source_commit` | string? | Git SHA for unversioned packages |
+| `source_commit` | string? | Git commit SHA for versioned or unversioned Git packages |
+| `build_fingerprint` | string? | Opaque SHA-256 copied from the uploaded database's `meta` table |
+| `ingestion_revision` | string? | Automatic ingestion revision copied from the uploaded database's `meta` table |
+
+Servers supporting automatic freshness checks must extract and persist these optional metadata values on every upload, including replacements, and return them here. The client treats fingerprints as opaque; servers should not recompute them. Older packages and servers can omit these fields: versioned packages retain existence-based skipping, unversioned Git packages retain `source_commit` comparison, and unversioned ZIP packages continue rebuilding. The CLI identifies legacy skips and offers `--force` for migration. Returning the fingerprint after a successful rebuild enables subsequent automatic checks; a server that continues omitting it retains the legacy behavior.
+
+Server adoption must be verified in the server deployment; this repository only
+contains the client and protocol contract. Verify that an initial upload returns
+the database's fingerprint and revision, that replacing it updates both fields,
+and that a subsequent metadata request returns the replacement's values.
+
+After an upload returns `409 Conflict`, the client requests metadata to determine
+whether an earlier attempt already succeeded. It accepts success only when the
+package identity, `build_fingerprint`, and `ingestion_revision` match the uploaded
+artifact. Missing or different metadata remains a conflict; an existing version
+alone is not sufficient evidence of a successful upload.
 
 **Response `404 Not Found`:**
 
@@ -135,6 +152,8 @@ Upload a new documentation package. Requires a valid API key.
 
 **Response `409 Conflict`** — Package version already exists (optional; servers may also allow overwrites).
 
+The publisher uploads stale or explicitly forced builds to the same registry/name/version. `--force` bypasses client freshness checks only; it does not grant replacement permission or change the API request. If this endpoint rejects replacement with HTTP 409, the publisher reports the conflict and preserves the rebuilt local `.db`. Updating an immutable release requires a server-supported replacement or artifact revision policy; no alternative version is invented by the client.
+
 ## Package format (`.db` file)
 
 Packages are SQLite databases with the following schema:
@@ -178,7 +197,9 @@ CREATE VIRTUAL TABLE chunks_fts USING fts5(
 |-----|-------------|
 | `description` | Short package description |
 | `source_url` | URL of the source repository |
-| `source_commit` | Git commit SHA (used for unversioned packages to detect changes) |
+| `source_commit` | Actual Git commit SHA used to build the package |
+| `build_fingerprint` | Deterministic SHA-256 of resolved package build inputs |
+| `ingestion_revision` | SHA-256 generated from ingestion code and locked dependencies at build time |
 
 ## Error format
 

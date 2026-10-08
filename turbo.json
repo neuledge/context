@@ -5,6 +5,14 @@
       "dependsOn": ["^build"],
       "outputs": ["dist/**"]
     },
+    "@neuledge/registry#build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/scripts/generate-ingestion-revision.mjs"
+      ]
+    },
     "test": {
       "dependsOn": ["build"]
     },

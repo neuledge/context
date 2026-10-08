@@ -70,8 +70,21 @@ describe("publish", () => {
     process.env.REGISTRY_SERVER_URL = `http://127.0.0.1:${port}`;
     process.env.REGISTRY_PUBLISH_KEY = "test-key";
 
+    const published = publishPackage("npm", "preact", "latest", dbPath);
+    await expect(published).rejects.toThrow(/403 Forbidden — bad key/);
+    await expect(published).rejects.toThrow(
+      `rebuilt artifact is preserved at ${dbPath}`,
+    );
+  });
+
+  it("does not treat a missing upload endpoint as a successful publication", async () => {
+    const { server, url, hits } = await flakyServer(0, 404);
+    running = server;
+    process.env.REGISTRY_SERVER_URL = url;
+    process.env.REGISTRY_PUBLISH_KEY = "test-key";
     await expect(
       publishPackage("npm", "preact", "latest", dbPath),
-    ).rejects.toThrow(/403 Forbidden — bad key/);
+    ).rejects.toThrow("404");
+    expect(hits()).toBe(1);
   });
 });
