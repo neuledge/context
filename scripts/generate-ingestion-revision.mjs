@@ -51,6 +51,9 @@ function sourceFile(file, content = readFileSync(file, "utf8")) {
 function followContextExports(state, names) {
   const index = resolve(state.root, "packages/context/src/index.ts");
   const unresolved = names && new Set(names);
+  // Only recurse into the workspace exports the registry actually imports:
+  // a change to unrelated context APIs (CLI, server, …) must not invalidate
+  // the ingestion revision and force every documentation package to rebuild.
   for (const statement of sourceFile(index).statements) {
     if (
       !ts.isExportDeclaration(statement) ||

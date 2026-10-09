@@ -71,7 +71,9 @@ export async function publishDefinition(
   }
   log(`Building ${id}...`);
   const result = isVersioned(definition)
-    ? await buildFromDefinition(definition, version, outputDir)
+    ? await buildFromDefinition(definition, version, outputDir, {
+        force: options.force,
+      })
     : await buildUnversioned(definition, outputDir);
   log(`Built: ${result.path} (${formatBuilt(result)})`);
   log(`Publishing ${id}...`);
@@ -80,6 +82,7 @@ export async function publishDefinition(
     definition.name,
     version,
     result.path,
+    { sourceType: resolveBuildSource(definition, version).type },
   );
   log(`Published: ${id}`);
   return result;

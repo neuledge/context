@@ -100,11 +100,7 @@ contains the client and protocol contract. Verify that an initial upload returns
 the database's fingerprint and revision, that replacing it updates both fields,
 and that a subsequent metadata request returns the replacement's values.
 
-After an upload returns `409 Conflict`, the client requests metadata to determine
-whether an earlier attempt already succeeded. It accepts success only when the
-package identity, `build_fingerprint`, and `ingestion_revision` match the uploaded
-artifact. Missing or different metadata remains a conflict; an existing version
-alone is not sufficient evidence of a successful upload.
+After an upload returns `409 Conflict`, the client may request metadata to determine whether an earlier attempt of the same artifact already succeeded. It accepts success only for Git-sourced packages, where `build_fingerprint` includes the content-addressed source commit, and only when the package identity, `build_fingerprint`, and `ingestion_revision` all match the uploaded artifact. ZIP and HTML-index fingerprints are derived from the version rather than the downloaded bytes, so changed content at the same version still produces the same fingerprint; for those sources a `409` is always reported as a rejected replacement, never accepted as a successful earlier upload. Missing or different metadata remains a conflict; an existing version alone is not sufficient evidence of a successful upload.
 
 **Response `404 Not Found`:**
 

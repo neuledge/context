@@ -103,6 +103,7 @@ export async function buildFromDefinition(
   definition: VersionedDefinition,
   version: string,
   outputDir: string,
+  options: { force?: boolean } = {},
 ): Promise<RegistryBuildResult> {
   await initDatabase();
   const source = resolveBuildSource(definition, version);
@@ -120,7 +121,7 @@ export async function buildFromDefinition(
 
   const files =
     source.type === "html-index"
-      ? await downloadHtmlIndex(source, version)
+      ? await downloadHtmlIndex(source, version, { force: options.force })
       : await downloadAndExtractZip(source.url, {
           docsPath: source.docs_path,
           excludePaths: source.exclude_paths,

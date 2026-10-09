@@ -20,6 +20,79 @@ import type { PackageMetadata } from "./publish.js";
 
 const run = promisify(execFile);
 
+/** CRC-32 used by stored (uncompressed) ZIP entries. */
+function crc32(buffer: Buffer): number {
+  let crc = 0xffffffff;
+  for (const byte of buffer) {
+    crc ^= byte;
+    for (let i = 0; i < 8; i++) {
+      crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+/** Build a minimal stored ZIP so tests can serve changed archive content. */
+function storedZip(entries: Array<{ path: string; content: string }>): Buffer {
+  const parts: Buffer[] = [];
+  const central: Buffer[] = [];
+  let offset = 0;
+  for (const { path, content } of entries) {
+    const name = Buffer.from(path, "utf8");
+    const data = Buffer.from(content, "utf8");
+    const crc = crc32(data);
+
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0, 6);
+    local.writeUInt16LE(0, 8);
+    local.writeUInt16LE(0, 10);
+    local.writeUInt16LE(0x21, 12);
+    local.writeUInt32LE(crc, 14);
+    local.writeUInt32LE(data.length, 18);
+    local.writeUInt32LE(data.length, 22);
+    local.writeUInt16LE(name.length, 26);
+    local.writeUInt16LE(0, 28);
+    parts.push(local, name, data);
+
+    const record = Buffer.alloc(46);
+    record.writeUInt32LE(0x02014b50, 0);
+    record.writeUInt16LE(20, 4);
+    record.writeUInt16LE(20, 6);
+    record.writeUInt16LE(0, 8);
+    record.writeUInt16LE(0, 10);
+    record.writeUInt16LE(0, 12);
+    record.writeUInt16LE(0x21, 14);
+    record.writeUInt32LE(crc, 16);
+    record.writeUInt32LE(data.length, 20);
+    record.writeUInt32LE(data.length, 24);
+    record.writeUInt16LE(name.length, 28);
+    record.writeUInt16LE(0, 30);
+    record.writeUInt16LE(0, 32);
+    record.writeUInt16LE(0, 34);
+    record.writeUInt16LE(0, 36);
+    record.writeUInt32LE(0, 38);
+    record.writeUInt32LE(offset, 42);
+    central.push(record, name);
+
+    offset += local.length + name.length + data.length;
+  }
+
+  const centralBuffer = Buffer.concat(central);
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(0, 4);
+  eocd.writeUInt16LE(0, 6);
+  eocd.writeUInt16LE(entries.length, 8);
+  eocd.writeUInt16LE(entries.length, 10);
+  eocd.writeUInt32LE(centralBuffer.length, 12);
+  eocd.writeUInt32LE(offset, 16);
+  eocd.writeUInt16LE(0, 20);
+
+  return Buffer.concat([...parts, centralBuffer, eocd]);
+}
+
 describe("publication freshness through the CLI", () => {
   let root: string;
   let server: Server;
@@ -27,6 +100,7 @@ describe("publication freshness through the CLI", () => {
   let metadata: PackageMetadata | null;
   let uploads: number;
   let archiveDownloads: number;
+  let archiveBody: Buffer;
   let conflict: boolean;
   let legacy: boolean;
   let dropUploadResponse: boolean;
@@ -79,6 +153,9 @@ describe("publication freshness through the CLI", () => {
       "release",
     ]);
     repoUrl = pathToFileURL(repo).href;
+    archiveBody = readFileSync(
+      new URL("./fixtures/freshness.zip", import.meta.url),
+    );
     metadata = null;
     uploads = 0;
     archiveDownloads = 0;
@@ -92,9 +169,7 @@ describe("publication freshness through the CLI", () => {
     server = createServer((request, response) => {
       if (request.url?.startsWith("/source/")) {
         archiveDownloads++;
-        response.end(
-          readFileSync(new URL("./fixtures/freshness.zip", import.meta.url)),
-        );
+        response.end(archiveBody);
         return;
       }
       if (request.method !== "POST") {
@@ -305,6 +380,34 @@ describe("publication freshness through the CLI", () => {
     expect(existsSync(join(root, "output", "custom-docs@1.0.db"))).toBe(true);
   }, 90_000);
 
+  it("rejects changed ZIP content at the same version instead of accepting 409", async () => {
+    defineArchive();
+    expect((await cli("publish", "docs", "1.0")).status).toBe(0);
+    expect(uploads).toBe(1);
+
+    // The first publish already created the artifact at this path, so remove it
+    // before the forced publish to prove the rebuilt artifact is preserved.
+    rmSync(join(root, "output", "custom-docs@1.0.db"), { force: true });
+
+    // Same version and docs_path, so the version-derived fingerprint is
+    // unchanged even though the downloaded bytes differ.
+    archiveBody = storedZip([
+      {
+        path: "docs/intro.md",
+        content:
+          "# Changed documentation\n\nThis content differs from the published release.\n",
+      },
+    ]);
+    conflict = true;
+    const failed = await cli("publish-all", "--force");
+    expect(failed.status).not.toBe(0);
+    expect(failed.output).toContain("409 Conflict");
+    expect(failed.output).toContain("immutable release");
+    expect(failed.output).not.toContain("Published:");
+    expect(failed.output).toContain("Failed: 1");
+    expect(existsSync(join(root, "output", "custom-docs@1.0.db"))).toBe(true);
+  }, 90_000);
+
   it("resolves annotated tags to the commit recorded by a versioned Git build", async () => {
     writeFileSync(
       join(root, "definitions", "custom", "docs.yaml"),
@@ -318,8 +421,8 @@ describe("publication freshness through the CLI", () => {
     expect(uploads).toBe(1);
   }, 90_000);
 
-  it("recovers a lost upload response followed by a conflict only after verifying metadata", async () => {
-    defineArchive();
+  it("recovers a lost Git upload response followed by a conflict only after verifying metadata", async () => {
+    defineGit();
     dropUploadResponse = true;
     const published = await cli("publish-all");
     expect(published.status).toBe(0);
@@ -327,22 +430,27 @@ describe("publication freshness through the CLI", () => {
     expect(uploads).toBe(2);
     expect(metadataReads).toBe(2);
     expect(currentMetadata().build_fingerprint).toMatch(/^[a-f0-9]{64}$/);
-    expect(existsSync(join(root, "output", "custom-docs@1.0.db"))).toBe(false);
+    expect(existsSync(join(root, "output", "custom-docs@latest.db"))).toBe(
+      false,
+    );
   }, 60_000);
 
   it.each([
     "build_fingerprint",
     "ingestion_revision",
   ] as const)("rejects a conflicting upload with mismatched %s", async (field) => {
-    defineArchive();
-    expect((await cli("publish", "docs", "1.0")).status).toBe(0);
+    defineGit();
+    expect((await cli("publish", "docs")).status).toBe(0);
     metadata = { ...currentMetadata(), [field]: "different-artifact" };
     conflict = true;
     const failed = await cli("publish-all", "--force");
     expect(failed.status).not.toBe(0);
     expect(failed.output).toContain("409 Conflict");
     expect(failed.output).toContain("rebuilt artifact is preserved");
-    expect(existsSync(join(root, "output", "custom-docs@1.0.db"))).toBe(true);
+    expect(metadataReads).toBe(2);
+    expect(existsSync(join(root, "output", "custom-docs@latest.db"))).toBe(
+      true,
+    );
   }, 60_000);
 
   it("summarizes unchanged versions without printing each skip", async () => {

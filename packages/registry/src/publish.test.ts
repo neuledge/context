@@ -87,4 +87,18 @@ describe("publish", () => {
     ).rejects.toThrow("404");
     expect(hits()).toBe(1);
   });
+
+  it("rejects a same-version 409 for non-Git sources instead of accepting it", async () => {
+    const { server, url } = await flakyServer(0, 409);
+    running = server;
+    process.env.REGISTRY_SERVER_URL = url;
+    process.env.REGISTRY_PUBLISH_KEY = "test-key";
+    const published = publishPackage("npm", "preact", "latest", dbPath, {
+      sourceType: "zip",
+    });
+    await expect(published).rejects.toThrow("409 Conflict");
+    await expect(published).rejects.toThrow(
+      `rebuilt artifact is preserved at ${dbPath}`,
+    );
+  });
 });

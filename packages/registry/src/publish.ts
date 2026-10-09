@@ -9,6 +9,7 @@
 import { readFileSync } from "node:fs";
 import { initDatabase, openDatabase } from "@neuledge/context";
 import pRetry, { AbortError } from "p-retry";
+import type { Source } from "./definition.js";
 
 const DEFAULT_SERVER_URL = "https://api.context.neuledge.com";
 
@@ -73,6 +74,16 @@ export interface PackageMetadata {
   ingestion_revision?: string;
 }
 
+export interface PublishOptions {
+  /**
+   * The resolved source type of the artifact being published. Only Git builds
+   * can recover a lost upload response after a 409: their fingerprint embeds
+   * the content-addressed commit, so a matching fingerprint proves the server
+   * already holds this exact artifact.
+   */
+  sourceType?: Source["type"];
+}
+
 /**
  * Check if a package version already exists on the server.
  * Returns metadata if it exists, null if not found.
@@ -111,6 +122,7 @@ export async function publishPackage(
   name: string,
   version: string,
   dbPath: string,
+  options: PublishOptions = {},
 ): Promise<void> {
   const url = `${getServerUrl()}/packages/${encodeURIComponent(registry)}/${encodeURIComponent(name)}/${encodeURIComponent(version)}`;
   const body = readFileSync(dbPath);
@@ -131,11 +143,18 @@ export async function publishPackage(
   } catch (error) {
     let message = error instanceof Error ? error.message : String(error);
     if (error instanceof RegistryRequestError && error.status === 409) {
-      try {
-        if (await matchesPublishedArtifact(registry, name, version, dbPath))
-          return;
-      } catch (verificationError) {
-        message += `. Could not verify published metadata: ${verificationError instanceof Error ? verificationError.message : String(verificationError)}`;
+      // ZIP and HTML fingerprints use the version, not the downloaded bytes, so
+      // changed content at the same version still produces the same fingerprint.
+      // Accepting a matching fingerprint here would silently treat a rejected
+      // replacement as published. Only a Git build — whose fingerprint includes
+      // the content-addressed commit — can prove the server holds this upload.
+      if (options.sourceType === "git") {
+        try {
+          if (await matchesPublishedArtifact(registry, name, version, dbPath))
+            return;
+        } catch (verificationError) {
+          message += `. Could not verify published metadata: ${verificationError instanceof Error ? verificationError.message : String(verificationError)}`;
+        }
       }
       message +=
         ". The registry rejected replacement of this published version. Use a registry-supported replacement or artifact revision; --force cannot override the server's policy";

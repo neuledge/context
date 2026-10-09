@@ -134,6 +134,24 @@ describe("HTML index registry integration", () => {
     expect(downloadHtmlIndex).toHaveBeenCalledWith(
       expect.objectContaining({ type: "html-index" }),
       "258",
+      { force: undefined },
+    );
+  });
+
+  it("passes force through to the HTML downloader to bypass its cache", async () => {
+    vi.mocked(downloadHtmlIndex).mockResolvedValue([
+      {
+        path: "systemd.service.html",
+        content: "<h1>systemd.service</h1><p>fresh content</p>",
+      },
+    ]);
+    await buildFromDefinition(definition() as VersionedDefinition, "258", dir, {
+      force: true,
+    });
+    expect(downloadHtmlIndex).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "html-index" }),
+      "258",
+      { force: true },
     );
   });
 
