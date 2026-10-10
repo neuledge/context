@@ -320,6 +320,25 @@ This is the first section with sufficient content for the parser to recognize it
     expect(result.sections[1].sectionTitle).toBe("First Section");
   });
 
+  it("keeps prose with long link URLs and skips a list of links", () => {
+    const source = `## AWS Lambda adapter
+
+The AWS Lambda adapter is supported for API Gateway [REST API(v1)](https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-rest-api.html) and [HTTP API(v2)](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api.html) use cases.
+
+## Guides
+
+- [Installation](/docs/getting-started/installation)
+- [Configuration](/docs/getting-started/configuration)
+- [Deployment](/docs/getting-started/deployment)
+`;
+
+    const result = parseMarkdown(source, "docs/aws-lambda.md");
+
+    expect(result.sections.map((s) => s.sectionTitle)).toEqual([
+      "AWS Lambda adapter",
+    ]);
+  });
+
   it("preserves source path in sections", () => {
     const source = `---
 title: Test

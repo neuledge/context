@@ -62,13 +62,21 @@ function isTableOfContents(sectionTitle: string, content: string): boolean {
     return true;
   }
 
-  // Check link ratio - TOC sections are mostly links
+  // Check link ratio - TOC sections are mostly links. Measure the text a reader
+  // sees: counting each link's URL would make prose with a few long URLs look
+  // like a TOC and drop it.
   const linkPattern = /\[([^\]]*)\]\([^)]+\)/g;
-  const links = content.match(linkPattern) || [];
-  const linkTextLength = links.reduce((sum, link) => sum + link.length, 0);
+  let linkTextLength = 0;
+  const visibleText = content.replace(linkPattern, (_, text: string) => {
+    linkTextLength += text.length;
+    return text;
+  });
 
   // If more than 50% of content is links, likely a TOC
-  if (content.length > 0 && linkTextLength / content.length > TOC_LINK_RATIO) {
+  if (
+    visibleText.length > 0 &&
+    linkTextLength / visibleText.length > TOC_LINK_RATIO
+  ) {
     return true;
   }
 
