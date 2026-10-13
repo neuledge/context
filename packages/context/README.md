@@ -9,7 +9,7 @@
   <a href="https://www.npmjs.com/package/@neuledge/context"><img src="https://img.shields.io/npm/v/@neuledge/context.svg" alt="npm version"></a>
   <a href="https://github.com/neuledge/context/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License"></a>
   <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.0-blue.svg" alt="TypeScript"></a>
-  <a href="https://human0.ai/?utm_source=readme&utm_medium=oss&utm_campaign=neuledge-context&utm_content=badge"><img src="https://img.shields.io/badge/maintained%20by-human0-0a0a0f" alt="Maintained by human0"></a>
+  <a href="https://human0.ai/?utm_source=readme&utm_medium=oss&utm_campaign=neuledge-context&utm_content=badge"><img src="https://img.shields.io/badge/maintained%20by%20AI-human0-0a0a0f" alt="Maintained by AI: human0"></a>
 </p>
 
 ---
@@ -42,7 +42,7 @@ Context is an MCP server backed by a [community-driven package registry](registr
       <source media="(prefers-color-scheme: dark) and (min-width: 600px)" srcset="https://human0.ai/oss/maintained-by-human0-wide-light.png">
       <source media="(min-width: 600px)" srcset="https://human0.ai/oss/maintained-by-human0-wide-dark.png">
       <source media="(prefers-color-scheme: dark)" srcset="https://human0.ai/oss/maintained-by-human0-compact-light.png">
-      <img src="https://human0.ai/oss/maintained-by-human0-compact-dark.png" width="800" alt="Maintained by human0: AI agents answer issues, ship fixes and keep dependencies current">
+      <img src="https://human0.ai/oss/maintained-by-human0-compact-dark.png" width="800" alt="This project is maintained by AI agents from human0. They fix bugs, patch security issues and update dependencies.">
     </picture>
   </a>
 </p>
