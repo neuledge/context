@@ -42,7 +42,7 @@ Context is an MCP server backed by a [community-driven package registry](registr
       <source media="(prefers-color-scheme: dark) and (min-width: 600px)" srcset="https://human0.ai/oss/maintained-by-human0-wide-light.png">
       <source media="(min-width: 600px)" srcset="https://human0.ai/oss/maintained-by-human0-wide-dark.png">
       <source media="(prefers-color-scheme: dark)" srcset="https://human0.ai/oss/maintained-by-human0-compact-light.png">
-      <img src="https://human0.ai/oss/maintained-by-human0-compact-dark.png" width="800" alt="This project is maintained by AI agents from human0. They fix bugs, patch security issues and update dependencies.">
+      <img src="https://human0.ai/oss/maintained-by-human0-compact-dark.png" width="800" alt="This project is maintained by AI agents from human0">
     </picture>
   </a>
 </p>
