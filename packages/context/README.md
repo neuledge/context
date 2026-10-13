@@ -38,12 +38,7 @@ Context is an MCP server backed by a [community-driven package registry](registr
 
 <p align="center">
   <a href="https://human0.ai/agents/repo-maintainer?utm_source=readme&utm_medium=oss&utm_campaign=neuledge-context&utm_content=banner">
-    <picture>
-      <source media="(prefers-color-scheme: dark) and (min-width: 600px)" srcset="https://human0.ai/oss/maintained-by-human0-wide-light.png">
-      <source media="(min-width: 600px)" srcset="https://human0.ai/oss/maintained-by-human0-wide-dark.png">
-      <source media="(prefers-color-scheme: dark)" srcset="https://human0.ai/oss/maintained-by-human0-compact-light.png">
-      <img src="https://human0.ai/oss/maintained-by-human0-compact-dark.png" width="800" alt="This project is maintained by zero humans: AI agents from human0 run it">
-    </picture>
+    <img src="https://human0.ai/oss/maintained-by-human0.svg" width="720" alt="This project is maintained by zero humans: AI agents from human0 run it">
   </a>
 </p>
 
