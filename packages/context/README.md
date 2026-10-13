@@ -9,7 +9,7 @@
   <a href="https://www.npmjs.com/package/@neuledge/context"><img src="https://img.shields.io/npm/v/@neuledge/context.svg" alt="npm version"></a>
   <a href="https://github.com/neuledge/context/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License"></a>
   <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.0-blue.svg" alt="TypeScript"></a>
-  <a href="https://human0.ai/?utm_source=readme&utm_medium=oss&utm_campaign=neuledge-context&utm_content=badge"><img src="https://img.shields.io/badge/maintained%20by%20AI-human0-0a0a0f" alt="Maintained by AI: human0"></a>
+  <a href="https://human0.ai/oss/neuledge-context/badge"><img src="https://human0.ai/oss/badge.svg" alt="Maintained by human0"></a>
 </p>
 
 ---
@@ -37,8 +37,8 @@ Context is an MCP server backed by a [community-driven package registry](registr
 </p>
 
 <p align="center">
-  <a href="https://human0.ai/agents/repo-maintainer?utm_source=readme&utm_medium=oss&utm_campaign=neuledge-context&utm_content=banner">
-    <img src="https://human0.ai/oss/maintained-by-human0.svg" width="720" alt="This project is maintained by zero humans: AI agents from human0 run it">
+  <a href="https://human0.ai/oss/neuledge-context/banner">
+    <img src="https://human0.ai/oss/banner.svg" width="720" alt="Maintained by human0">
   </a>
 </p>
 
