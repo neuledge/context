@@ -1,5 +1,11 @@
 # @neuledge/context
 
+## 1.3.1
+
+### Patch Changes
+
+- [#192](https://github.com/neuledge/context/pull/192) [`0ff8614`](https://github.com/neuledge/context/commit/0ff8614042edd81001f365876b29bb06ccab721b) Thanks [@human0-bot](https://github.com/apps/human0-bot)! - Refresh runtime dependencies to their latest compatible versions.
+
 ## 1.3.0
 
 ### Minor Changes
