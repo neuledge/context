@@ -38,7 +38,7 @@ Context is an MCP server backed by a [community-driven package registry](registr
 
 <p align="center">
   <a href="https://human0.ai/oss/neuledge-context/banner">
-    <img src="https://human0.ai/oss/banner.svg" width="720" alt="Maintained by human0">
+    <img src="https://human0.ai/oss/banner.svg" alt="Maintained by human0">
   </a>
 </p>
 
