@@ -14,10 +14,10 @@
     ".": "./dist/index.js"
   },
   "scripts": {
-    "build": "rimraf --glob dist/** && tsc -p tsconfig.build.json",
+    "build": "rimraf --glob dist/** && node ../../scripts/generate-ingestion-revision.mjs && tsc -p tsconfig.build.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "registry": "tsx src/cli.ts",
+    "registry": "node ../../scripts/generate-ingestion-revision.mjs && tsx src/cli.ts",
     "test-registry": "tsx src/test-registry.ts",
     "lint": "npx biome ci --error-on-warnings",
     "fix": "npx biome check --write"

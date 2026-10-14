@@ -23,10 +23,13 @@ export {
   type ZipSource,
   type ZipVersionEntry,
 } from "./definition.js";
+export { createBuildFingerprint, getIngestionRevision } from "./fingerprint.js";
 export { downloadHtmlIndex } from "./html-index.js";
+export { publishDefinition } from "./publication.js";
 export {
   checkPackageExists,
   type PackageMetadata,
+  type PublishOptions,
   publishPackage,
 } from "./publish.js";
 export { type AvailableVersion, discoverVersions } from "./version-check.js";

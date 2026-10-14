@@ -232,9 +232,10 @@ async function fetchPage(
   root: URL,
   cacheDir: string,
   signal: AbortSignal,
+  force = false,
 ): Promise<CachedPage> {
   const path = join(cacheDir, `${digest(url.href)}.json`);
-  const cached = await readCache(path, url, root);
+  const cached = force ? undefined : await readCache(path, url, root);
   if (cached) return cached;
   for (let attempt = 0; ; attempt++) {
     signal.throwIfAborted();
@@ -253,14 +254,20 @@ async function fetchPage(
 export async function downloadHtmlIndex(
   source: HtmlIndexSource,
   version: string,
-  options: { cacheDir?: string } = {},
+  options: { cacheDir?: string; force?: boolean } = {},
 ): Promise<Array<{ path: string; content: string }>> {
   const index = resolveIndexUrl(source.url, version);
   const root = new URL(".", index);
   const cacheDir = options.cacheDir ?? CACHE_DIR;
   await mkdir(cacheDir, { recursive: true });
   const controller = new AbortController();
-  const indexPage = await fetchPage(index, root, cacheDir, controller.signal);
+  const indexPage = await fetchPage(
+    index,
+    root,
+    cacheDir,
+    controller.signal,
+    options.force,
+  );
   const urls = indexLinks(
     indexPage.content,
     new URL(indexPage.finalUrl),
@@ -276,7 +283,13 @@ export async function downloadHtmlIndex(
       while (!controller.signal.aborted) {
         const url = urls[cursor++];
         if (!url) return;
-        const page = await fetchPage(url, root, cacheDir, controller.signal);
+        const page = await fetchPage(
+          url,
+          root,
+          cacheDir,
+          controller.signal,
+          options.force,
+        );
         totalBytes += Buffer.byteLength(page.content);
         if (totalBytes > MAX_TOTAL_BYTES)
           throw new Error("HTML index exceeds 128 MiB total");

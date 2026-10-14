@@ -37,8 +37,14 @@ describe("HTML index downloads", () => {
     rmSync(cacheDir, { recursive: true, force: true });
   });
 
-  const download = (overrides: Partial<HtmlIndexSource> = {}) =>
-    downloadHtmlIndex({ ...source, ...overrides }, "258", { cacheDir });
+  const download = (
+    overrides: Partial<HtmlIndexSource> = {},
+    options: { cacheDir?: string; force?: boolean } = {},
+  ) =>
+    downloadHtmlIndex({ ...source, ...overrides }, "258", {
+      cacheDir,
+      ...options,
+    });
 
   it("follows only scoped HTML links once, excluding fragments, navigation and queries", async () => {
     fetchMock.mockImplementation(async (input) =>
@@ -84,6 +90,23 @@ describe("HTML index downloads", () => {
     writeFileSync(join(cacheDir, cached as string), "interrupted JSON");
     expect(await download()).toEqual(first);
     expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("force bypasses a valid cache and requests fresh index content", async () => {
+    let pages = 0;
+    fetchMock.mockImplementation(async (input) =>
+      input.toString() === base
+        ? html('<a href="one.html">one</a>')
+        : html(page(`one-${++pages}`)),
+    );
+    const first = await download();
+    expect(await download()).toEqual(first);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const forced = await download({}, { force: true });
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(forced).not.toEqual(first);
+    expect(forced[0]?.content).toContain("one-2");
   });
 
   it("deduplicates identical aliases deterministically and limits concurrency", async () => {
