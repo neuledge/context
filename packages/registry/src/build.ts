@@ -23,11 +23,19 @@ import type {
   UnversionedDefinition,
   VersionedDefinition,
 } from "./definition.js";
-import { createBuildFingerprint, getIngestionRevision } from "./fingerprint.js";
+import {
+  createBuildFingerprint,
+  getIngestionRevision,
+  sha256Hex,
+} from "./fingerprint.js";
 import { excludeFiles } from "./glob.js";
 import { downloadHtmlIndex } from "./html-index.js";
 import { resolveBuildSource } from "./source.js";
-import { downloadAndExtractZip } from "./zip.js";
+import {
+  downloadAndExtractZip,
+  downloadZipBuffer,
+  extractZipBuffer,
+} from "./zip.js";
 
 /** Only an absent ref is skippable; transport failures keep their original error. */
 export class MissingSourceRefError extends Error {}
@@ -83,6 +91,7 @@ function fingerprintOptions(
   definition: PackageDefinition,
   version: string,
   sourceCommit?: string,
+  sourceContentDigest?: string,
 ) {
   const ingestionRevision = getIngestionRevision();
   return {
@@ -92,6 +101,7 @@ function fingerprintOptions(
       version,
       sourceCommit,
       ingestionRevision,
+      sourceContentDigest,
     ),
   };
 }
@@ -103,7 +113,7 @@ export async function buildFromDefinition(
   definition: VersionedDefinition,
   version: string,
   outputDir: string,
-  options: { force?: boolean } = {},
+  options: { force?: boolean; zipBuffer?: Buffer } = {},
 ): Promise<RegistryBuildResult> {
   await initDatabase();
   const source = resolveBuildSource(definition, version);
@@ -119,13 +129,19 @@ export async function buildFromDefinition(
     return buildFromGit(source, outputPath, definition, version);
   }
 
-  const files =
-    source.type === "html-index"
-      ? await downloadHtmlIndex(source, version, { force: options.force })
-      : await downloadAndExtractZip(source.url, {
-          docsPath: source.docs_path,
-          excludePaths: source.exclude_paths,
-        });
+  let files: Array<{ path: string; content: string }>;
+  let sourceContentDigest: string | undefined;
+  if (source.type === "html-index") {
+    files = await downloadHtmlIndex(source, version, { force: options.force });
+  } else {
+    const zipBuffer =
+      options.zipBuffer ?? (await downloadZipBuffer(source.url));
+    sourceContentDigest = sha256Hex(zipBuffer);
+    files = extractZipBuffer(zipBuffer, {
+      docsPath: source.docs_path,
+      excludePaths: source.exclude_paths,
+    });
+  }
 
   if (files.length === 0) {
     throw new Error(
@@ -138,7 +154,7 @@ export async function buildFromDefinition(
     version,
     description: definition.description,
     sourceUrl: definition.repository ?? source.url,
-    ...fingerprintOptions(definition, version),
+    ...fingerprintOptions(definition, version, undefined, sourceContentDigest),
   });
 
   return {

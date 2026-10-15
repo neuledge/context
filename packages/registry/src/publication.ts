@@ -5,7 +5,7 @@ import {
   getHeadCommit,
 } from "./build.js";
 import { isVersioned, type PackageDefinition } from "./definition.js";
-import { createBuildFingerprint } from "./fingerprint.js";
+import { createBuildFingerprint, sha256Hex } from "./fingerprint.js";
 import { formatBuilt } from "./format.js";
 import {
   checkPackageExists,
@@ -13,14 +13,16 @@ import {
   publishPackage,
 } from "./publish.js";
 import { resolveBuildSource } from "./source.js";
+import { downloadZipBuffer } from "./zip.js";
 
 /** Legacy metadata retains the old skip policy until a forced migration. */
-export function publicationSkipReason(
+export async function publicationSkipReason(
   definition: PackageDefinition,
   version: string,
   existing: PackageMetadata | null,
   force = false,
-): string | undefined {
+  sourceContentDigest?: string,
+): Promise<string | undefined> {
   if (force || !existing) return;
   if (!existing.build_fingerprint && isVersioned(definition)) {
     return "already published; legacy metadata (use --force to rebuild)";
@@ -33,7 +35,13 @@ export function publicationSkipReason(
   if (existing.build_fingerprint) {
     if (
       existing.build_fingerprint ===
-      createBuildFingerprint(definition, version, commit)
+      createBuildFingerprint(
+        definition,
+        version,
+        commit,
+        undefined,
+        sourceContentDigest,
+      )
     ) {
       return "build inputs unchanged";
     }
@@ -58,11 +66,28 @@ export async function publishDefinition(
   const existing = options.force
     ? null
     : await checkPackageExists(definition.registry, definition.name, version);
-  const reason = publicationSkipReason(
+  const source = resolveBuildSource(definition, version);
+
+  // A versioned ZIP can serve different bytes at the same version. Fetch once
+  // here and use those exact bytes for both the skip decision and the build.
+  let zipBuffer: Buffer | undefined;
+  let sourceContentDigest: string | undefined;
+  if (
+    !options.force &&
+    isVersioned(definition) &&
+    source.type === "zip" &&
+    existing?.build_fingerprint
+  ) {
+    zipBuffer = await downloadZipBuffer(source.url);
+    sourceContentDigest = sha256Hex(zipBuffer);
+  }
+
+  const reason = await publicationSkipReason(
     definition,
     version,
     existing,
     options.force,
+    sourceContentDigest,
   );
   if (reason) {
     options.onSkip?.(reason);
@@ -73,6 +98,7 @@ export async function publishDefinition(
   const result = isVersioned(definition)
     ? await buildFromDefinition(definition, version, outputDir, {
         force: options.force,
+        zipBuffer,
       })
     : await buildUnversioned(definition, outputDir);
   log(`Built: ${result.path} (${formatBuilt(result)})`);
@@ -82,7 +108,7 @@ export async function publishDefinition(
     definition.name,
     version,
     result.path,
-    { sourceType: resolveBuildSource(definition, version).type },
+    { sourceType: source.type },
   );
   log(`Published: ${id}`);
   return result;

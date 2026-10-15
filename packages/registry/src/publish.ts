@@ -143,11 +143,10 @@ export async function publishPackage(
   } catch (error) {
     let message = error instanceof Error ? error.message : String(error);
     if (error instanceof RegistryRequestError && error.status === 409) {
-      // ZIP and HTML fingerprints use the version, not the downloaded bytes, so
-      // changed content at the same version still produces the same fingerprint.
-      // Accepting a matching fingerprint here would silently treat a rejected
-      // replacement as published. Only a Git build — whose fingerprint includes
-      // the content-addressed commit — can prove the server holds this upload.
+      // Conflict recovery remains limited to Git sources, whose resolved source
+      // commit is recorded in metadata. ZIP fingerprints include archive bytes,
+      // while HTML-index fingerprints remain version-derived; non-Git 409s are
+      // still reported as rejected replacements.
       if (options.sourceType === "git") {
         try {
           if (await matchesPublishedArtifact(registry, name, version, dbPath))

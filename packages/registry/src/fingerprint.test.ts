@@ -159,42 +159,66 @@ describe("build fingerprints", () => {
     );
   });
 
-  it("skips an existing explicit release only when its fingerprint matches", () => {
+  it("incorporates the ZIP content digest into the fingerprint", () => {
+    const base = createBuildFingerprint(zip, "1.0", undefined, "pipeline");
+    const withDigest = createBuildFingerprint(
+      zip,
+      "1.0",
+      undefined,
+      "pipeline",
+      "a".repeat(64),
+    );
+    expect(withDigest).not.toBe(base);
+    expect(withDigest).toBe(
+      createBuildFingerprint(zip, "1.0", undefined, "pipeline", "a".repeat(64)),
+    );
+    expect(withDigest).not.toBe(
+      createBuildFingerprint(zip, "1.0", undefined, "pipeline", "b".repeat(64)),
+    );
+  });
+
+  it("skips an existing explicit release only when its fingerprint matches", async () => {
     const existing = {
       registry: "custom",
       name: "docs",
       version: "1.0",
       build_fingerprint: createBuildFingerprint(zip, "1.0"),
     };
-    expect(publicationSkipReason(zip, "1.0", existing)).toBe(
+    await expect(publicationSkipReason(zip, "1.0", existing)).resolves.toBe(
       "build inputs unchanged",
     );
-    expect(
+    await expect(
       publicationSkipReason(
         { ...zip, description: "changed" },
         "1.0",
         existing,
       ),
-    ).toBeUndefined();
-    expect(
+    ).resolves.toBeUndefined();
+    await expect(
       publicationSkipReason(zip, "1.0", {
         ...existing,
         build_fingerprint: "old-pipeline",
       }),
-    ).toBeUndefined();
-    expect(publicationSkipReason(zip, "1.0", existing, true)).toBeUndefined();
+    ).resolves.toBeUndefined();
+    await expect(
+      publicationSkipReason(zip, "1.0", existing, true),
+    ).resolves.toBeUndefined();
   });
 
-  it("preserves legacy versioned skipping and allows an explicit rebuild", () => {
+  it("preserves legacy versioned skipping and allows an explicit rebuild", async () => {
     const legacy = { registry: "custom", name: "docs", version: "1.0" };
-    expect(publicationSkipReason(zip, "1.0", legacy)).toContain(
+    await expect(publicationSkipReason(zip, "1.0", legacy)).resolves.toContain(
       "legacy metadata",
     );
-    expect(publicationSkipReason(zip, "1.0", legacy, true)).toBeUndefined();
-    expect(publicationSkipReason(zip, "1.0", null)).toBeUndefined();
+    await expect(
+      publicationSkipReason(zip, "1.0", legacy, true),
+    ).resolves.toBeUndefined();
+    await expect(
+      publicationSkipReason(zip, "1.0", null),
+    ).resolves.toBeUndefined();
   });
 
-  it("keeps rebuilding unversioned archives with no immutable revision", () => {
+  it("keeps rebuilding unversioned archives with no immutable revision", async () => {
     const def: UnversionedDefinition = {
       ...git,
       source: {
@@ -203,13 +227,13 @@ describe("build fingerprints", () => {
         lang: "en",
       },
     };
-    expect(
+    await expect(
       publicationSkipReason(def, "latest", {
         registry: "custom",
         name: "docs",
         version: "latest",
         build_fingerprint: createBuildFingerprint(def, "latest"),
       }),
-    ).toBeUndefined();
+    ).resolves.toBeUndefined();
   });
 });

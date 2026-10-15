@@ -14,11 +14,17 @@ export function getIngestionRevision(): string {
   return revision;
 }
 
+/** SHA-256 digest of downloaded source bytes. */
+export function sha256Hex(content: Buffer): string {
+  return createHash("sha256").update(content).digest("hex");
+}
+
 export function createBuildFingerprint(
   definition: PackageDefinition,
   version: string,
   sourceCommit?: string,
   ingestionRevision = getIngestionRevision(),
+  sourceContentDigest?: string,
 ): string {
   const source = resolveBuildSource(definition, version);
   if (source.type === "git" && !sourceCommit) {
@@ -36,6 +42,12 @@ export function createBuildFingerprint(
     max_pages:
       source.type === "html-index" ? (source.max_pages ?? 2000) : undefined,
   };
+  // A ZIP release is content-addressed: the same version can serve different
+  // bytes, so the archive digest is the revision that invalidates a build.
+  const sourceRevision =
+    source.type === "zip"
+      ? (sourceContentDigest ?? version)
+      : (sourceCommit ?? version);
   const inputs = {
     schema_version: 1,
     registry: definition.registry,
@@ -44,7 +56,7 @@ export function createBuildFingerprint(
     description: definition.description,
     source_url: definition.repository ?? source.url,
     source: effectiveSource,
-    source_revision: sourceCommit ?? version,
+    source_revision: sourceRevision,
     ingestion_revision: ingestionRevision,
   };
   return createHash("sha256").update(JSON.stringify(inputs)).digest("hex");

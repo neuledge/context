@@ -202,13 +202,13 @@ Point `docs_path` at the directory holding them; everything else in the repo is 
 
 `registry publish` and `registry publish-all` compare `build_fingerprint` metadata
 before building. A matching fingerprint skips work; changed build inputs cause a
-rebuild and an upload to the same package version. Inputs include the actual Git
-commit (or pinned explicit release), the effective source settings and package
-metadata, and an automatically generated ingestion revision. `docs_path`,
-exclusions, Git language filters, source URL/ref, description, or ingestion changes can
-therefore rebuild a package even when the source commit is unchanged. YAML key
-order, comments, exclusion order/duplicates, and unrelated release entries do not
-change the fingerprint.
+rebuild and an upload to the same package version. Inputs include the resolved Git
+commit or (for pinned ZIP sources) the downloaded archive bytes, the effective
+source settings and package metadata, and an automatically generated ingestion
+revision. Changes to `docs_path`, exclusions, Git language filters, source URL/ref,
+description, or ingestion code can rebuild a package even when the Git commit is
+unchanged. YAML key order, comments, exclusion order/duplicates, and unrelated
+release entries do not change the fingerprint.
 
 The ingestion revision is generated during `pnpm build` and before the
 `pnpm --filter @neuledge/registry registry ...` source CLI runs. The generator starts
@@ -223,10 +223,12 @@ The generated revision ships in `dist/ingestion-revision.json`. The built publis
 needs neither Git history nor TypeScript source files to compute the ingestion
 revision; Git commands are still needed to resolve and build Git sources. Rebuild
 after editing ingestion code if running `src/cli.ts` directly instead of the
-package script. Unversioned ZIP sources continue rebuilding on each publication,
-because their URLs provide no immutable source revision. Pinned archives/HTML
-releases are assumed immutable; refreshing upstream download caches is separate
-from derived-package freshness.
+package script. Unversioned ZIP sources continue rebuilding on each publication
+because their URLs provide no immutable source revision. Pinned ZIP releases are
+fingerprinted by their downloaded bytes, so same-version archive changes are
+detected. Pinned HTML releases remain version-derived and are assumed immutable;
+same-version HTML changes are not detected automatically. Refreshing the HTML
+download cache is separate from derived-package freshness.
 
 Servers must expose the uploaded database's `build_fingerprint` on the metadata
 endpoint (see [SERVER_SPEC.md](../SERVER_SPEC.md)). Without that field, versioned
@@ -241,16 +243,19 @@ pnpm --filter @neuledge/registry registry publish-all --force
 
 `--force` bypasses freshness checks and rebuilds; it does not override the server's
 replacement policy. Both automatic rebuilds and forced builds upload to the same
-registry/name/version. Servers that allow replacement accept the new artifact;
-servers that return HTTP 409 are checked for a matching package identity,
-`build_fingerprint`, and `ingestion_revision`. A match confirms that the upload
-already landed, even if its response was lost and the retry returned 409. Missing
-or mismatched metadata produces a clear failure. All failed uploads report the
-preserved `.db` path; successful `publish-all` uploads remove the local artifact.
+registry/name/version. Servers that allow replacement accept the new artifact.
+For Git-sourced uploads, servers that return HTTP 409 are checked for a matching
+package identity, `build_fingerprint`, and `ingestion_revision`. A match confirms
+that the upload already landed, even if its response was lost and the retry
+returned 409. ZIP and HTML-index 409s remain errors rather than being treated as
+successful uploads. Missing or mismatched metadata produces a clear failure. All
+failed uploads report the preserved `.db` path; successful `publish-all` uploads
+remove the local artifact.
 
 `--force` also bypasses the downloaded HTML cache and fetches pages again. Use it
-when upstream HTML changed without a version change; the new content will still be
-subject to the registry's replacement policy.
+when upstream HTML changed without a version change; HTML content is not part of
+the automatic fingerprint, and the new package remains subject to the registry's
+replacement policy.
 
 Bulk publishing summarizes skip reasons instead of logging every unchanged
 version. Missing Git tags are warned about and skipped, including tags removed

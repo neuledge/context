@@ -335,7 +335,8 @@ describe("publication freshness through the CLI", () => {
       "build inputs unchanged",
     );
     expect(uploads).toBe(1);
-    expect(archiveDownloads).toBe(1);
+    // The ZIP freshness check downloads the archive once to compare its digest.
+    expect(archiveDownloads).toBe(2);
     defineArchive("guides");
     expect((await cli("publish", "docs", "1.0")).status).toBe(0);
     expect(uploads).toBe(2);
@@ -389,8 +390,8 @@ describe("publication freshness through the CLI", () => {
     // before the forced publish to prove the rebuilt artifact is preserved.
     rmSync(join(root, "output", "custom-docs@1.0.db"), { force: true });
 
-    // Same version and docs_path, so the version-derived fingerprint is
-    // unchanged even though the downloaded bytes differ.
+    // The registry rejects this changed same-version archive as an immutable
+    // release; the rebuilt local artifact must still be preserved.
     archiveBody = storedZip([
       {
         path: "docs/intro.md",
@@ -406,6 +407,29 @@ describe("publication freshness through the CLI", () => {
     expect(failed.output).not.toContain("Published:");
     expect(failed.output).toContain("Failed: 1");
     expect(existsSync(join(root, "output", "custom-docs@1.0.db"))).toBe(true);
+  }, 90_000);
+
+  it("rebuilds and uploads changed ZIP content at the same version without --force", async () => {
+    defineArchive();
+    expect((await cli("publish", "docs", "1.0")).status).toBe(0);
+    expect(uploads).toBe(1);
+    const original = currentMetadata();
+
+    archiveBody = storedZip([
+      {
+        path: "docs/intro.md",
+        content:
+          "# Changed documentation\n\nThis content differs from the published release.\n",
+      },
+    ]);
+
+    const republished = await cli("publish", "docs", "1.0");
+    expect(republished.status).toBe(0);
+    expect(republished.output).toContain("Published:");
+    expect(uploads).toBe(2);
+    const updated = currentMetadata();
+    expect(updated.build_fingerprint).toMatch(/^[a-f0-9]{64}$/);
+    expect(updated.build_fingerprint).not.toBe(original.build_fingerprint);
   }, 90_000);
 
   it("resolves annotated tags to the commit recorded by a versioned Git build", async () => {
