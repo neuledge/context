@@ -1,5 +1,11 @@
 # @neuledge/context
 
+## 1.3.2
+
+### Patch Changes
+
+- [#195](https://github.com/neuledge/context/pull/195) [`9aed3da`](https://github.com/neuledge/context/commit/9aed3da6ae0a606788239f0e567daf65dcac06d8) Thanks [@human0-bot](https://github.com/apps/human0-bot)! - Allow package builders to store build fingerprints and automatic ingestion revisions in package metadata for registry freshness checks.
+
 ## 1.3.1
 
 ### Patch Changes
