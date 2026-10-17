@@ -1,5 +1,0 @@
----
-"@neuledge/context": patch
----
-
-Stop dropping prose sections as tables of contents because their links have long URLs. The table-of-contents check counted each link's full Markdown, URL included, as link text, so a paragraph with two or three long links counted as "mostly links" and was left out of the index. It now compares the link text a reader sees with the rest of the text. Sphinx's generated index pages (`genindex.html`, its per-letter pages and `py-modindex.html`) are alphabetical link catalogs, so they are now left out of the index explicitly rather than by the link ratio. A page is skipped only when it has one of Sphinx's index file names and a tag from Sphinx's index templates, so a guide that uses the same class or shows the markup in an example is still indexed. In the Python 3.14 docs, 154 of 538 pages produced no sections at all, including the C API pages for dict, list, set, tuple and datetime and `library/errno.html`; 51 remain empty after the fix, all of them contents pages or Sphinx's generated indexes.
