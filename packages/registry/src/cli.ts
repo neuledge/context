@@ -5,9 +5,17 @@
  * Not shipped to users — used for building and publishing context packages.
  */
 
-import { mkdirSync, rmSync } from "node:fs";
-import { resolve } from "node:path";
-import { isMissingRefError } from "@neuledge/context";
+import { mkdirSync, mkdtempSync, renameSync, rmSync } from "node:fs";
+import { basename, join, resolve } from "node:path";
+import {
+  createIngestionReport,
+  formatIngestionSummary,
+  type IngestionDiagnostic,
+  IngestionError,
+  type IngestionReport,
+  isMissingRefError,
+  writeIngestionReport,
+} from "@neuledge/context";
 import { Command } from "commander";
 import {
   buildFromDefinition,
@@ -96,25 +104,68 @@ program
   .description("Build a .db package for a specific version")
   .option("--dir <path>", "Registry directory", DEFAULT_REGISTRY_DIR)
   .option("--output <path>", "Output directory", "./dist-packages")
+  .option("--strict", "Fail on unreadable, unparseable, or empty documentation")
+  .option(
+    "--diagnostics <file>",
+    "Write detailed ingestion diagnostics as JSON",
+  )
   .action(async (name, version, opts) => {
-    const def = findDefinition(opts.dir, name);
-    mkdirSync(opts.output, { recursive: true });
-
-    if (isVersioned(def)) {
-      if (!version) {
+    const diagnostics: IngestionDiagnostic[] = [];
+    let report: IngestionReport | undefined;
+    let stagingDirectory: string | undefined;
+    let buildCompleted = false;
+    try {
+      const def = findDefinition(opts.dir, name);
+      mkdirSync(opts.output, { recursive: true });
+      if (isVersioned(def) && !version) {
         throw new Error(
           `Version required for versioned package "${name}". Use: registry build ${name} <version>`,
         );
       }
-      console.log(`Building ${def.registry}/${def.name}@${version}...`);
-      const result = await buildFromDefinition(def, version, opts.output);
-      console.log(`Built: ${result.path} (${formatBuilt(result)})`);
-    } else {
       console.log(
-        `Building ${def.registry}/${def.name}@latest (unversioned)...`,
+        `Building ${def.registry}/${def.name}@${version ?? "latest"}...`,
       );
-      const result = await buildUnversioned(def, opts.output);
+      if (opts.diagnostics) {
+        stagingDirectory = mkdtempSync(join(opts.output, ".registry-build-"));
+      }
+      const buildDirectory = stagingDirectory ?? opts.output;
+      const options = { strict: opts.strict, diagnostics };
+      const result = isVersioned(def)
+        ? await buildFromDefinition(def, version, buildDirectory, options)
+        : await buildUnversioned(def, buildDirectory, options);
+      buildCompleted = true;
+      report = result.diagnostics;
+      if (opts.diagnostics) {
+        const destination = resolve(opts.output, basename(result.path));
+        if (resolve(opts.diagnostics) === destination) {
+          throw new Error("Diagnostics and package output paths must differ");
+        }
+        writeIngestionReport(opts.diagnostics, report);
+        renameSync(result.path, destination);
+        result.path = destination;
+      }
       console.log(`Built: ${result.path} (${formatBuilt(result)})`);
+    } catch (error) {
+      if (error instanceof IngestionError) {
+        report = error.diagnostics;
+        console.error(formatIngestionSummary(report));
+      }
+      if (opts.diagnostics && !buildCompleted) {
+        try {
+          writeIngestionReport(
+            opts.diagnostics,
+            report ?? createIngestionReport(diagnostics),
+          );
+        } catch (reportError) {
+          console.error(
+            reportError instanceof Error ? reportError.message : reportError,
+          );
+        }
+      }
+      throw error;
+    } finally {
+      if (stagingDirectory)
+        rmSync(stagingDirectory, { recursive: true, force: true });
     }
   });
 
