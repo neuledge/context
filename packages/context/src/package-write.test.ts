@@ -134,45 +134,49 @@ function injectFailure(stage: string): void {
   }
 }
 
-describe.each([
-  false,
-  true,
-])("package build (existing installation: %s)", (existing) => {
-  it.each([
-    "initialization",
-    "FTS creation",
-    "chunk insertion",
-    "FTS indexing",
-    "close",
-    "validation",
-    "replacement",
-  ])("preserves the installed state after a failure during %s", (stage) => {
-    if (existing) buildPackage(outputPath, documents("original"), OPTIONS);
-    const original = existing ? readFileSync(outputPath) : undefined;
-    injectFailure(stage);
+describe.each([false, true])(
+  "package build (existing installation: %s)",
+  (existing) => {
+    it.each([
+      "initialization",
+      "FTS creation",
+      "chunk insertion",
+      "FTS indexing",
+      "close",
+      "validation",
+      "replacement",
+    ])("preserves the installed state after a failure during %s", (stage) => {
+      if (existing) buildPackage(outputPath, documents("original"), OPTIONS);
+      const original = existing ? readFileSync(outputPath) : undefined;
+      injectFailure(stage);
 
-    expect(() =>
-      buildPackage(outputPath, documents("replacement"), OPTIONS),
-    ).toThrow(`Injected ${stage} failure`);
-    expect(readdirSync(directory)).toEqual(
-      existing ? ["test-lib@1.0.0.db"] : [],
-    );
-    if (original) {
-      expect(readFileSync(outputPath)).toEqual(original);
-      expectSearch(outputPath, "original");
-      expect(readPackageInfo(outputPath).sectionCount).toBe(1);
-    }
-  });
+      expect(() =>
+        buildPackage(outputPath, documents("replacement"), OPTIONS),
+      ).toThrow(`Injected ${stage} failure`);
+      expect(readdirSync(directory)).toEqual(
+        existing ? ["test-lib@1.0.0.db"] : [],
+      );
+      if (original) {
+        expect(readFileSync(outputPath)).toEqual(original);
+        expectSearch(outputPath, "original");
+        expect(readPackageInfo(outputPath).sectionCount).toBe(1);
+      }
+    });
 
-  it("installs a complete, searchable package and removes staging files", () => {
-    if (existing) buildPackage(outputPath, documents("original"), OPTIONS);
-    const result = buildPackage(outputPath, documents("replacement"), OPTIONS);
-    expect(result.path).toBe(outputPath);
-    expect(result.sectionCount).toBe(1);
-    expectSearch(outputPath, "replacement");
-    expect(readdirSync(directory)).toEqual(["test-lib@1.0.0.db"]);
-  });
-});
+    it("installs a complete, searchable package and removes staging files", () => {
+      if (existing) buildPackage(outputPath, documents("original"), OPTIONS);
+      const result = buildPackage(
+        outputPath,
+        documents("replacement"),
+        OPTIONS,
+      );
+      expect(result.path).toBe(outputPath);
+      expect(result.sectionCount).toBe(1);
+      expectSearch(outputPath, "replacement");
+      expect(readdirSync(directory)).toEqual(["test-lib@1.0.0.db"]);
+    });
+  },
+);
 
 it("keeps the installed package visible during writing and closes before validation", () => {
   buildPackage(outputPath, documents("original"), OPTIONS);
@@ -223,27 +227,27 @@ it("does not discover staged packages, even after they become valid databases", 
   expect(readdirSync(directory)).toEqual(["test-lib@1.0.0.db"]);
 });
 
-it.each([
-  "EPERM",
-  "EBUSY",
-])("preserves the old package when rename fails with %s", (code) => {
-  buildPackage(outputPath, documents("original"), OPTIONS);
-  const original = readFileSync(outputPath);
-  const renameNormally = vi.mocked(renameSync).getMockImplementation();
-  if (!renameNormally) throw new Error("Missing renameSync implementation");
-  vi.mocked(renameSync).mockImplementation((source, destination) => {
-    if (destination === outputPath) {
-      throw Object.assign(new Error("Destination is in use"), { code });
-    }
-    return renameNormally(source, destination);
-  });
-  expect(() =>
-    buildPackage(outputPath, documents("replacement"), OPTIONS),
-  ).toThrow("Destination is in use");
-  expect(readFileSync(outputPath)).toEqual(original);
-  expectSearch(outputPath, "original");
-  expect(readdirSync(directory)).toEqual(["test-lib@1.0.0.db"]);
-});
+it.each(["EPERM", "EBUSY"])(
+  "preserves the old package when rename fails with %s",
+  (code) => {
+    buildPackage(outputPath, documents("original"), OPTIONS);
+    const original = readFileSync(outputPath);
+    const renameNormally = vi.mocked(renameSync).getMockImplementation();
+    if (!renameNormally) throw new Error("Missing renameSync implementation");
+    vi.mocked(renameSync).mockImplementation((source, destination) => {
+      if (destination === outputPath) {
+        throw Object.assign(new Error("Destination is in use"), { code });
+      }
+      return renameNormally(source, destination);
+    });
+    expect(() =>
+      buildPackage(outputPath, documents("replacement"), OPTIONS),
+    ).toThrow("Destination is in use");
+    expect(readFileSync(outputPath)).toEqual(original);
+    expectSearch(outputPath, "original");
+    expect(readdirSync(directory)).toEqual(["test-lib@1.0.0.db"]);
+  },
+);
 
 it("keeps an open reader usable during replacement or an OS sharing violation", () => {
   buildPackage(outputPath, documents("original"), OPTIONS);
@@ -272,22 +276,24 @@ it("keeps an open reader usable during replacement or an OS sharing violation", 
   expect(readdirSync(directory)).toEqual(["test-lib@1.0.0.db"]);
 });
 
-it.each([
-  false,
-  true,
-])("cleans up a partial copy (existing installation: %s)", (existing) => {
-  if (existing) buildPackage(outputPath, documents("original"), OPTIONS);
-  const original = existing ? readFileSync(outputPath) : undefined;
-  vi.mocked(copyFileSync).mockImplementationOnce((_source, destination) => {
-    writeFileSync(destination, "partial database");
-    throw new Error("Copy interrupted");
-  });
-  expect(() => copyPackageFile("source.db", outputPath)).toThrow(
-    "Copy interrupted",
-  );
-  expect(readdirSync(directory)).toEqual(existing ? ["test-lib@1.0.0.db"] : []);
-  if (original) expect(readFileSync(outputPath)).toEqual(original);
-});
+it.each([false, true])(
+  "cleans up a partial copy (existing installation: %s)",
+  (existing) => {
+    if (existing) buildPackage(outputPath, documents("original"), OPTIONS);
+    const original = existing ? readFileSync(outputPath) : undefined;
+    vi.mocked(copyFileSync).mockImplementationOnce((_source, destination) => {
+      writeFileSync(destination, "partial database");
+      throw new Error("Copy interrupted");
+    });
+    expect(() => copyPackageFile("source.db", outputPath)).toThrow(
+      "Copy interrupted",
+    );
+    expect(readdirSync(directory)).toEqual(
+      existing ? ["test-lib@1.0.0.db"] : [],
+    );
+    if (original) expect(readFileSync(outputPath)).toEqual(original);
+  },
+);
 
 it("rejects an invalid staged database and cleans up its SQLite artifacts", () => {
   const temp = createPackageTempFile(directory);
