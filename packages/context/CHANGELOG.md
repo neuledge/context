@@ -1,5 +1,11 @@
 # @neuledge/context
 
+## 1.3.4
+
+### Patch Changes
+
+- [#200](https://github.com/neuledge/context/pull/200) [`a1a022f`](https://github.com/neuledge/context/commit/a1a022fb4bdf7ca1afe26f7da7a324790cb1e38e) Thanks [@human0-bot](https://github.com/apps/human0-bot)! - Refresh zod and defuddle to their latest compatible versions.
+
 ## 1.3.3
 
 ### Patch Changes
