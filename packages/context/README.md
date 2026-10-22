@@ -48,6 +48,8 @@ Context is an MCP server backed by a [community-driven package registry](registr
 
 ### 1. Install
 
+**Requires Node.js 22.12.0 or newer.**
+
 ```bash
 npm install -g @neuledge/context
 ```
