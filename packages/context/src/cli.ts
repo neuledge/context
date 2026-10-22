@@ -612,7 +612,7 @@ export function resolveAllowedLibraries(
   return allowed;
 }
 
-const program = new Command()
+export const program = new Command()
   .name("context")
   .description("Local-first documentation for AI agents")
   .version(version);

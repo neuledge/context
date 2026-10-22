@@ -8,6 +8,7 @@ import {
   packageNameFromUrl,
   parseLibSpec,
   parseRegistryPackage,
+  program,
   removePackageFile,
   resolveAllowedLibraries,
   resolveLlmsTxtUrls,
@@ -627,5 +628,114 @@ describe("removePackageFile", () => {
 
     expect(result.removed).toBe(false);
     expect(existsSync(dirPath)).toBe(true);
+  });
+});
+
+describe("CLI command definition", () => {
+  const command = (name: string) => {
+    const found = program.commands.find((c) => c.name() === name);
+    if (!found) throw new Error(`Missing command: ${name}`);
+    return found;
+  };
+
+  const subcommand = (parent: string, name: string) => {
+    const found = command(parent).commands.find((c) => c.name() === name);
+    if (!found) throw new Error(`Missing command: ${parent} ${name}`);
+    return found;
+  };
+
+  it("registers every command documented in the README", () => {
+    const documentedCommands = [
+      "browse",
+      "install",
+      "add",
+      "list",
+      "remove",
+      "auth",
+      "serve",
+      "query",
+    ];
+
+    const names = program.commands.map((c) => c.name());
+    for (const name of documentedCommands) {
+      expect(names).toContain(name);
+    }
+
+    // The eight README commands are the complete top-level command surface
+    // (Commander's implicit `help` command is not part of `program.commands`).
+    expect(names).toHaveLength(documentedCommands.length);
+  });
+
+  it("registers every README-documented authentication subcommand", () => {
+    const names = command("auth").commands.map((c) => c.name());
+    expect(names).toEqual(expect.arrayContaining(["add", "list", "remove"]));
+  });
+
+  it("shows the documented command descriptions in top-level help", () => {
+    const help = program.helpInformation();
+
+    expect(help).toContain("Local-first documentation for AI agents");
+    expect(help).toContain(
+      "Search for packages available on the registry server",
+    );
+    expect(help).toContain(
+      "Download and install a package from the registry server",
+    );
+    expect(help).toContain(
+      "Install a documentation package from file, URL, GitHub, git repo, website (llms.txt), or local directory",
+    );
+    expect(help).toContain("Show installed packages");
+    expect(help).toContain("Remove a documentation package");
+    expect(help).toContain(
+      "Manage per-platform authentication (cookies, headers)",
+    );
+    expect(help).toContain("Start the MCP server");
+    expect(help).toContain("Query documentation from an installed package");
+  });
+
+  it("documents the README options for `context add`", () => {
+    const help = command("add").helpInformation();
+
+    expect(help).toContain("--pkg-version <version>");
+    expect(help).toContain("Custom version label");
+    expect(help).toContain("--path <path>");
+    expect(help).toContain("Path to docs folder in repo/directory");
+    expect(help).toContain("--name <name>");
+    expect(help).toContain("Custom package name");
+    expect(help).toContain("--save <path>");
+    expect(help).toContain("Save a copy of the package to the specified path");
+  });
+
+  it("documents the README options for `context serve`", () => {
+    const help = command("serve").helpInformation();
+
+    expect(help).toContain("--http [port]");
+    expect(help).toContain(
+      "Start as HTTP server instead of stdio (default port: 8080)",
+    );
+    expect(help).toContain("--host <host>");
+    expect(help).toContain("Host to bind to (default: 127.0.0.1)");
+    expect(help).toContain("--libs <names...>");
+    expect(help).toContain(
+      "Restrict the session to a fixed set of installed libraries",
+    );
+  });
+
+  it("documents the README options for `context auth add`", () => {
+    const help = subcommand("auth", "add").helpInformation();
+
+    expect(help).toContain("--cookies <cookies>");
+    expect(help).toContain("Cookie string");
+    expect(help).toContain("--header <header>");
+    expect(help).toContain("Additional header in");
+  });
+
+  it("documents the README help text for `context browse` and `context install`", () => {
+    expect(command("browse").helpInformation()).toContain(
+      "Search for packages available on the registry server",
+    );
+    expect(command("install").helpInformation()).toContain(
+      "Download and install a package from the registry server",
+    );
   });
 });
