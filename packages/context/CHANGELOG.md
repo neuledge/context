@@ -1,5 +1,11 @@
 # @neuledge/context
 
+## 1.3.5
+
+### Patch Changes
+
+- [#204](https://github.com/neuledge/context/pull/204) [`f328fe3`](https://github.com/neuledge/context/commit/f328fe3366222d16b706ed8fb8c0e6744a194125) Thanks [@human0-bot](https://github.com/apps/human0-bot)! - Refresh runtime dependency fast-uri to 3.1.9.
+
 ## 1.3.4
 
 ### Patch Changes
