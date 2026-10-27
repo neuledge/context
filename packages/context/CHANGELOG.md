@@ -1,5 +1,11 @@
 # @neuledge/context
 
+## 1.3.6
+
+### Patch Changes
+
+- [#206](https://github.com/neuledge/context/pull/206) [`8310703`](https://github.com/neuledge/context/commit/8310703578e20803b40518bb0688d17d44549a5f) Thanks [@JayOfTheKeyboard](https://github.com/JayOfTheKeyboard)! - Title Markdown and HTML documents by their h1 when they have no frontmatter title, and drop `.html` from the file-name fallback
+
 ## 1.3.5
 
 ### Patch Changes
