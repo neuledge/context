@@ -1,5 +1,11 @@
 # @neuledge/context
 
+## 1.3.7
+
+### Patch Changes
+
+- [#208](https://github.com/neuledge/context/pull/208) [`76256cc`](https://github.com/neuledge/context/commit/76256cce9595079046512940d67fbbb803c44cf8) Thanks [@JayOfTheKeyboard](https://github.com/JayOfTheKeyboard)! - Keep fenced code blocks whole when a long Markdown section is split at paragraph boundaries, instead of cutting them at blank lines inside the code. The same fence rules now decide where very large Markdown files are split at `##` headings and which sections are marked as having code, so `~~~` blocks count as code too
+
 ## 1.3.6
 
 ### Patch Changes
