@@ -1,5 +1,12 @@
 # @neuledge/registry
 
+## 0.0.32
+
+### Patch Changes
+
+- Updated dependencies [[`76256cc`](https://github.com/neuledge/context/commit/76256cce9595079046512940d67fbbb803c44cf8)]:
+  - @neuledge/context@1.3.7
+
 ## 0.0.31
 
 ### Patch Changes
