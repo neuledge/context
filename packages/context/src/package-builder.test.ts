@@ -535,6 +535,40 @@ describe("splitMarkdownByHeadings", () => {
     expect(splitMarkdownByHeadings(file)).toHaveLength(3);
   });
 
+  it("ignores ## lines in a fence behind a list marker", () => {
+    const file = {
+      path: "docs.md",
+      content: [
+        "## Real",
+        "",
+        "1. ```bash",
+        "   ## install the dependencies",
+        "   npm i",
+        "   ```",
+        "",
+        "## After",
+      ].join("\n"),
+    };
+
+    const result = splitMarkdownByHeadings(file);
+
+    expect(result).toHaveLength(2);
+    expect(result[0]?.content).toContain("## install the dependencies");
+    expect(result[1]?.content).toMatch(/^## After/);
+  });
+
+  it("still splits after a fence that never closes", () => {
+    const file = {
+      path: "docs.md",
+      content: "## A\n\n```js\nstray\n\n## B\n\nText.",
+    };
+
+    const result = splitMarkdownByHeadings(file);
+
+    expect(result).toHaveLength(2);
+    expect(result[1]?.content).toMatch(/^## B/);
+  });
+
   it("keeps doc path on every part", () => {
     const file = {
       path: "cloudflare.com/llms-full.txt",
