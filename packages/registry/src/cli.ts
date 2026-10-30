@@ -136,6 +136,9 @@ program
       buildCompleted = true;
       report = result.diagnostics;
       if (opts.diagnostics) {
+        if (!report) {
+          throw new Error("Build did not produce ingestion diagnostics");
+        }
         const destination = resolve(opts.output, basename(result.path));
         if (resolve(opts.diagnostics) === destination) {
           throw new Error("Diagnostics and package output paths must differ");

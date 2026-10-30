@@ -544,7 +544,7 @@ function ensureDataDir(): void {
  * to split or parse is dropped on its own so one bad document can't fail the
  * build, which is only safe if the user can see it happened.
  */
-function reportBuilt(
+export function reportBuilt(
   result: BuildResult,
   name: string,
   version: string,
@@ -552,9 +552,9 @@ function reportBuilt(
 ): void {
   console.log(`✓ Built package: ${name}@${version}`);
   console.log(`✓ Saved to ${outputPath}`);
-  console.log(formatIngestionSummary(result.diagnostics));
-
-  if (result.skippedFiles > 0) {
+  if (result.diagnostics) {
+    console.log(formatIngestionSummary(result.diagnostics));
+  } else if (result.skippedFiles > 0) {
     console.log(
       `⚠️  Skipped ${result.skippedFiles} file${result.skippedFiles === 1 ? "" : "s"} that could not be parsed`,
     );
@@ -575,6 +575,9 @@ function buildWithDiagnostics(
   const staged = createPackageTempFile(dirname(outputPath));
   try {
     const result = buildPackage(staged.path, files, options);
+    if (!result.diagnostics) {
+      throw new Error("Build did not produce ingestion diagnostics");
+    }
     writeIngestionReport(diagnosticsPath, result.diagnostics);
     staged.install(outputPath);
     return { ...result, path: outputPath };

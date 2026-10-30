@@ -335,12 +335,14 @@ The report has `schemaVersion`, `summary`, and per-path `entries`. Discovered
 files are documentation candidates actually visited within the selected source;
 selected files exclude intentional exclusions and duplicates. Indexed sections
 count only sections stored after deduplication. Pruned directories appear once
-with their exclusion reason; their contents are not scanned or counted. Unrelated
-source-code files are omitted. Git/local paths are relative to the repository
-root, including an explicit docs path.
+with their exclusion reason; their contents are not scanned or counted. Hidden
+and tooling directories and unrelated source-code files are omitted. Git/local
+paths are relative to the repository root, including an explicit docs path.
 
-Library callers receive the report as `BuildResult.diagnostics`; the existing
-`skippedFiles` field still counts only split/parse failures. To include source
+`buildPackage` always returns a report as `BuildResult.diagnostics`. The property
+is optional in the public type so existing result objects and builder mocks
+remain compatible. The existing `skippedFiles` field still counts only split/parse
+failures. To include source
 selection and read outcomes, pass the same `IngestionDiagnostic[]` to
 `readLocalDocsFiles(..., { diagnostics })` and
 `buildPackage(..., { name, version, diagnostics, strict })`. Strict failures throw

@@ -108,7 +108,7 @@ it("reports distinct source and parser outcomes while preserving headings and ex
   const files = readLocalDocsFiles(directory, { path: "docs", diagnostics });
   const result = buildPackage(output, files, { ...options, diagnostics });
   expect(result.skippedFiles).toBe(1);
-  expect(result.diagnostics.summary).toEqual({
+  expect(result.diagnostics?.summary).toEqual({
     discoveredFiles: 9,
     selectedFiles: 6,
     indexedDocuments: 3,
@@ -121,7 +121,7 @@ it("reports distinct source and parser outcomes while preserving headings and ex
     parseFailures: 1,
     emptyFiles: 1,
   });
-  expect(result.diagnostics.entries).toEqual(
+  expect(result.diagnostics?.entries).toEqual(
     expect.arrayContaining([
       expect.objectContaining({
         path: "docs/ignored.md",
@@ -159,7 +159,7 @@ it("reports distinct source and parser outcomes while preserving headings and ex
   );
   expect(JSON.stringify(result.diagnostics)).not.toContain(directory);
   expect(
-    result.diagnostics.entries.some((entry) =>
+    result.diagnostics?.entries.some((entry) =>
       entry.path.endsWith("source.ts"),
     ),
   ).toBe(false);
@@ -188,6 +188,67 @@ it("reports distinct source and parser outcomes while preserving headings and ex
   } finally {
     db.close();
   }
+});
+
+it.each([
+  undefined,
+  "docs",
+])("omits routine directories from exclusions when scanning %s", (docsPath) => {
+  const source = docsPath ? join(directory, docsPath) : directory;
+  for (const name of [
+    ".git",
+    ".github",
+    ".vitepress",
+    ".hidden-docs",
+    "node_modules",
+    "dist",
+    "out",
+    "fixtures",
+    "de",
+    "ignored-docs",
+  ]) {
+    mkdirSync(join(source, name));
+    writeFileSync(join(source, name, "guide.md"), `Documentation in ${name}.`);
+  }
+  writeFileSync(
+    join(directory, ".gitignore"),
+    "ignored-docs/\nnode_modules/\n",
+  );
+  writeFileSync(
+    join(source, "guide.md"),
+    "## Guide\n\nSelected documentation.",
+  );
+  writeFileSync(join(source, ".hidden.md"), "Hidden documentation file.");
+
+  const diagnostics: IngestionDiagnostic[] = [];
+  const files = readLocalDocsFiles(directory, { path: docsPath, diagnostics });
+  const prefix = docsPath ? `${docsPath}/` : "";
+  expect(files.map((file) => file.path)).toEqual([`${prefix}guide.md`]);
+  const report = createIngestionReport(diagnostics);
+  expect(report.summary).toMatchObject({
+    excludedDirectories: 2,
+    excludedFiles: 1,
+  });
+  expect(report.entries).toEqual([
+    {
+      path: `${prefix}.hidden.md`,
+      kind: "file",
+      outcome: "excluded",
+      reason: "hidden",
+    },
+    {
+      path: `${prefix}de`,
+      kind: "directory",
+      outcome: "excluded",
+      reason: "language-filter",
+    },
+    {
+      path: `${prefix}ignored-docs`,
+      kind: "directory",
+      outcome: "excluded",
+      reason: "gitignore",
+    },
+  ]);
 });
 
 it.each([
@@ -262,7 +323,7 @@ it("allows intentional exclusions and duplicates in strict mode, counting only i
       ],
     },
   );
-  expect(result.diagnostics.summary).toMatchObject({
+  expect(result.diagnostics?.summary).toMatchObject({
     discoveredFiles: 3,
     selectedFiles: 1,
     indexedDocuments: 1,
@@ -270,7 +331,7 @@ it("allows intentional exclusions and duplicates in strict mode, counting only i
     excludedFiles: 1,
     duplicateFiles: 1,
   });
-  expect(result.diagnostics.entries).toContainEqual({
+  expect(result.diagnostics?.entries).toContainEqual({
     path: "b.md",
     kind: "file",
     outcome: "duplicate",

@@ -100,7 +100,7 @@ it("carries ZIP exclusions, duplicate sections and empty documents into the buil
     ],
   };
   const result = await buildFromDefinition(definition, "1", directory);
-  expect(result.diagnostics.summary).toMatchObject({
+  expect(result.diagnostics?.summary).toMatchObject({
     discoveredFiles: 5,
     selectedFiles: 2,
     indexedDocuments: 1,
@@ -109,7 +109,7 @@ it("carries ZIP exclusions, duplicate sections and empty documents into the buil
     excludedFiles: 2,
     emptyFiles: 1,
   });
-  expect(result.diagnostics.entries).toEqual(
+  expect(result.diagnostics?.entries).toEqual(
     expect.arrayContaining([
       expect.objectContaining({
         path: "excluded.md",
@@ -169,7 +169,7 @@ it("uses the same outcomes for HTML index exclusions, aliases and empty pages", 
     version: "1",
     diagnostics,
   });
-  expect(result.diagnostics.summary).toMatchObject({
+  expect(result.diagnostics?.summary).toMatchObject({
     discoveredFiles: 4,
     selectedFiles: 2,
     indexedDocuments: 1,
@@ -177,7 +177,7 @@ it("uses the same outcomes for HTML index exclusions, aliases and empty pages", 
     excludedFiles: 1,
     emptyFiles: 1,
   });
-  expect(result.diagnostics.entries).toContainEqual({
+  expect(result.diagnostics?.entries).toContainEqual({
     path: "b.html",
     kind: "file",
     outcome: "duplicate",

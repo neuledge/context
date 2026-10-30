@@ -464,8 +464,12 @@ function findMarkdownFiles(
     );
     const reason = entryExclusionReason(entry, relativePath, ig, options);
     if (reason) {
-      // Omit unrelated source-code files from documentation diagnostics.
-      if (entry.isDirectory() || matchingExt) {
+      // Hidden/tooling directories and unrelated source files are not docs.
+      const documentationCandidate = entry.isDirectory()
+        ? !entry.name.startsWith(".") &&
+          !IGNORED_DIRS.has(entry.name.toLowerCase())
+        : matchingExt;
+      if (documentationCandidate) {
         options.onDiagnostic?.({
           path: posix.join(options.diagnosticRoot ?? "", relativePath),
           kind: entry.isDirectory() ? "directory" : "file",

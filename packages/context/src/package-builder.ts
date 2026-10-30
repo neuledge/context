@@ -52,7 +52,8 @@ export interface BuildResult {
   totalTokens: number;
   /** Files dropped whole because splitting or parsing them threw. */
   skippedFiles: number;
-  diagnostics: IngestionReport;
+  /** Optional for compatibility with existing result objects and mocks. */
+  diagnostics?: IngestionReport;
 }
 
 /**
