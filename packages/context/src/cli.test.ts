@@ -9,12 +9,65 @@ import {
   parseLibSpec,
   parseRegistryPackage,
   removePackageFile,
+  reportBuilt,
   resolveAllowedLibraries,
   resolveLlmsTxtUrls,
   resolveRemoveTarget,
   suggestPackageNameFromUrl,
 } from "./cli.js";
+import { createIngestionReport } from "./ingestion.js";
+import type { BuildResult, buildPackage } from "./package-builder.js";
 import type { PackageInfo } from "./store.js";
+
+describe("reportBuilt", () => {
+  it.each([0, 1, 2])("reports %i parse failures once", (count) => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      const result: BuildResult = {
+        path: "package.db",
+        sectionCount: 1,
+        totalTokens: 10,
+        skippedFiles: count,
+        diagnostics: createIngestionReport(
+          Array.from({ length: count }, (_, index) => ({
+            path: `broken-${index}.md`,
+            kind: "file",
+            outcome: "parse-error",
+          })),
+        ),
+      };
+      reportBuilt(result, "fixture", "1", result.path);
+      const output = log.mock.calls.flat().join("\n");
+      expect(output.match(/\d+ parse failures?/g)).toEqual([
+        `${count} parse failure${count === 1 ? "" : "s"}`,
+      ]);
+      expect(output).not.toContain("Skipped");
+      expect(output).not.toContain("could not be parsed");
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it("keeps skipped-file warnings for legacy results without diagnostics", () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      const result: BuildResult = {
+        path: "package.db",
+        sectionCount: 1,
+        totalTokens: 10,
+        skippedFiles: 1,
+      };
+      const build = vi.fn<typeof buildPackage>().mockReturnValue(result);
+      const built = build("package.db", [], { name: "fixture", version: "1" });
+      reportBuilt(built, "fixture", "1", built.path);
+      expect(log.mock.calls.flat().join("\n")).toContain(
+        "Skipped 1 file that could not be parsed",
+      );
+    } finally {
+      log.mockRestore();
+    }
+  });
+});
 
 describe("detectSourceType", () => {
   describe("file sources", () => {
