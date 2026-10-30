@@ -4,7 +4,7 @@
 
 import { createHash } from "node:crypto";
 import { dirname } from "node:path";
-import { type DocSection, parseDocument } from "./build.js";
+import { type DocSection, fileTitle, parseDocument } from "./build.js";
 import { openDatabase } from "./database.js";
 import { REMOVED_TAGS } from "./html.js";
 import {
@@ -14,6 +14,7 @@ import {
   ingestionErrorReason,
   validateIngestion,
 } from "./ingestion.js";
+import { fencedLines } from "./markdown-fences.js";
 import { createPackageTempFile } from "./package-file.js";
 
 /**
@@ -82,33 +83,22 @@ const MAX_CARRIED_HEADING = 1024;
 /**
  * Split markdown into one chunk per `##` section.
  *
- * Fenced code blocks are tracked so that `## ` lines inside them — common in docs that
- * demonstrate markdown — aren't mistaken for headings and split mid-fence. Fence
- * handling follows CommonMark: an opening fence may carry an info string, a closing
- * fence may not, and only the same character in at least the same run length closes.
+ * Fenced code blocks (`fencedLines`) are skipped so that `## ` lines inside them, common
+ * in docs that demonstrate markdown, aren't mistaken for headings and split mid-fence.
  */
 export function splitMarkdownByHeadings(file: MarkdownFile): MarkdownFile[] {
+  const lines = file.content.split("\n");
+  const inCode = fencedLines(lines);
   const parts: string[] = [];
   let current: string[] = [];
-  let openFence: string | null = null;
 
-  for (const line of file.content.split("\n")) {
-    const [, marker, info] = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line) ?? [];
-
-    if (marker) {
-      if (openFence === null) {
-        // Backtick fences can't have a backtick in the info string; that isn't a fence.
-        if (marker[0] !== "`" || !info?.includes("`")) openFence = marker;
-      } else if (marker.startsWith(openFence) && !info?.trim()) {
-        openFence = null;
-      }
-    } else if (openFence === null && H2_LINE.test(line) && current.length) {
+  lines.forEach((line, i) => {
+    if (!inCode[i] && H2_LINE.test(line) && current.length) {
       parts.push(current.join("\n"));
       current = [];
     }
-
     current.push(line);
-  }
+  });
   if (current.length) parts.push(current.join("\n"));
 
   if (parts.length <= 1) return [file];
@@ -576,7 +566,13 @@ function parseChunks(file: MarkdownFile): DocSection[] {
     }
   }
 
-  return sections;
+  // A file's sections share one title. A page's h1 is only in the chunk that opens it,
+  // so when a split file's chunks disagree — a continuation fell back to the file name,
+  // or a concatenation (an llms-full.txt) has a page per chunk — the file name names
+  // them all. A frontmatter title reaches every chunk, so it is kept.
+  const titles = new Set(sections.map((s) => s.docTitle));
+  const docTitle = titles.size > 1 ? fileTitle(file.path) : undefined;
+  return docTitle ? sections.map((s) => ({ ...s, docTitle })) : sections;
 }
 
 /**

@@ -117,33 +117,33 @@ describe("automatic ingestion revision", () => {
     expect(changed.revision).not.toBe(original.revision);
   });
 
-  it.each([
-    false,
-    true,
-  ])("follows peer-suffixed dependencies with suffixed package records: %s", (suffixedPackages) => {
-    const data = JSON.parse(lock());
-    data.importers["packages/context"].dependencies.parser.version =
-      "1.0(peer@1.0)";
-    for (const name of ["parser", "helper"]) {
-      const key = `${name}@1.0`;
-      const peerKey = `${key}(peer@1.0)`;
-      data.snapshots[peerKey] = data.snapshots[key];
-      delete data.snapshots[key];
-      if (suffixedPackages) {
-        data.packages[peerKey] = data.packages[key];
-        delete data.packages[key];
+  it.each([false, true])(
+    "follows peer-suffixed dependencies with suffixed package records: %s",
+    (suffixedPackages) => {
+      const data = JSON.parse(lock());
+      data.importers["packages/context"].dependencies.parser.version =
+        "1.0(peer@1.0)";
+      for (const name of ["parser", "helper"]) {
+        const key = `${name}@1.0`;
+        const peerKey = `${key}(peer@1.0)`;
+        data.snapshots[peerKey] = data.snapshots[key];
+        delete data.snapshots[key];
+        if (suffixedPackages) {
+          data.packages[peerKey] = data.packages[key];
+          delete data.packages[key];
+        }
       }
-    }
-    data.snapshots["parser@1.0(peer@1.0)"].dependencies.helper =
-      "1.0(peer@1.0)";
-    write("pnpm-lock.yaml", JSON.stringify(data));
-    const original = revision();
-    expect(original.dependencies).toContain("helper@1.0(peer@1.0)");
-    const key = suffixedPackages ? "helper@1.0(peer@1.0)" : "helper@1.0";
-    data.packages[key].resolution.integrity = "changed-peer-dependency";
-    write("pnpm-lock.yaml", JSON.stringify(data));
-    expect(revision().revision).not.toBe(original.revision);
-  });
+      data.snapshots["parser@1.0(peer@1.0)"].dependencies.helper =
+        "1.0(peer@1.0)";
+      write("pnpm-lock.yaml", JSON.stringify(data));
+      const original = revision();
+      expect(original.dependencies).toContain("helper@1.0(peer@1.0)");
+      const key = suffixedPackages ? "helper@1.0(peer@1.0)" : "helper@1.0";
+      data.packages[key].resolution.integrity = "changed-peer-dependency";
+      write("pnpm-lock.yaml", JSON.stringify(data));
+      expect(revision().revision).not.toBe(original.revision);
+    },
+  );
 
   it("covers real ingestion inputs and agrees with source and built revisions", () => {
     const repository = resolve(import.meta.dirname, "../../..");

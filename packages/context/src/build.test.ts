@@ -125,6 +125,38 @@ This section has sufficient content for the parser to include it in the output.
     expect(result.sections[0].docTitle).toBe("my-feature");
   });
 
+  it("uses the document's only h1 as docTitle when there is no frontmatter title", () => {
+    const body = `## Creating jobs
+
+The send() function creates a job and returns its id once it is stored.
+`;
+
+    const single = parseMarkdown(
+      `# The [Jobs](#jobs) <Badge text="v10" /> API {#jobs-api}\n\n${body}`,
+      "docs/api/jobs.md",
+    );
+    const several = parseMarkdown(
+      `# Jobs\n\n${body}\n# Workers\n\n${body}`,
+      "docs/llms-full.md",
+    );
+    const frontmatter = parseMarkdown(
+      `---\ntitle: Job API\n---\n\n# Jobs\n\n${body}`,
+      "docs/api/jobs.md",
+    );
+
+    expect(single.sections[0].docTitle).toBe("The Jobs API");
+    for (const [h1, title] of [
+      ["# Preface {.unnumbered}", "Preface"],
+      ["# Blocks: `{#each}`", "Blocks: {#each}"],
+    ]) {
+      expect(
+        parseMarkdown(`${h1}\n\n${body}`, "docs/a.qmd").sections[0].docTitle,
+      ).toBe(title);
+    }
+    expect(several.sections[0].docTitle).toBe("llms-full");
+    expect(frontmatter.sections[0].docTitle).toBe("Job API");
+  });
+
   it("detects code blocks", () => {
     const source = `---
 title: Code Example
@@ -252,7 +284,8 @@ const rest = createClient<AppRouter>();
 
   it("keeps generics in a code block split across section parts", () => {
     const filler = `const value = compute("${"x".repeat(300)}");`;
-    const code = Array.from({ length: 12 }, () => filler).join("\n\n");
+    // Over the 1200-token hard limit: a smaller block is kept whole.
+    const code = Array.from({ length: 20 }, () => filler).join("\n\n");
     const source = `## Setup\n\n\`\`\`ts\n${code}\n\nconst trpc = createTRPCClient<AppRouter>({});\n\`\`\`\n`;
 
     const { sections } = parseMarkdown(source, "docs/setup.md");
@@ -299,6 +332,185 @@ ${largeParagraph}
     for (const section of result.sections) {
       expect(section.tokens).toBeLessThanOrEqual(850); // Some buffer
     }
+  });
+
+  it("keeps a code block with blank lines whole when splitting a section", () => {
+    // Two paragraphs of ~250 tokens, then a ~520-token code block with blank lines
+    // in it, so the 800-token budget runs out partway through the block.
+    const prose = "This is a paragraph. ".repeat(50);
+    const comment = `// ${"x".repeat(1000)}`;
+    const code = [
+      "```js",
+      comment,
+      "fastify.register(require('@fastify/mongodb'), { forceClose: true })",
+      "",
+      comment,
+      "fastify.get('/user/:id', handler)",
+      "```",
+    ].join("\n");
+    const source = `## Mongo\n\n${prose}\n\n${prose}\n\n<Tip>\n\n${code}\n\n</Tip>\n\n${prose}\n`;
+
+    const { sections } = parseMarkdown(source, "docs/database.md");
+
+    expect(sections.length).toBeGreaterThan(1);
+    expect(sections.filter((s) => s.content.includes(code))).toHaveLength(1);
+    for (const { content } of sections) {
+      expect(content.match(/^```/gm)?.length ?? 0).toBeOneOf([0, 2]);
+      expect(content).not.toContain("Tip>");
+    }
+  });
+
+  // Three ~325-token pieces: over the 800-token budget, under the 1200 hard limit, so
+  // the block stays in one section unless a blank line inside it is taken as a break.
+  const piece = `// ${"x".repeat(1300)}`;
+  it.each([
+    ["a longer fence around a shorter one", "````md", "", "```", "````"],
+    ["a tilde fence around a backtick one", "~~~md", "", "```", "~~~"],
+    ["a fence around a line with an info string", "```md", "", "```js", "```"],
+    ["a tilde fence", "~~~js", "", "// step", "~~~"],
+    [
+      "a fence in a list item",
+      "-   Step one:\n    ```js",
+      "    ",
+      "    // step",
+      "    ```",
+    ],
+    ["a fence after a list marker", "1. ```bash", "   ", "   echo b", "   ```"],
+    [
+      "a fence shown indented inside a block",
+      "```md",
+      "",
+      "        ```",
+      "```",
+    ],
+    ["a fence shown tab-indented inside a block", "```md", "", "\t```", "```"],
+    ["a list item fence shown inside a block", "```md", "", "- ```", "```"],
+    [
+      "a fence closed at a tab stop after a list marker",
+      "1. ```bash",
+      "   ",
+      "   echo b",
+      "   \t```",
+    ],
+  ])("keeps %s whole when splitting", (_, open, indent, inner, close) => {
+    const block = [
+      open,
+      indent + piece,
+      inner,
+      "",
+      indent + piece,
+      "",
+      indent + piece,
+      close,
+    ].join("\n");
+
+    const { sections } = parseMarkdown(`## Example\n\n${block}\n`, "docs/a.md");
+
+    expect(sections.map((s) => s.content)).toEqual([block.trim()]);
+  });
+
+  it("keeps an indented code block in MDX tabs whole when splitting", () => {
+    const piece = `    // ${"x".repeat(1300)}`;
+    const source = `## Example\n\n<Tabs>\n  <Tab>\n    \`\`\`js\n${piece}\n\n${piece}\n\n${piece}\n    \`\`\`\n  </Tab>\n</Tabs>\n`;
+
+    const { sections } = parseMarkdown(source, "docs/a.mdx");
+
+    expect(sections).toHaveLength(1);
+    expect(sections[0]?.content.match(/^ *```/gm)).toHaveLength(2);
+  });
+
+  it("still splits at lines that hold only MDX tags", () => {
+    const prose = "This is a paragraph. ".repeat(40);
+    const source = `## Notes\n\n${prose}\n<Tip>\n${prose}\n</Tip>\n${prose}\n<Note>\n${prose}\n</Note>\n${prose}\n`;
+
+    const { sections } = parseMarkdown(source, "docs/notes.mdx");
+
+    expect(sections.length).toBeGreaterThan(1);
+    for (const { content, tokens } of sections) {
+      expect(tokens).toBeLessThanOrEqual(800);
+      expect(content).not.toContain("Tip>");
+      expect(content).not.toContain("Note>");
+    }
+  });
+
+  it("removes MDX tags inside a paragraph when splitting", () => {
+    const prose = "This is a paragraph. ".repeat(40);
+    const source = `## Notes\n\n${prose}\n\n<Tip>Run it twice.</Tip>\n\n${prose}\n\n${prose}\n\n${prose}\n`;
+
+    const { sections } = parseMarkdown(source, "docs/notes.mdx");
+
+    expect(sections.length).toBeGreaterThan(1);
+    expect(sections.map((s) => s.content).join("\n")).toContain(
+      "Run it twice.",
+    );
+    for (const { content } of sections) expect(content).not.toContain("Tip>");
+  });
+
+  it("still splits after a fence that never closes", () => {
+    const prose = "This is a paragraph. ".repeat(40);
+    // The only bare fence after it is indented too far to close it.
+    const source = `## Install\n\nRun it:\n\`\`\`\n\n${prose}\n\n${prose}\n\n${prose}\n\n${prose}\n\n        \`\`\`\n`;
+
+    const { sections } = parseMarkdown(source, "docs/install.md");
+
+    expect(sections.length).toBeGreaterThan(1);
+    for (const { tokens } of sections) expect(tokens).toBeLessThanOrEqual(800);
+  });
+
+  it("still splits at a line that opens with inline code", () => {
+    const prose = "This is a paragraph. ".repeat(40);
+    const source = `## Install\n\n\`\`\`npm i\`\`\` installs it.\n\n${prose}\n\n${prose}\n\n${prose}\n\n${prose}\n\n\`\`\`js\nrun();\n\`\`\`\n`;
+
+    const { sections } = parseMarkdown(source, "docs/install.md");
+
+    expect(sections.length).toBeGreaterThan(1);
+    for (const { tokens } of sections) expect(tokens).toBeLessThanOrEqual(800);
+  });
+
+  it.each([
+    ["a tilde fence", "~~~sh\nnpm i\n~~~", true],
+    ["a fence in a blockquote", "> ```sh\n> npm i\n> ```", true],
+    [
+      "inline code in triple backticks",
+      "```npm i``` installs it, and ```npm t``` tests it.",
+      false,
+    ],
+  ])("sets hasCode for %s", (_, body, hasCode) => {
+    const source = `## Install\n\nInstall it first.\n\n${body}\n`;
+
+    const { sections } = parseMarkdown(source, "docs/install.md");
+
+    expect(sections[0]?.hasCode).toBe(hasCode);
+  });
+
+  it("sets hasCode on each part of a code block cut at the hard limit", () => {
+    const filler = `const value = compute("${"x".repeat(300)}");`;
+    const code = Array.from({ length: 20 }, () => filler).join("\n\n");
+    const source = `## Setup\n\n\`\`\`ts\n${code}\n\`\`\`\n`;
+
+    const { sections } = parseMarkdown(source, "docs/setup.md");
+
+    expect(sections.length).toBeGreaterThan(1);
+    for (const { hasCode } of sections) expect(hasCode).toBe(true);
+  });
+
+  // Over the 1200-token hard limit only with the prose on the line before it, so the
+  // block is kept whole only if the cut is made at its own fences.
+  const row = (i: number) => `  value${i}: "${"x".repeat(200)}",`;
+  const rows = Array.from({ length: 12 }, (_, i) => row(i)).join("\n");
+  it.each([
+    ["a tilde block", `~~~js\nconst config = {\n${rows}\n};\n~~~`],
+    [
+      "a block with fences in its comments",
+      `\`\`\`ts\n/**\n * \`\`\`js\n * load();\n * \`\`\`\n */\nconst config = {\n${rows}\n};\n\`\`\``,
+    ],
+  ])("cuts a long paragraph at the edges of %s", (_, block) => {
+    const prose = "This is a paragraph. ".repeat(130);
+    const source = `## Example\n\n${prose}\n${block}\n`;
+
+    const { sections } = parseMarkdown(source, "docs/a.md");
+
+    expect(sections.map((s) => s.content)).toContain(block);
   });
 
   it("handles content before first h2 as Introduction", () => {
@@ -391,6 +603,14 @@ Use the library by importing it into your project.
     for (const section of sections) {
       expect(section.content).toContain("List<String> names");
     }
+  });
+
+  it("sets hasCode for a backtick fence", () => {
+    const source = "= Guide\n\n== Usage\n\nRun it:\n\n```ruby\nputs 1\n```\n";
+
+    const { sections } = parseAsciidoc(source, "docs/guide.adoc");
+
+    expect(sections[0]?.hasCode).toBe(true);
   });
 
   it("extracts attributes as frontmatter", () => {
@@ -523,6 +743,30 @@ Content in section two with enough text for the parser to include it.
     expect(result.sections[1].sectionTitle).toBe("Section Two");
   });
 
+  it("splits a long section with a ~ subheading at paragraphs", () => {
+    const prose = "This is a paragraph. ".repeat(40);
+    const source = `Title\n=====\n\nGuide\n-----\n\nInstall\n~~~~~~~\n\n${prose}\n\n${prose}\n\n${prose}\n\n${prose}\n\nUpdates\n~~~~~~~\n\n${prose}\n`;
+
+    const { sections } = parseRestructuredText(source, "docs/guide.rst");
+
+    expect(sections.length).toBeGreaterThan(1);
+    for (const { tokens } of sections) expect(tokens).toBeLessThanOrEqual(800);
+  });
+
+  it("does not read ~ subheading underlines as code", () => {
+    const prose = "This is a paragraph. ".repeat(40);
+    const body = (text: string) =>
+      `Title\n=====\n\nGuide\n-----\n\nInstall\n~~~~~~~\n\n${text}\n\nUpdates\n~~~~~~~\n\n${text}\n`;
+
+    const short = parseRestructuredText(body("Use pip."), "docs/a.rst");
+    const long = parseRestructuredText(body(`${prose}\n\n${prose}`), "b.rst");
+
+    expect(long.sections.length).toBeGreaterThan(1);
+    for (const { hasCode } of [...short.sections, ...long.sections]) {
+      expect(hasCode).toBe(false);
+    }
+  });
+
   it("falls back to filename when no title heading", () => {
     const source = `Some plain text content that has enough length to meet the minimum token threshold for indexing.
 `;
@@ -642,6 +886,33 @@ describe("parseHtml", () => {
     expect(result.sections).toHaveLength(2);
     expect(result.sections[0].sectionTitle).toBe("Authentication");
     expect(result.sections[1].sectionTitle).toBe("Endpoints");
+    expect(result.sections[0].docTitle).toBe("API Reference");
+  });
+
+  it.each([
+    ["Sphinx", '<a class="headerlink" href="#dictionary-objects">¶</a>'],
+    [
+      "Docusaurus",
+      '<a class="hash-link" href="#dictionary-objects">\u200b</a>',
+    ],
+  ])("drops the %s permalink from an h1 doc title only", (_, anchor) => {
+    const { sections } = parseHtml(
+      `<p>Python 3.14 documentation, C API reference manual.</p><h1>Dictionary Objects${anchor}</h1><h2>Lookup</h2><p>PyDict_GetItem returns a borrowed reference.</p>`,
+      "c-api/dict.html",
+    );
+
+    expect(sections[0].docTitle).toBe("Dictionary Objects");
+    // The h1 is part of the Introduction here, whose content is left as it was.
+    expect(sections[0].content).toContain("](#dictionary-objects)");
+  });
+
+  it("falls back to the file name without .html when there is no h1", () => {
+    const { sections } = parseHtml(
+      "<h2>Lookup</h2><p>PyDict_GetItem returns a borrowed reference.</p>",
+      "c-api/dict.html",
+    );
+
+    expect(sections[0].docTitle).toBe("dict");
   });
 
   it("strips script, style, nav, and footer elements", () => {

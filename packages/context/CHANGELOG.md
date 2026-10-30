@@ -1,5 +1,29 @@
 # @neuledge/context
 
+## 1.3.7
+
+### Patch Changes
+
+- [#208](https://github.com/neuledge/context/pull/208) [`76256cc`](https://github.com/neuledge/context/commit/76256cce9595079046512940d67fbbb803c44cf8) Thanks [@JayOfTheKeyboard](https://github.com/JayOfTheKeyboard)! - Keep fenced code blocks whole when a long Markdown section is split at paragraph boundaries, instead of cutting them at blank lines inside the code. The same fence rules now decide where very large Markdown files are split at `##` headings and which sections are marked as having code, so `~~~` blocks count as code too
+
+## 1.3.6
+
+### Patch Changes
+
+- [#206](https://github.com/neuledge/context/pull/206) [`8310703`](https://github.com/neuledge/context/commit/8310703578e20803b40518bb0688d17d44549a5f) Thanks [@JayOfTheKeyboard](https://github.com/JayOfTheKeyboard)! - Title Markdown and HTML documents by their h1 when they have no frontmatter title, and drop `.html` from the file-name fallback
+
+## 1.3.5
+
+### Patch Changes
+
+- [#204](https://github.com/neuledge/context/pull/204) [`f328fe3`](https://github.com/neuledge/context/commit/f328fe3366222d16b706ed8fb8c0e6744a194125) Thanks [@human0-bot](https://github.com/apps/human0-bot)! - Refresh runtime dependency fast-uri to 3.1.9.
+
+## 1.3.4
+
+### Patch Changes
+
+- [#200](https://github.com/neuledge/context/pull/200) [`a1a022f`](https://github.com/neuledge/context/commit/a1a022fb4bdf7ca1afe26f7da7a324790cb1e38e) Thanks [@human0-bot](https://github.com/apps/human0-bot)! - Refresh zod and defuddle to their latest compatible versions.
+
 ## 1.3.3
 
 ### Patch Changes

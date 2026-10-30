@@ -1,6 +1,6 @@
 {
   "name": "@neuledge/registry",
-  "version": "0.0.28",
+  "version": "0.0.32",
   "private": true,
   "description": "Registry infrastructure for building and publishing context packages",
   "type": "module",
@@ -39,7 +39,7 @@
     "tsconfig-paths": "^4.2.0",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
-    "vite": "7.3.5",
+    "vite": "7.3.7",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^4.0.3"
   },

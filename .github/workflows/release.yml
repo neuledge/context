@@ -14,7 +14,7 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     outputs:
-      hasChangesets: ${{ steps.changesets.outputs.hasChangesets }}
+      hasChangesets: ${{ steps.changesets.outputs.has-changesets }}
 
     permissions:
       contents: write
@@ -61,19 +61,22 @@ jobs:
 
       - name: Create Release PR or Publish
         id: changesets
-        uses: changesets/action@v1
+        uses: changesets/action@v2
         with:
-          version: pnpm versions
-          publish: pnpm -r publish
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          version-script: pnpm versions
+          publish-script: pnpm -r publish
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          push-with-git-cli: true
+          create-github-releases: false
+          push-git-tags: false
 
-      # `published` only turns true when the publish output has `changeset
-      # publish`'s "New tag:" lines, which `pnpm -r publish` never prints. The
-      # action runs the publish script exactly when no changesets are pending,
-      # and `pnpm tags` skips tags that already exist, so gate on that instead.
+      # The v2 action's `published` output reflects the `changeset publish`
+      # output file (`CHANGESETS_OUTPUT`), which `pnpm -r publish` never
+      # writes. The action runs the publish script exactly when no changesets
+      # are pending, and `pnpm tags` skips tags that already exist, so gate on
+      # `has-changesets` instead.
       - name: Tag releases
-        if: steps.changesets.outputs.hasChangesets == 'false'
+        if: steps.changesets.outputs.has-changesets == 'false'
         run: pnpm tags
 
   # A separate job so an MCP Registry failure shows on its own without marking

@@ -77,112 +77,115 @@ function seed(existing: boolean): Buffer | undefined {
   return readFileSync(PACKAGE_PATH);
 }
 
-describe.each([
-  false,
-  true,
-])("download (existing installation: %s)", (existing) => {
-  it.each([
-    "network",
-    "stream",
-    "validation",
-    "replacement",
-  ])("preserves installed state after a %s failure", async (stage) => {
-    const original = seed(existing);
-    if (stage === "network") {
-      vi.mocked(fetch).mockRejectedValueOnce(new Error("Network unavailable"));
-    } else if (stage === "stream") {
+describe.each([false, true])(
+  "download (existing installation: %s)",
+  (existing) => {
+    it.each(["network", "stream", "validation", "replacement"])(
+      "preserves installed state after a %s failure",
+      async (stage) => {
+        const original = seed(existing);
+        if (stage === "network") {
+          vi.mocked(fetch).mockRejectedValueOnce(
+            new Error("Network unavailable"),
+          );
+        } else if (stage === "stream") {
+          let sent = false;
+          vi.mocked(fetch).mockResolvedValueOnce(
+            new Response(
+              new ReadableStream({
+                pull(controller) {
+                  if (sent) controller.error(new Error("Download interrupted"));
+                  else {
+                    controller.enqueue(payload.subarray(0, 128));
+                    sent = true;
+                  }
+                },
+              }),
+            ),
+          );
+        } else if (stage === "validation") {
+          vi.mocked(fetch).mockResolvedValueOnce(
+            new Response("invalid database"),
+          );
+        } else {
+          const renameNormally = vi.mocked(renameSync).getMockImplementation();
+          if (!renameNormally)
+            throw new Error("Missing renameSync implementation");
+          vi.mocked(renameSync).mockImplementation((source, destination) => {
+            if (destination === PACKAGE_PATH) {
+              throw Object.assign(new Error("Destination is in use"), {
+                code: "EPERM",
+              });
+            }
+            return renameNormally(source, destination);
+          });
+        }
+
+        await expect(download()).rejects.toThrow();
+        expect(readdirSync(DATA_DIR)).toEqual(
+          existing ? ["test-lib@1.0.0.db"] : [],
+        );
+        if (original) {
+          expect(readFileSync(PACKAGE_PATH)).toEqual(original);
+          expect(readPackageInfo(PACKAGE_PATH).sectionCount).toBe(1);
+        }
+      },
+    );
+
+    it("publishes only the complete download and returns its installed path", async () => {
+      seed(existing);
+      let resume: () => void = () => {};
+      let started: () => void = () => {};
+      const paused = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      const gate = new Promise<void>((resolve) => {
+        resume = resolve;
+      });
       let sent = false;
       vi.mocked(fetch).mockResolvedValueOnce(
         new Response(
-          new ReadableStream({
-            pull(controller) {
-              if (sent) controller.error(new Error("Download interrupted"));
-              else {
-                controller.enqueue(payload.subarray(0, 128));
-                sent = true;
-              }
+          new ReadableStream(
+            {
+              async pull(controller) {
+                if (!sent) {
+                  sent = true;
+                  controller.enqueue(payload.subarray(0, 128));
+                } else {
+                  started();
+                  await gate;
+                  controller.enqueue(payload.subarray(128));
+                  controller.close();
+                }
+              },
             },
-          }),
+            { highWaterMark: 0 },
+          ),
         ),
       );
-    } else if (stage === "validation") {
-      vi.mocked(fetch).mockResolvedValueOnce(new Response("invalid database"));
-    } else {
-      const renameNormally = vi.mocked(renameSync).getMockImplementation();
-      if (!renameNormally) throw new Error("Missing renameSync implementation");
-      vi.mocked(renameSync).mockImplementation((source, destination) => {
-        if (destination === PACKAGE_PATH) {
-          throw Object.assign(new Error("Destination is in use"), {
-            code: "EPERM",
-          });
-        }
-        return renameNormally(source, destination);
+
+      const pending = download();
+      try {
+        await paused;
+        const store = new PackageStore();
+        loadPackages(store, DATA_DIR);
+        expect(store.list().map((pkg) => pkg.sectionCount)).toEqual(
+          existing ? [1] : [],
+        );
+      } finally {
+        resume();
+        await pending;
+      }
+      expect(await pending).toMatchObject({
+        ...OPTIONS,
+        path: PACKAGE_PATH,
+        sectionCount: 1,
       });
-    }
-
-    await expect(download()).rejects.toThrow();
-    expect(readdirSync(DATA_DIR)).toEqual(
-      existing ? ["test-lib@1.0.0.db"] : [],
-    );
-    if (original) {
-      expect(readFileSync(PACKAGE_PATH)).toEqual(original);
-      expect(readPackageInfo(PACKAGE_PATH).sectionCount).toBe(1);
-    }
-  });
-
-  it("publishes only the complete download and returns its installed path", async () => {
-    seed(existing);
-    let resume: () => void = () => {};
-    let started: () => void = () => {};
-    const paused = new Promise<void>((resolve) => {
-      started = resolve;
+      expect(new Uint8Array(readFileSync(PACKAGE_PATH))).toEqual(payload);
+      expect(readdirSync(DATA_DIR)).toEqual(["test-lib@1.0.0.db"]);
     });
-    const gate = new Promise<void>((resolve) => {
-      resume = resolve;
-    });
-    let sent = false;
-    vi.mocked(fetch).mockResolvedValueOnce(
-      new Response(
-        new ReadableStream(
-          {
-            async pull(controller) {
-              if (!sent) {
-                sent = true;
-                controller.enqueue(payload.subarray(0, 128));
-              } else {
-                started();
-                await gate;
-                controller.enqueue(payload.subarray(128));
-                controller.close();
-              }
-            },
-          },
-          { highWaterMark: 0 },
-        ),
-      ),
-    );
-
-    const pending = download();
-    try {
-      await paused;
-      const store = new PackageStore();
-      loadPackages(store, DATA_DIR);
-      expect(store.list().map((pkg) => pkg.sectionCount)).toEqual(
-        existing ? [1] : [],
-      );
-    } finally {
-      resume();
-      await pending;
-    }
-    expect(await pending).toMatchObject({
-      ...OPTIONS,
-      path: PACKAGE_PATH,
-      sectionCount: 1,
-    });
-    expect(new Uint8Array(readFileSync(PACKAGE_PATH))).toEqual(payload);
-    expect(readdirSync(DATA_DIR)).toEqual(["test-lib@1.0.0.db"]);
-  });
-});
+  },
+);
 
 it("uses independent staging files for simultaneous downloads of the same package", async () => {
   const original = seed(true);

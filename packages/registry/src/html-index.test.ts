@@ -223,11 +223,14 @@ describe("HTML index downloads", () => {
       "exceeds 10 MiB",
     ],
     [() => html("a".repeat(10 * 1024 * 1024 + 1)), "exceeds 10 MiB"],
-  ] as const)("rejects invalid or oversized responses", async (response, message) => {
-    fetchMock.mockResolvedValueOnce(response());
-    await expect(download()).rejects.toThrow(message);
-    expect(readdirSync(cacheDir)).toEqual([]);
-  });
+  ] as const)(
+    "rejects invalid or oversized responses",
+    async (response, message) => {
+      fetchMock.mockResolvedValueOnce(response());
+      await expect(download()).rejects.toThrow(message);
+      expect(readdirSync(cacheDir)).toEqual([]);
+    },
+  );
 
   it("times out stalled response bodies and stops after two retries", async () => {
     const realTimeout = AbortSignal.timeout.bind(AbortSignal);

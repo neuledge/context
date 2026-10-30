@@ -342,45 +342,46 @@ it("writes CLI JSON diagnostics for Git builds and strict failures without chang
   expect(readFileSync(packagePath)).toEqual(original);
 }, 30_000);
 
-it.each([
-  false,
-  true,
-])("keeps registry output unchanged when its report cannot be written (existing: %s)", (existing) => {
-  const { args, report, output, repository } = gitCliFixture();
-  const packagePath = join(output, "test-fixture@latest.db");
-  let original: Buffer | undefined;
-  if (existing) {
-    const initial = spawnSync(process.execPath, args, { encoding: "utf8" });
-    expect(initial.status, initial.stderr).toBe(0);
-    original = readFileSync(packagePath);
-    rmSync(report);
-  }
-  writeFileSync(
-    join(repository, "guide.md"),
-    "## Replacement\n\nChanged documentation must not be installed.",
-  );
-  execFileSync(
-    "git",
-    [
-      "-c",
-      "user.name=Ingestion Test",
-      "-c",
-      "user.email=ingestion@example.invalid",
-      "commit",
-      "--quiet",
-      "-am",
-      "Replacement",
-    ],
-    { cwd: repository },
-  );
-  mkdirSync(report, { recursive: true });
-  const failed = spawnSync(process.execPath, args, { encoding: "utf8" });
-  expect(failed.status).not.toBe(0);
-  expect(failed.stderr).toContain("Could not write ingestion diagnostics");
-  expect(failed.stdout).not.toContain("Built:");
-  if (original) expect(readFileSync(packagePath)).toEqual(original);
-  else expect(existsSync(packagePath)).toBe(false);
-  expect(readdirSync(output)).toEqual(
-    existing ? ["test-fixture@latest.db"] : [],
-  );
-}, 30_000);
+it.each([false, true])(
+  "keeps registry output unchanged when its report cannot be written (existing: %s)",
+  (existing) => {
+    const { args, report, output, repository } = gitCliFixture();
+    const packagePath = join(output, "test-fixture@latest.db");
+    let original: Buffer | undefined;
+    if (existing) {
+      const initial = spawnSync(process.execPath, args, { encoding: "utf8" });
+      expect(initial.status, initial.stderr).toBe(0);
+      original = readFileSync(packagePath);
+      rmSync(report);
+    }
+    writeFileSync(
+      join(repository, "guide.md"),
+      "## Replacement\n\nChanged documentation must not be installed.",
+    );
+    execFileSync(
+      "git",
+      [
+        "-c",
+        "user.name=Ingestion Test",
+        "-c",
+        "user.email=ingestion@example.invalid",
+        "commit",
+        "--quiet",
+        "-am",
+        "Replacement",
+      ],
+      { cwd: repository },
+    );
+    mkdirSync(report, { recursive: true });
+    const failed = spawnSync(process.execPath, args, { encoding: "utf8" });
+    expect(failed.status).not.toBe(0);
+    expect(failed.stderr).toContain("Could not write ingestion diagnostics");
+    expect(failed.stdout).not.toContain("Built:");
+    if (original) expect(readFileSync(packagePath)).toEqual(original);
+    else expect(existsSync(packagePath)).toBe(false);
+    expect(readdirSync(output)).toEqual(
+      existing ? ["test-fixture@latest.db"] : [],
+    );
+  },
+  30_000,
+);

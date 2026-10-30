@@ -459,23 +459,24 @@ describe("publication freshness through the CLI", () => {
     );
   }, 60_000);
 
-  it.each([
-    "build_fingerprint",
-    "ingestion_revision",
-  ] as const)("rejects a conflicting upload with mismatched %s", async (field) => {
-    defineGit();
-    expect((await cli("publish", "docs")).status).toBe(0);
-    metadata = { ...currentMetadata(), [field]: "different-artifact" };
-    conflict = true;
-    const failed = await cli("publish-all", "--force");
-    expect(failed.status).not.toBe(0);
-    expect(failed.output).toContain("409 Conflict");
-    expect(failed.output).toContain("rebuilt artifact is preserved");
-    expect(metadataReads).toBe(2);
-    expect(existsSync(join(root, "output", "custom-docs@latest.db"))).toBe(
-      true,
-    );
-  }, 60_000);
+  it.each(["build_fingerprint", "ingestion_revision"] as const)(
+    "rejects a conflicting upload with mismatched %s",
+    async (field) => {
+      defineGit();
+      expect((await cli("publish", "docs")).status).toBe(0);
+      metadata = { ...currentMetadata(), [field]: "different-artifact" };
+      conflict = true;
+      const failed = await cli("publish-all", "--force");
+      expect(failed.status).not.toBe(0);
+      expect(failed.output).toContain("409 Conflict");
+      expect(failed.output).toContain("rebuilt artifact is preserved");
+      expect(metadataReads).toBe(2);
+      expect(existsSync(join(root, "output", "custom-docs@latest.db"))).toBe(
+        true,
+      );
+    },
+    60_000,
+  );
 
   it("summarizes unchanged versions without printing each skip", async () => {
     defineArchive();

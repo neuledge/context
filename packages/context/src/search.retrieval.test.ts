@@ -52,13 +52,13 @@ describe("retrieval through package ingestion", () => {
     {
       topic: "ExecStart=",
       file: "systemd.service.html",
-      title: "systemd.service.html > ExecStart",
+      title: "systemd.service > ExecStart",
       code: "ExecStart=/usr/bin/example --serve",
     },
     {
       topic: "systemctl --user",
       file: "systemctl.html",
-      title: "systemctl.html > User services",
+      title: "systemctl > User services",
       code: "systemctl --user start example.service",
     },
     {

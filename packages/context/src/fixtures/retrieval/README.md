@@ -9,7 +9,7 @@ must appear among the first **three distinct documents** returned. Language
 queries additionally require the intended document first: both signal documents
 mention GDScript and C#, providing competing matches for the same API concept.
 Assertions cover document and section attribution (Markdown title metadata and
-HTML filename fallback), complete fenced examples,
+HTML `<h1>` and file-name titles), complete fenced examples,
 and the search budget of 2,000 estimated content tokens (one token per four
 characters, rounded up per snippet).
 

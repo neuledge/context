@@ -44,13 +44,20 @@ for (const tag of REMOVED_TAGS) {
 // anchors in other headings stay in the content as before. A rule, not remove():
 // the link rule would match <a> first.
 const PERMALINK_TEXT = /^[¶§#🔗]?$/u;
+
+/**
+ * Whether a link's text is only a permalink symbol. Also used for the <h1> that becomes
+ * the document title, whose anchor is dropped from the title alone (`parseMarkdown`).
+ */
+export function isPermalinkText(text: string): boolean {
+  return PERMALINK_TEXT.test(text.replace(/\u200b/g, "").trim());
+}
+
 turndown.addRule("sectionPermalink", {
   filter: (node) =>
     node.nodeName === "A" &&
     (node.getAttribute("href") ?? "").startsWith("#") &&
-    PERMALINK_TEXT.test(
-      (node.textContent ?? "").replace(/\u200b/g, "").trim(),
-    ) &&
+    isPermalinkText(node.textContent ?? "") &&
     node.closest("h2") !== null,
   replacement: () => "",
 });

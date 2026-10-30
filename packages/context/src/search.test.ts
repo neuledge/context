@@ -166,48 +166,40 @@ describe("search", () => {
     ]);
   });
 
-  it.each([
-    "AND",
-    "OR",
-    "NOT",
-    "NEAR",
-  ])("treats %s as a literal word, alone and between keywords", (word) => {
-    insertChunk(db, {
-      docPath: "docs/operators.md",
-      docTitle: "Operators",
-      sectionTitle: "Example",
-      content: `ExecStart service example containing the literal word ${word}.`,
-      tokens: 20,
-    });
-    insertChunk(db, {
-      docPath: "docs/service.md",
-      docTitle: "Service",
-      sectionTitle: "Commands",
-      content: "ExecStart service example without the operator word.",
-      tokens: 20,
-    });
-    rebuildFtsIndex(db);
+  it.each(["AND", "OR", "NOT", "NEAR"])(
+    "treats %s as a literal word, alone and between keywords",
+    (word) => {
+      insertChunk(db, {
+        docPath: "docs/operators.md",
+        docTitle: "Operators",
+        sectionTitle: "Example",
+        content: `ExecStart service example containing the literal word ${word}.`,
+        tokens: 20,
+      });
+      insertChunk(db, {
+        docPath: "docs/service.md",
+        docTitle: "Service",
+        sectionTitle: "Commands",
+        content: "ExecStart service example without the operator word.",
+        tokens: 20,
+      });
+      rebuildFtsIndex(db);
 
-    for (const topic of [word, `ExecStart ${word} service`]) {
-      expect(search(db, topic).results.map((r) => r.source)).toEqual([
-        "docs/operators.md",
-      ]);
-    }
-  });
+      for (const topic of [word, `ExecStart ${word} service`]) {
+        expect(search(db, topic).results.map((r) => r.source)).toEqual([
+          "docs/operators.md",
+        ]);
+      }
+    },
+  );
 
-  it.each([
-    "",
-    " \t\n",
-    '"',
-    '""',
-    "= -- . () : * +",
-    '"!!!"',
-    "_",
-    "___",
-  ])("returns no results for a topic without words: %j", (topic) => {
-    rebuildFtsIndex(db);
-    expect(search(db, topic).results).toEqual([]);
-  });
+  it.each(["", " \t\n", '"', '""', "= -- . () : * +", '"!!!"', "_", "___"])(
+    "returns no results for a topic without words: %j",
+    (topic) => {
+      rebuildFtsIndex(db);
+      expect(search(db, topic).results).toEqual([]);
+    },
+  );
 
   it("requires adjacent words only inside paired double quotes", () => {
     for (const [docPath, content] of [

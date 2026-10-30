@@ -372,9 +372,29 @@ Run the install command.
         ),
       );
       // Frontmatter must reach continuation chunks too, or they index under the filename.
+      // An HTML h1 reaches only the first chunk, so the whole file keeps the file name.
       expect(new Set(rows.map((r) => r.doc_title))).toEqual(
-        new Set([path === "flat.md" ? "Flat Guide" : "flat.html"]),
+        new Set([path === "flat.md" ? "Flat Guide" : "flat"]),
       );
+    } finally {
+      db.close();
+    }
+  });
+
+  it("keeps the file name for a split concatenation of pages", () => {
+    // Each chunk holds one page's h1, so no chunk alone sees that there are several.
+    let content = "";
+    for (let i = 0; content.length < 1.1 * 1024 * 1024; i++)
+      content += `# Page ${i}\n\n## Usage\n\n${`w${i} `.repeat(15000)}\n\n`;
+    const file = { path: "llms-full.md", content };
+    expect(splitForParsing(file).length).toBeGreaterThan(1);
+
+    buildPackage(testDbPath, [file], { name: "test-pages", version: "1.0.0" });
+
+    const db = openDatabase(testDbPath, { readonly: true });
+    try {
+      const rows = db.prepare("SELECT DISTINCT doc_title FROM chunks").all();
+      expect(rows).toEqual([{ doc_title: "llms-full" }]);
     } finally {
       db.close();
     }
@@ -513,6 +533,40 @@ describe("splitMarkdownByHeadings", () => {
     };
 
     expect(splitMarkdownByHeadings(file)).toHaveLength(3);
+  });
+
+  it("ignores ## lines in a fence behind a list marker", () => {
+    const file = {
+      path: "docs.md",
+      content: [
+        "## Real",
+        "",
+        "1. ```bash",
+        "   ## install the dependencies",
+        "   npm i",
+        "   ```",
+        "",
+        "## After",
+      ].join("\n"),
+    };
+
+    const result = splitMarkdownByHeadings(file);
+
+    expect(result).toHaveLength(2);
+    expect(result[0]?.content).toContain("## install the dependencies");
+    expect(result[1]?.content).toMatch(/^## After/);
+  });
+
+  it("still splits after a fence that never closes", () => {
+    const file = {
+      path: "docs.md",
+      content: "## A\n\n```js\nstray\n\n## B\n\nText.",
+    };
+
+    const result = splitMarkdownByHeadings(file);
+
+    expect(result).toHaveLength(2);
+    expect(result[1]?.content).toMatch(/^## B/);
   });
 
   it("keeps doc path on every part", () => {
