@@ -9,6 +9,7 @@ import {
   parseMonorepoTag,
   readLocalDocsFiles,
 } from "./git.js";
+import type { IngestionDiagnostic } from "./ingestion.js";
 
 describe("isTransientGitError", () => {
   it("detects connection failures", () => {
@@ -260,15 +261,21 @@ describe("readLocalDocsFiles — directory filters", () => {
     writeFileSync(full, body);
   };
 
-  it("skips test and example directories when scanning a repo root", () => {
+  it("skips tooling directories when scanning a repo root", () => {
     write("README.md", "# Project\n\nContent.\n");
     write("test/README.md", "# Test notes\n\nFixture setup.\n");
+    write("tests/README.md", "# Test notes\n\nFixture setup.\n");
     write("examples/basic/README.md", "# Basic example\n\nRun it.\n");
+    write("build/output.md", "# Build output\n\nGenerated.\n");
     write("src/internal/NOTES.md", "# Internal\n\nScratch.\n");
 
-    const paths = readLocalDocsFiles(dir).map((f) => f.path);
+    const diagnostics: IngestionDiagnostic[] = [];
+    const paths = readLocalDocsFiles(dir, { diagnostics }).map((f) => f.path);
 
     expect(paths).toEqual(["README.md"]);
+    // Routine tooling folders are excluded from traversal, not reported as
+    // excluded documentation in diagnostics.
+    expect(diagnostics).toEqual([]);
   });
 
   it("keeps doc sections named like non-doc directories inside a docs folder", () => {
