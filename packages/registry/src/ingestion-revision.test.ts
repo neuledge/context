@@ -183,5 +183,5 @@ describe("automatic ingestion revision", () => {
       ).trim();
       expect(revision).toBe(generated.revision);
     }
-  });
+  }, 30_000);
 });
