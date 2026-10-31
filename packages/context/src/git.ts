@@ -465,9 +465,11 @@ function findMarkdownFiles(
     const reason = entryExclusionReason(entry, relativePath, ig, options);
     if (reason) {
       // Hidden/tooling directories and unrelated source files are not docs.
+      const directoryName = entry.name.toLowerCase();
       const documentationCandidate = entry.isDirectory()
         ? !entry.name.startsWith(".") &&
-          !IGNORED_DIRS.has(entry.name.toLowerCase())
+          !IGNORED_DIRS.has(directoryName) &&
+          !(options.atRepoRoot && REPO_ROOT_IGNORED_DIRS.has(directoryName))
         : matchingExt;
       if (documentationCandidate) {
         options.onDiagnostic?.({

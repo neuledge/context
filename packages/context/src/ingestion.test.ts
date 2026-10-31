@@ -194,6 +194,15 @@ it.each([undefined, "docs"])(
   "omits routine directories from exclusions when scanning %s",
   (docsPath) => {
     const source = docsPath ? join(directory, docsPath) : directory;
+    if (!docsPath) {
+      for (const name of ["tests", "examples", "build"]) {
+        mkdirSync(join(source, name));
+        writeFileSync(
+          join(source, name, "guide.md"),
+          `Documentation in ${name}.`,
+        );
+      }
+    }
     for (const name of [
       ".git",
       ".github",
