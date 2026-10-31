@@ -310,6 +310,45 @@ replacement leaves the previous package available. Temporary files are excluded
 from package discovery. If the operating system blocks replacement of an open
 file (for example, on Windows), close the reader and retry the install.
 
+Builds print an ingestion summary: discovered documentation files, selected files,
+indexed documents and sections, plus exclusions, duplicates, read/parse failures,
+and empty documents. To inspect paths and reasons, write a JSON report:
+
+```bash
+context add ./my-project --diagnostics ingestion.json
+context add ./my-project --strict --diagnostics ingestion.json
+```
+
+`--strict` rejects unreadable files/directories, failed linked-page downloads,
+parser failures, and documents
+that produce no sections before changing the installed package. Intentional
+exclusions and duplicate content remain acceptable. The JSON report is also
+written when strict validation fails. These options apply to documentation
+builds, not installation of prebuilt `.db` files.
+
+Report parent directories are created automatically. Successful builds save the
+requested report before replacing the installed package; a report-write failure
+leaves the installed package unchanged. If reporting also fails after a build
+error, the CLI preserves the original error and reports both failures.
+
+The report has `schemaVersion`, `summary`, and per-path `entries`. Discovered
+files are documentation candidates actually visited within the selected source;
+selected files exclude intentional exclusions and duplicates. Indexed sections
+count only sections stored after deduplication. Pruned directories appear once
+with their exclusion reason; their contents are not scanned or counted. Hidden
+and tooling directories and unrelated source-code files are omitted. Git/local
+paths are relative to the repository root, including an explicit docs path.
+
+`buildPackage` always returns a report as `BuildResult.diagnostics`. The property
+is optional in the public type so existing result objects and builder mocks
+remain compatible. The existing `skippedFiles` field still counts only split/parse
+failures. To include source
+selection and read outcomes, pass the same `IngestionDiagnostic[]` to
+`readLocalDocsFiles(..., { diagnostics })` and
+`buildPackage(..., { name, version, diagnostics, strict })`. Strict failures throw
+`IngestionError`, whose `diagnostics` property contains the report. Library code
+does not log diagnostics.
+
 ---
 
 ## :whale: Docker

@@ -9,7 +9,7 @@ import {
 } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
-import { basename, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { Command } from "commander";
 
@@ -17,6 +17,7 @@ const require = createRequire(import.meta.url);
 const { version } = require("../package.json") as { version: string };
 
 import { loadAuth, saveAuth } from "./auth.js";
+import { parseDocument } from "./build.js";
 import { getServerUrl } from "./config.js";
 import { initDatabase } from "./database.js";
 import { downloadPackage, searchPackages } from "./download.js";
@@ -46,11 +47,18 @@ import {
   NO_DOCUMENTATION_FOUND_MESSAGE,
   SEARCH_PACKAGES_NAME_DESCRIPTION,
 } from "./guidance.js";
+import {
+  formatIngestionSummary,
+  type IngestionDiagnostic,
+  IngestionError,
+} from "./ingestion.js";
+import { writeIngestionReport } from "./ingestion-report.js";
 import { fetchLinkedDocs } from "./llms-txt.js";
 import {
   type BuildResult,
   buildPackage,
   type MarkdownFile,
+  type PackageBuildOptions,
 } from "./package-builder.js";
 import { copyPackageFile, createPackageTempFile } from "./package-file.js";
 import { type SearchResult, search } from "./search.js";
@@ -354,11 +362,17 @@ async function addFromWebsite(
     );
 
     console.log(`Building package...`);
-    const result = buildPackage(outputPath, files, {
-      name: packageName,
-      version: versionLabel,
-      sourceUrl: source,
-    });
+    const result = buildWithDiagnostics(
+      outputPath,
+      files,
+      {
+        strict: options.strict,
+        name: packageName,
+        version: versionLabel,
+        sourceUrl: source,
+      },
+      options.diagnostics,
+    );
 
     if (result.sectionCount === 0) {
       throw new Error(
@@ -388,18 +402,38 @@ async function addFromWebsite(
 
   const isFullIndex = resolvedUrl.endsWith("/llms-full.txt");
 
-  // Always include the index itself so the H1/intro content is preserved.
-  const files: MarkdownFile[] = [
-    {
-      path: isFullIndex ? "llms-full.txt" : "llms.txt",
-      content,
-    },
-  ];
+  // Preserve the index itself when it contributes H1/intro content.
+  const files: MarkdownFile[] = [];
+  const diagnostics: IngestionDiagnostic[] = [];
 
-  // llms.txt is a curated index of links — follow them to fetch the actual
-  // documentation. llms-full.txt already inlines everything, so skip.
-  if (!isFullIndex) {
+  if (isFullIndex) {
+    files.push({ path: "llms-full.txt", content });
+  } else {
+    // A link-only llms.txt index is a curated table of contents, not
+    // documentation: record it as excluded rather than letting --strict
+    // reject it as an empty document when the linked pages all succeed.
+    let indexHasSections = true;
+    try {
+      indexHasSections = parseDocument(content, "llms.txt").sections.length > 0;
+    } catch {
+      // Keep the index in the build and let buildPackage report the parse
+      // error through the normal ingestion diagnostics path.
+    }
+    if (indexHasSections) {
+      files.push({ path: "llms.txt", content });
+    } else {
+      diagnostics.push({
+        path: "llms.txt",
+        kind: "file",
+        outcome: "excluded",
+        reason: "llms index",
+      });
+    }
+
+    // llms.txt is a curated index of links — follow them to fetch the actual
+    // documentation.
     const linkedFiles = await fetchLinkedDocs(content, resolvedUrl, {
+      diagnostics,
       log: (msg) => {
         console.log(msg);
       },
@@ -415,11 +449,18 @@ async function addFromWebsite(
   );
 
   console.log(`Building package...`);
-  const result = buildPackage(outputPath, files, {
-    name: packageName,
-    version: versionLabel,
-    sourceUrl: source,
-  });
+  const result = buildWithDiagnostics(
+    outputPath,
+    files,
+    {
+      diagnostics,
+      strict: options.strict,
+      name: packageName,
+      version: versionLabel,
+      sourceUrl: source,
+    },
+    options.diagnostics,
+  );
 
   if (result.sectionCount === 0) {
     throw new Error(
@@ -522,7 +563,7 @@ function ensureDataDir(): void {
  * to split or parse is dropped on its own so one bad document can't fail the
  * build, which is only safe if the user can see it happened.
  */
-function reportBuilt(
+export function reportBuilt(
   result: BuildResult,
   name: string,
   version: string,
@@ -530,11 +571,37 @@ function reportBuilt(
 ): void {
   console.log(`✓ Built package: ${name}@${version}`);
   console.log(`✓ Saved to ${outputPath}`);
-
-  if (result.skippedFiles > 0) {
+  if (result.diagnostics) {
+    console.log(formatIngestionSummary(result.diagnostics));
+  } else if (result.skippedFiles > 0) {
     console.log(
-      `⚠️  Skipped ${result.skippedFiles} file(s) that could not be parsed`,
+      `⚠️  Skipped ${result.skippedFiles} file${result.skippedFiles === 1 ? "" : "s"} that could not be parsed`,
     );
+  }
+}
+
+/** Keep the installed package unchanged until its requested report is saved. */
+function buildWithDiagnostics(
+  outputPath: string,
+  files: MarkdownFile[],
+  options: PackageBuildOptions,
+  diagnosticsPath?: string,
+): BuildResult {
+  if (!diagnosticsPath) return buildPackage(outputPath, files, options);
+  if (resolve(diagnosticsPath) === resolve(outputPath)) {
+    throw new Error("Diagnostics and package output paths must differ");
+  }
+  const staged = createPackageTempFile(dirname(outputPath));
+  try {
+    const result = buildPackage(staged.path, files, options);
+    if (!result.diagnostics) {
+      throw new Error("Build did not produce ingestion diagnostics");
+    }
+    writeIngestionReport(diagnosticsPath, result.diagnostics);
+    staged.install(outputPath);
+    return { ...result, path: outputPath };
+  } finally {
+    staged.cleanup();
   }
 }
 
@@ -685,6 +752,8 @@ export interface AddFromGitOptions {
   name?: string;
   save?: string;
   lang?: string;
+  strict?: boolean;
+  diagnostics?: string;
 }
 
 /**
@@ -861,17 +930,20 @@ async function addFromGitClone(
     }
 
     // Read all markdown files (filtered by language)
+    const diagnostics: IngestionDiagnostic[] = [];
     const files = readLocalDocsFiles(tempDir, {
+      diagnostics,
       path: docsPath,
       lang: options.lang,
     });
     if (files.length === 0) {
-      throw new Error(
-        `No markdown files found${docsPath ? ` in ${docsPath}` : ""}. Use --path to specify or --lang all to include all languages.`,
+      throw new IngestionError(
+        `No documentation files found${docsPath ? ` in ${docsPath}` : ""}. Use --path to specify or --lang all to include all languages.`,
+        diagnostics,
       );
     }
     console.log(
-      `✓ Found ${files.length} markdown files${options.lang ? ` (lang: ${options.lang})` : ""}`,
+      `✓ Found ${files.length} documentation files${options.lang ? ` (lang: ${options.lang})` : ""}`,
     );
 
     // Build the package
@@ -882,11 +954,18 @@ async function addFromGitClone(
     );
 
     console.log(`Building package...`);
-    const result = buildPackage(outputPath, files, {
-      name: packageName,
-      version: versionLabel,
-      sourceUrl: url,
-    });
+    const result = buildWithDiagnostics(
+      outputPath,
+      files,
+      {
+        strict: options.strict,
+        name: packageName,
+        version: versionLabel,
+        sourceUrl: url,
+        diagnostics,
+      },
+      options.diagnostics,
+    );
 
     reportBuilt(result, packageName, versionLabel, outputPath);
 
@@ -940,17 +1019,20 @@ async function addFromLocalDir(
   }
 
   // Read all markdown files (filtered by language)
+  const diagnostics: IngestionDiagnostic[] = [];
   const files = readLocalDocsFiles(dirPath, {
+    diagnostics,
     path: docsPath,
     lang: options.lang,
   });
   if (files.length === 0) {
-    throw new Error(
-      `No markdown files found${docsPath ? ` in ${docsPath}` : ""}. Use --path to specify or --lang all to include all languages.`,
+    throw new IngestionError(
+      `No documentation files found${docsPath ? ` in ${docsPath}` : ""}. Use --path to specify or --lang all to include all languages.`,
+      diagnostics,
     );
   }
   console.log(
-    `✓ Found ${files.length} markdown files${options.lang ? ` (lang: ${options.lang})` : ""}`,
+    `✓ Found ${files.length} documentation files${options.lang ? ` (lang: ${options.lang})` : ""}`,
   );
 
   // Build the package
@@ -961,11 +1043,18 @@ async function addFromLocalDir(
   );
 
   console.log(`Building package...`);
-  const result = buildPackage(outputPath, files, {
-    name: packageName,
-    version: versionLabel,
-    sourceUrl: dirPath,
-  });
+  const result = buildWithDiagnostics(
+    outputPath,
+    files,
+    {
+      strict: options.strict,
+      name: packageName,
+      version: versionLabel,
+      sourceUrl: dirPath,
+      diagnostics,
+    },
+    options.diagnostics,
+  );
 
   reportBuilt(result, packageName, versionLabel, outputPath);
 
@@ -995,6 +1084,11 @@ program
     "<source>",
     "Package source: local .db file, URL (.db), GitHub URL, git URL, website URL (auto-fetches llms.txt), or local directory",
   )
+  .option("--strict", "Fail on unreadable, unparseable, or empty documentation")
+  .option(
+    "--diagnostics <file>",
+    "Write detailed ingestion diagnostics as JSON",
+  )
   .option("--tag <tag>", "Git tag to checkout (for git repos)")
   .option("--pkg-version <version>", "Custom version label")
   .option("--path <path>", "Path to docs folder in repo/directory")
@@ -1014,10 +1108,20 @@ program
         name?: string;
         save?: string;
         lang?: string;
+        strict?: boolean;
+        diagnostics?: string;
       },
     ) => {
       try {
         const sourceType = detectSourceType(source);
+        if (
+          (options.strict || options.diagnostics) &&
+          (sourceType === "file" || sourceType === "url")
+        ) {
+          throw new Error(
+            "Ingestion diagnostics and strict validation require a documentation source, not a prebuilt .db package.",
+          );
+        }
 
         // Map pkgVersion to version for internal use
         const internalOptions = {
@@ -1043,6 +1147,20 @@ program
             break;
         }
       } catch (err) {
+        if (err instanceof IngestionError) {
+          console.error(formatIngestionSummary(err.diagnostics));
+          if (options.diagnostics) {
+            try {
+              writeIngestionReport(options.diagnostics, err.diagnostics);
+            } catch (reportError) {
+              console.error(
+                reportError instanceof Error
+                  ? reportError.message
+                  : reportError,
+              );
+            }
+          }
+        }
         console.error(`Error: ${err instanceof Error ? err.message : err}`);
         process.exit(1);
       }

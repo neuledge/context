@@ -14,6 +14,8 @@ import {
   type BuildResult,
   buildPackage,
   cloneRepository,
+  type IngestionDiagnostic,
+  IngestionError,
   initDatabase,
   readLocalDocsFiles,
 } from "@neuledge/context";
@@ -46,6 +48,13 @@ export interface RegistryBuildResult extends BuildResult {
   version: string;
   /** Git commit SHA that was built (for skip-if-unchanged checks) */
   sourceCommit?: string;
+}
+
+export interface RegistryBuildOptions {
+  force?: boolean;
+  zipBuffer?: Buffer;
+  strict?: boolean;
+  diagnostics?: IngestionDiagnostic[];
 }
 
 /**
@@ -113,9 +122,10 @@ export async function buildFromDefinition(
   definition: VersionedDefinition,
   version: string,
   outputDir: string,
-  options: { force?: boolean; zipBuffer?: Buffer } = {},
+  options: RegistryBuildOptions = {},
 ): Promise<RegistryBuildResult> {
   await initDatabase();
+  const diagnostics = options.diagnostics ?? [];
   const source = resolveBuildSource(definition, version);
 
   // Replace / in scoped names (e.g., @trpc/server → @trpc-server) for valid filenames
@@ -126,13 +136,19 @@ export async function buildFromDefinition(
   );
 
   if (source.type === "git") {
-    return buildFromGit(source, outputPath, definition, version);
+    return buildFromGit(source, outputPath, definition, version, {
+      ...options,
+      diagnostics,
+    });
   }
 
   let files: Array<{ path: string; content: string }>;
   let sourceContentDigest: string | undefined;
   if (source.type === "html-index") {
-    files = await downloadHtmlIndex(source, version, { force: options.force });
+    files = await downloadHtmlIndex(source, version, {
+      force: options.force,
+      diagnostics,
+    });
   } else {
     const zipBuffer =
       options.zipBuffer ?? (await downloadZipBuffer(source.url));
@@ -140,16 +156,20 @@ export async function buildFromDefinition(
     files = extractZipBuffer(zipBuffer, {
       docsPath: source.docs_path,
       excludePaths: source.exclude_paths,
+      diagnostics,
     });
   }
 
   if (files.length === 0) {
-    throw new Error(
+    throw new IngestionError(
       `No documentation files found in ${source.type} source from ${source.url}`,
+      diagnostics,
     );
   }
 
   const result = buildPackage(outputPath, files, {
+    diagnostics,
+    strict: options.strict,
     name: definition.name,
     version,
     description: definition.description,
@@ -173,8 +193,10 @@ export async function buildFromDefinition(
 export async function buildUnversioned(
   definition: UnversionedDefinition,
   outputDir: string,
+  options: RegistryBuildOptions = {},
 ): Promise<RegistryBuildResult> {
   await initDatabase();
+  const diagnostics = options.diagnostics ?? [];
   const version = "latest";
   const source = resolveBuildSource(definition, version);
   const safeName = definition.name.replace(/\//g, "-");
@@ -187,13 +209,19 @@ export async function buildUnversioned(
     const files = await downloadAndExtractZip(source.url, {
       docsPath: source.docs_path,
       excludePaths: source.exclude_paths,
+      diagnostics,
     });
 
     if (files.length === 0) {
-      throw new Error(`No documentation files found in ZIP from ${source.url}`);
+      throw new IngestionError(
+        `No documentation files found in ZIP from ${source.url}`,
+        diagnostics,
+      );
     }
 
     const result = buildPackage(outputPath, files, {
+      diagnostics,
+      strict: options.strict,
       name: definition.name,
       version,
       description: definition.description,
@@ -211,7 +239,10 @@ export async function buildUnversioned(
 
   if (source.type !== "git")
     throw new Error("Unversioned HTML sources are unsupported");
-  return buildFromGit(source, outputPath, definition, version);
+  return buildFromGit(source, outputPath, definition, version, {
+    ...options,
+    diagnostics,
+  });
 }
 
 /** Build from a git source (clone at tag, read docs, build package). */
@@ -220,7 +251,9 @@ function buildFromGit(
   outputPath: string,
   definition: PackageDefinition,
   version: string,
+  options: RegistryBuildOptions,
 ): RegistryBuildResult {
+  const diagnostics = options.diagnostics ?? [];
   const { tempDir, cleanup } = cloneRepository(source.url, source.ref);
 
   try {
@@ -235,18 +268,23 @@ function buildFromGit(
       readLocalDocsFiles(tempDir, {
         path: source.docs_path,
         lang: source.lang,
+        diagnostics,
       }),
       source.exclude_paths,
       source.docs_path,
+      diagnostics,
     );
 
     if (files.length === 0) {
-      throw new Error(
+      throw new IngestionError(
         `No documentation files found in ${source.url} at ref ${source.ref ?? "HEAD"}`,
+        diagnostics,
       );
     }
 
     const result = buildPackage(outputPath, files, {
+      diagnostics,
+      strict: options.strict,
       name: definition.name,
       version,
       description: definition.description,

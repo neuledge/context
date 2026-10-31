@@ -11,6 +11,7 @@
  */
 
 import { buildFetchOptions, fetchWithTimeout } from "./fetch.js";
+import { type IngestionDiagnostic, ingestionErrorReason } from "./ingestion.js";
 import type { MarkdownFile } from "./package-builder.js";
 
 /** A link extracted from an llms.txt index. */
@@ -74,6 +75,8 @@ export interface FetchLinkedDocsOptions {
   fetchImpl?: typeof fetch;
   /** Optional logger for progress messages. */
   log?: (message: string) => void;
+  /** Collect failed or empty linked pages for diagnostics and strict validation. */
+  diagnostics?: IngestionDiagnostic[];
 }
 
 interface FetchedDoc {
@@ -86,6 +89,7 @@ async function fetchLink(
   url: string,
   fetchImpl: typeof fetch,
   timeoutMs: number,
+  diagnostics?: IngestionDiagnostic[],
 ): Promise<FetchedDoc | null> {
   try {
     const response = await fetchWithTimeout(
@@ -94,10 +98,18 @@ async function fetchLink(
       buildFetchOptions(url),
       timeoutMs,
     );
-    if (!response.ok) return null;
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
     const text = await response.text();
-    if (!text.trim()) return null;
+    if (!text.trim()) {
+      diagnostics?.push({
+        path: pathFromUrl(url, ".md"),
+        kind: "file",
+        outcome: "empty",
+        reason: "Linked page returned no content",
+      });
+      return null;
+    }
 
     // Choose an extension so parseDocument routes to the right parser.
     const contentType =
@@ -110,7 +122,13 @@ async function fetchLink(
 
     const path = pathFromUrl(url, isHtml ? ".html" : ".md");
     return { url, file: { path, content: text } };
-  } catch {
+  } catch (error) {
+    diagnostics?.push({
+      path: pathFromUrl(url, ".md"),
+      kind: "file",
+      outcome: "read-error",
+      reason: ingestionErrorReason(error),
+    });
     return null;
   }
 }
@@ -128,7 +146,8 @@ function pathFromUrl(url: string, defaultExt: string): string {
 
 /**
  * Fetch all links from an llms.txt index and return them as MarkdownFile entries
- * ready to be passed to `buildPackage`. Failed fetches are skipped silently.
+ * ready to be passed to `buildPackage`. Failed fetches are omitted and reported
+ * through the optional diagnostics collector.
  */
 export async function fetchLinkedDocs(
   content: string,
@@ -175,7 +194,12 @@ export async function fetchLinkedDocs(
       if (i >= links.length) return;
       const link = links[i];
       if (!link) return;
-      const fetched = await fetchLink(link.url, fetchImpl, timeoutMs);
+      const fetched = await fetchLink(
+        link.url,
+        fetchImpl,
+        timeoutMs,
+        options.diagnostics,
+      );
       completed++;
       if (fetched) {
         results.push(fetched.file);
