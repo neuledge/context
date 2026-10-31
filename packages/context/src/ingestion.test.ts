@@ -477,6 +477,61 @@ it.each(["http", "transport", "empty"])(
   15_000,
 );
 
+it("strict website builds accept a link-only llms.txt index when every linked page succeeds", () => {
+  const home = join(directory, "website-success-user");
+  const preload = join(directory, "website-success-fetch.mjs");
+  const index = "# Example Library\n\n## Docs\n\n- [Guide](/guide.md)";
+  writeFileSync(
+    preload,
+    `
+    import os from 'node:os';
+    import { syncBuiltinESMExports } from 'node:module';
+    os.homedir = () => ${JSON.stringify(home)};
+    syncBuiltinESMExports();
+    globalThis.fetch = async (input) => {
+      const path = new URL(input).pathname;
+      if (path === '/llms.txt') return new Response(${JSON.stringify(index)});
+      if (path === '/guide.md') return new Response('## Guide\\n\\nWorking linked documentation.');
+      return new Response('Missing', { status: 404 });
+    };
+  `,
+  );
+  const report = join(directory, "website-success-report.json");
+  const args = [
+    "--import",
+    pathToFileURL(preload).href,
+    resolve(import.meta.dirname, "../dist/cli.js"),
+    "add",
+    "https://docs.example/llms.txt",
+    "--name",
+    "website",
+    "--diagnostics",
+    report,
+    "--strict",
+  ];
+  const result = spawnSync(process.execPath, args, { encoding: "utf8" });
+  expect(result.status, result.stderr).toBe(0);
+  const installed = join(home, ".context", "packages", "website@latest.db");
+  expect(existsSync(installed)).toBe(true);
+  const entries = JSON.parse(readFileSync(report, "utf8")).entries as Array<{
+    path: string;
+    outcome: string;
+  }>;
+  expect(entries).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        path: "llms.txt",
+        outcome: "excluded",
+      }),
+      expect.objectContaining({
+        path: "docs.example/guide.md",
+        outcome: "indexed",
+      }),
+    ]),
+  );
+  expect(entries.filter((entry) => entry.outcome === "empty")).toEqual([]);
+}, 15_000);
+
 it("writes context add reports on success and strict failure without changing the installed package", () => {
   const home = join(directory, "isolated-user");
   const preload = join(directory, "isolated-os.mjs");

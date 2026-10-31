@@ -17,6 +17,7 @@ const require = createRequire(import.meta.url);
 const { version } = require("../package.json") as { version: string };
 
 import { loadAuth, saveAuth } from "./auth.js";
+import { parseDocument } from "./build.js";
 import { getServerUrl } from "./config.js";
 import { initDatabase } from "./database.js";
 import { downloadPackage, searchPackages } from "./download.js";
@@ -401,18 +402,36 @@ async function addFromWebsite(
 
   const isFullIndex = resolvedUrl.endsWith("/llms-full.txt");
 
-  // Always include the index itself so the H1/intro content is preserved.
-  const files: MarkdownFile[] = [
-    {
-      path: isFullIndex ? "llms-full.txt" : "llms.txt",
-      content,
-    },
-  ];
-
-  // llms.txt is a curated index of links — follow them to fetch the actual
-  // documentation. llms-full.txt already inlines everything, so skip.
+  // Preserve the index itself when it contributes H1/intro content.
+  const files: MarkdownFile[] = [];
   const diagnostics: IngestionDiagnostic[] = [];
-  if (!isFullIndex) {
+
+  if (isFullIndex) {
+    files.push({ path: "llms-full.txt", content });
+  } else {
+    // A link-only llms.txt index is a curated table of contents, not
+    // documentation: record it as excluded rather than letting --strict
+    // reject it as an empty document when the linked pages all succeed.
+    let indexHasSections = true;
+    try {
+      indexHasSections = parseDocument(content, "llms.txt").sections.length > 0;
+    } catch {
+      // Keep the index in the build and let buildPackage report the parse
+      // error through the normal ingestion diagnostics path.
+    }
+    if (indexHasSections) {
+      files.push({ path: "llms.txt", content });
+    } else {
+      diagnostics.push({
+        path: "llms.txt",
+        kind: "file",
+        outcome: "excluded",
+        reason: "llms index",
+      });
+    }
+
+    // llms.txt is a curated index of links — follow them to fetch the actual
+    // documentation.
     const linkedFiles = await fetchLinkedDocs(content, resolvedUrl, {
       diagnostics,
       log: (msg) => {
