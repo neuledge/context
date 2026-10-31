@@ -1,5 +1,13 @@
 # @neuledge/context
 
+## 1.4.0
+
+### Minor Changes
+
+- [#210](https://github.com/neuledge/context/pull/210) [`628ef9b`](https://github.com/neuledge/context/commit/628ef9b222d29951e242af926633aa8b58b72f7a) Thanks [@TheRealBecks](https://github.com/TheRealBecks)! - Report documentation ingestion outcomes with relative paths and reasons, distinguishing exclusions, duplicate content, read/parse failures, empty documents, and indexed documents. Add JSON reports and strict validation to documentation builds, preserving installed packages when validation rejects unexpected document loss.
+  
+  Keep diagnostics optional on the existing `BuildResult` type for compatibility with result objects and builder mocks; actual builds always include the report.
+
 ## 1.3.7
 
 ### Patch Changes
