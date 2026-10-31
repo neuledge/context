@@ -7,6 +7,13 @@ import { dirname } from "node:path";
 import { type DocSection, fileTitle, parseDocument } from "./build.js";
 import { openDatabase } from "./database.js";
 import { REMOVED_TAGS } from "./html.js";
+import {
+  createIngestionReport,
+  type IngestionDiagnostic,
+  type IngestionReport,
+  ingestionErrorReason,
+  validateIngestion,
+} from "./ingestion.js";
 import { fencedLines } from "./markdown-fences.js";
 import { createPackageTempFile } from "./package-file.js";
 
@@ -29,6 +36,10 @@ export interface PackageBuildOptions {
   buildFingerprint?: string;
   /** Automatically generated revision of the ingestion implementation. */
   ingestionRevision?: string;
+  /** Outcomes collected while selecting and reading source documents. */
+  diagnostics?: readonly IngestionDiagnostic[];
+  /** Reject read/parse failures and empty documents before changing outputPath. */
+  strict?: boolean;
 }
 
 export interface MarkdownFile {
@@ -42,6 +53,8 @@ export interface BuildResult {
   totalTokens: number;
   /** Files dropped whole because splitting or parsing them threw. */
   skippedFiles: number;
+  /** Optional for compatibility with existing result objects and mocks. */
+  diagnostics?: IngestionReport;
 }
 
 /**
@@ -570,10 +583,12 @@ export function buildPackage(
   files: MarkdownFile[],
   options: PackageBuildOptions,
 ): BuildResult {
+  const parsed = parsePackageFiles(files, options.diagnostics);
+  if (options.strict) validateIngestion(parsed.diagnostics);
+
   const temp = createPackageTempFile(dirname(outputPath));
   try {
-    const result = writePackage(temp.path, files, options);
-    // writePackage closes the database before validation and replacement.
+    const result = writePackage(temp.path, parsed, options);
     temp.install(outputPath);
     return { ...result, path: outputPath };
   } finally {
@@ -581,11 +596,79 @@ export function buildPackage(
   }
 }
 
+interface ParsedPackage {
+  sections: DocSection[];
+  skippedFiles: number;
+  diagnostics: IngestionReport;
+}
+
+/** Parse and report before opening a database or staging a replacement. */
+function parsePackageFiles(
+  files: MarkdownFile[],
+  sourceDiagnostics: readonly IngestionDiagnostic[] = [],
+): ParsedPackage {
+  const allSections: DocSection[] = [];
+  const seenHashes = new Map<string, string>();
+  const entries: IngestionDiagnostic[] = [...sourceDiagnostics];
+  let skippedFiles = 0;
+
+  // Parse before opening the output so strict validation never replaces an
+  // installed package with an incomplete build. Keep only one file's split
+  // chunks alive at a time, as before.
+  for (const file of files) {
+    try {
+      const sections = parseChunks(file);
+      let indexed = 0;
+      let duplicateOf: string | undefined;
+      for (const section of sections) {
+        const hash = contentHash(section.content);
+        if (seenHashes.has(hash)) {
+          duplicateOf ??= seenHashes.get(hash);
+        } else {
+          seenHashes.set(hash, file.path);
+          allSections.push(section);
+          indexed++;
+        }
+      }
+      entries.push({
+        path: file.path,
+        kind: "file",
+        outcome: !sections.length ? "empty" : indexed ? "indexed" : "duplicate",
+        ...(!sections.length
+          ? { reason: "Document produced no sections" }
+          : indexed
+            ? {
+                sections: indexed,
+                duplicateSections: sections.length - indexed,
+              }
+            : {
+                reason: "All sections duplicate earlier content",
+                duplicateOf,
+              }),
+      });
+    } catch (error) {
+      skippedFiles++;
+      entries.push({
+        path: file.path,
+        kind: "file",
+        outcome: "parse-error",
+        reason: ingestionErrorReason(error),
+      });
+    }
+  }
+  return {
+    sections: allSections,
+    skippedFiles,
+    diagnostics: createIngestionReport(entries),
+  };
+}
+
 function writePackage(
   outputPath: string,
-  files: MarkdownFile[],
+  parsed: ParsedPackage,
   options: PackageBuildOptions,
 ): BuildResult {
+  const { sections: allSections, skippedFiles, diagnostics } = parsed;
   const db = openDatabase(outputPath);
 
   try {
@@ -636,34 +719,6 @@ function writePackage(
       VALUES (?, ?, ?, ?, ?, ?)
     `);
 
-    const allSections: DocSection[] = [];
-    const seenHashes = new Set<string>();
-    let skippedFiles = 0;
-
-    for (const file of files) {
-      try {
-        // Splitting is inside the guard on purpose: it walks untrusted markup, so a
-        // throw there has to cost one file rather than the whole registry build. Doing
-        // it per file also keeps only one file's chunks alive at a time.
-        const sections = parseChunks(file);
-
-        for (const section of sections) {
-          // Deduplicate sections with identical content (ignore titles)
-          const hash = contentHash(section.content);
-          if (!seenHashes.has(hash)) {
-            seenHashes.add(hash);
-            allSections.push(section);
-          }
-        }
-      } catch {
-        // A file that cannot be split or parsed is dropped whole, so a half-indexed
-        // document never reaches the package. The failure is counted rather than
-        // logged: `buildPackage` has no logger, and a silent skip is how a registry
-        // build loses documents without anyone noticing.
-        skippedFiles++;
-      }
-    }
-
     // Insert all sections in a transaction
     const insertAll = db.transaction((sections: DocSection[]) => {
       for (const section of sections) {
@@ -690,6 +745,7 @@ function writePackage(
       sectionCount: allSections.length,
       totalTokens,
       skippedFiles,
+      diagnostics,
     };
   } finally {
     db.close();

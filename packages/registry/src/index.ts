@@ -2,6 +2,8 @@ export {
   buildFromDefinition,
   buildUnversioned,
   getHeadCommit,
+  type RegistryBuildOptions,
+  type RegistryBuildResult,
 } from "./build.js";
 export {
   constructTag,
