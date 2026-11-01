@@ -1,5 +1,19 @@
 # @neuledge/context
 
+## 1.4.1
+
+### Patch Changes
+
+- [#214](https://github.com/neuledge/context/pull/214) [`093ad0b`](https://github.com/neuledge/context/commit/093ad0b3a4c4ac7c201cab33a38c4b2fc1b6ae80) Thanks [@human0-bot](https://github.com/apps/human0-bot)! - Remove the public exports `createIngestionReport`, `formatIngestionSummary`,
+  `ingestionErrorReason`, `validateIngestion`, and `writeIngestionReport`, while
+  keeping `IngestionReport`, `IngestionDiagnostic`, and `IngestionError` (and
+  `BuildResult.diagnostics`). The post-build CLI summary now lists only problem
+  kinds with nonzero counts, so a clean build prints one short line, and the
+  ingestion-report documentation moved to a dedicated page. Removing these exports
+  is a breaking change shipped as a patch under the repository's exception for
+  withdrawing an export within a day of its release: they were added in 1.4.0, released less than a day ago, so
+  nobody can reasonably depend on them yet.
+
 ## 1.4.0
 
 ### Minor Changes
