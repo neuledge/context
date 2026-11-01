@@ -1,8 +1,9 @@
-import { type BuildResult, createIngestionReport } from "@neuledge/context";
+import type { BuildResult } from "@neuledge/context";
 import { expect, it } from "vitest";
 import { formatBuilt } from "./format.js";
+import { createIngestionReport } from "./ingestion.js";
 
-it.each([0, 1, 2])("reports %i parse failures once", (count) => {
+it.each([0, 1, 2])("reports %i parse failures only when nonzero", (count) => {
   const result: BuildResult = {
     path: "package.db",
     sectionCount: 1,
@@ -17,9 +18,14 @@ it.each([0, 1, 2])("reports %i parse failures once", (count) => {
     ),
   };
   const output = formatBuilt(result);
-  expect(output.match(/\d+ parse failures?/g)).toEqual([
-    `${count} parse failure${count === 1 ? "" : "s"}`,
-  ]);
+  const matches = output.match(/\d+ parse failures?/g);
+  if (count === 0) {
+    expect(matches).toBeNull();
+  } else {
+    expect(matches).toEqual([
+      `${count} parse failure${count === 1 ? "" : "s"}`,
+    ]);
+  }
   expect(output).not.toContain("skipped");
 });
 

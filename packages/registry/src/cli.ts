@@ -8,13 +8,10 @@
 import { mkdirSync, mkdtempSync, renameSync, rmSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import {
-  createIngestionReport,
-  formatIngestionSummary,
   type IngestionDiagnostic,
   IngestionError,
   type IngestionReport,
   isMissingRefError,
-  writeIngestionReport,
 } from "@neuledge/context";
 import { Command } from "commander";
 import {
@@ -28,6 +25,11 @@ import {
   listDefinitions,
 } from "./definition.js";
 import { formatBuilt } from "./format.js";
+import {
+  createIngestionReport,
+  formatIngestionSummary,
+  writeIngestionReport,
+} from "./ingestion.js";
 import { publishDefinition } from "./publication.js";
 import { type AvailableVersion, discoverVersions } from "./version-check.js";
 

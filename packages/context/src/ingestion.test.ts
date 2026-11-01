@@ -397,24 +397,44 @@ it("reports HTTP, transport and empty linked-page failures without dropping succ
   );
 });
 
-it.each([0, 1, 2])("formats ingestion counts correctly for %i", (count) => {
-  const report = createIngestionReport([]);
-  for (const key of Object.keys(
-    report.summary,
-  ) as (keyof typeof report.summary)[]) {
-    report.summary[key] = count;
-  }
+it("formats a clean build as one short line", () => {
+  const report = createIngestionReport([
+    { path: "a.md", kind: "file", outcome: "indexed", sections: 3 },
+    { path: "b.md", kind: "file", outcome: "indexed", sections: 2 },
+  ]);
+  expect(formatIngestionSummary(report)).toBe(
+    "Ingestion: 2 documentation files discovered, 2 selected, 2 indexed, 5 sections",
+  );
+});
+
+it("lists only nonzero problem kinds", () => {
+  const report = createIngestionReport([
+    { path: "excluded.md", kind: "file", outcome: "excluded" },
+    { path: "excluded-dir", kind: "directory", outcome: "excluded" },
+    { path: "dup.md", kind: "file", outcome: "duplicate" },
+    { path: "unreadable.md", kind: "file", outcome: "read-error" },
+    { path: "unreadable-dir", kind: "directory", outcome: "read-error" },
+    { path: "broken.md", kind: "file", outcome: "parse-error" },
+    { path: "empty.md", kind: "file", outcome: "empty" },
+  ]);
   const summary = formatIngestionSummary(report);
-  expect(summary).toContain(
-    `${count} documentation file${count === 1 ? "" : "s"} discovered`,
-  );
-  expect(summary).toContain(`${count} section${count === 1 ? "" : "s"};`);
-  expect(summary).toContain(
-    `${count} file${count === 1 ? "" : "s"}/${count} director${count === 1 ? "y" : "ies"}`,
-  );
-  expect(summary).toContain(`${count} duplicate${count === 1 ? "" : "s"},`);
-  expect(summary).toContain(`${count} parse failure${count === 1 ? "" : "s"},`);
-  expect(summary).toContain(`${count} empty file${count === 1 ? "" : "s"}`);
+  expect(summary).toContain("excluded 1 file/1 directory");
+  expect(summary).toContain("1 duplicate");
+  expect(summary).toContain("unreadable 1 file/1 directory");
+  expect(summary).toContain("1 parse failure");
+  expect(summary).toContain("1 empty file");
+});
+
+it("omits problem kinds with zero counts", () => {
+  const report = createIngestionReport([
+    { path: "broken.md", kind: "file", outcome: "parse-error" },
+  ]);
+  const summary = formatIngestionSummary(report);
+  expect(summary).toContain("1 parse failure");
+  expect(summary).not.toContain("excluded");
+  expect(summary).not.toContain("duplicate");
+  expect(summary).not.toContain("unreadable");
+  expect(summary).not.toContain("empty");
 });
 
 it.each(["http", "transport", "empty"])(

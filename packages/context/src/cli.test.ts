@@ -20,7 +20,7 @@ import type { BuildResult, buildPackage } from "./package-builder.js";
 import type { PackageInfo } from "./store.js";
 
 describe("reportBuilt", () => {
-  it.each([0, 1, 2])("reports %i parse failures once", (count) => {
+  it.each([0, 1, 2])("reports %i parse failures only when nonzero", (count) => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
     try {
       const result: BuildResult = {
@@ -38,11 +38,43 @@ describe("reportBuilt", () => {
       };
       reportBuilt(result, "fixture", "1", result.path);
       const output = log.mock.calls.flat().join("\n");
-      expect(output.match(/\d+ parse failures?/g)).toEqual([
-        `${count} parse failure${count === 1 ? "" : "s"}`,
-      ]);
+      const matches = output.match(/\d+ parse failures?/g);
+      if (count === 0) {
+        expect(matches).toBeNull();
+      } else {
+        expect(matches).toEqual([
+          `${count} parse failure${count === 1 ? "" : "s"}`,
+        ]);
+      }
       expect(output).not.toContain("Skipped");
       expect(output).not.toContain("could not be parsed");
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it("prints a single short summary line for a clean build", () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      const result: BuildResult = {
+        path: "package.db",
+        sectionCount: 1,
+        totalTokens: 10,
+        skippedFiles: 0,
+        diagnostics: createIngestionReport([
+          { path: "a.md", kind: "file", outcome: "indexed", sections: 1 },
+        ]),
+      };
+      reportBuilt(result, "fixture", "1", result.path);
+      const output = log.mock.calls.flat().join("\n");
+      expect(output).toContain(
+        "Ingestion: 1 documentation file discovered, 1 selected, 1 indexed, 1 section",
+      );
+      expect(output).not.toContain("excluded");
+      expect(output).not.toContain("duplicate");
+      expect(output).not.toContain("unreadable");
+      expect(output).not.toContain("parse failure");
+      expect(output).not.toContain("empty");
     } finally {
       log.mockRestore();
     }
