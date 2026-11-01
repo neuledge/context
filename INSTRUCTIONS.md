@@ -49,6 +49,7 @@ When modifying packages that are published (check for `"private": true` in packa
   Short summary of the change from user's perspective
   ```
 - Bump types: `patch` (bug fixes), `minor` (new features), `major` (breaking changes)
+- Exception: an export may be withdrawn in a `patch` within a day of the release that added it, when nobody can reasonably depend on it yet. The changeset must name the withdrawn exports and say plainly that this is a breaking change shipped as a patch under this exception. Why: a major bump for an API that existed for hours costs every user a version jump for nothing.
 - Runtime dependency refreshes need a changeset even when the declared ranges and public API are unchanged, because the resolved versions users install do change.
 - Skip changesets for: docs-only changes, test-only changes, internal tooling, and development-tool-only dependency refreshes
 

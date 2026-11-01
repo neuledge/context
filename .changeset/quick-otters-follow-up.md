@@ -7,7 +7,7 @@ Remove the public exports `createIngestionReport`, `formatIngestionSummary`,
 keeping `IngestionReport`, `IngestionDiagnostic`, and `IngestionError` (and
 `BuildResult.diagnostics`). The post-build CLI summary now lists only problem
 kinds with nonzero counts, so a clean build prints one short line, and the
-ingestion-report documentation moved to a dedicated page. This is a one-time
-exception to the usual major bump for breaking API changes, agreed for this
-follow-up: 1.4.0 shipped only hours ago, so these exports have had almost no
-time to gain users.
+ingestion-report documentation moved to a dedicated page. Removing these exports
+is a breaking change shipped as a patch under the repository's exception for
+withdrawing an export within a day of its release: they were added in 1.4.0, released less than a day ago, so
+nobody can reasonably depend on them yet.
