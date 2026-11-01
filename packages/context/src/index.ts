@@ -46,15 +46,10 @@ export {
 } from "./git.js";
 export { parseHtml } from "./html.js";
 export {
-  createIngestionReport,
-  formatIngestionSummary,
   type IngestionDiagnostic,
   IngestionError,
   type IngestionReport,
-  ingestionErrorReason,
-  validateIngestion,
 } from "./ingestion.js";
-export { writeIngestionReport } from "./ingestion-report.js";
 export {
   type BuildResult,
   buildPackage,

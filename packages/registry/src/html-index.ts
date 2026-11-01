@@ -3,14 +3,11 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import {
-  type IngestionDiagnostic,
-  IngestionError,
-  ingestionErrorReason,
-} from "@neuledge/context";
+import { type IngestionDiagnostic, IngestionError } from "@neuledge/context";
 import { parseHTML } from "linkedom";
 import type { HtmlIndexSource } from "./definition.js";
 import { compileGlob } from "./glob.js";
+import { ingestionErrorReason } from "./ingestion.js";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 128 * 1024 * 1024;

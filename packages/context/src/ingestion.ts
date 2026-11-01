@@ -103,7 +103,28 @@ export function formatIngestionSummary(report: IngestionReport): string {
   const s = report.summary;
   const count = (value: number, singular: string, plural = `${singular}s`) =>
     `${value} ${value === 1 ? singular : plural}`;
-  return `Ingestion: ${count(s.discoveredFiles, "documentation file")} discovered, ${s.selectedFiles} selected, ${s.indexedDocuments} indexed, ${count(s.indexedSections, "section")}; excluded ${count(s.excludedFiles, "file")}/${count(s.excludedDirectories, "directory", "directories")}, ${count(s.duplicateFiles, "duplicate")}, unreadable ${count(s.unreadableFiles, "file")}/${count(s.unreadableDirectories, "directory", "directories")}, ${count(s.parseFailures, "parse failure")}, ${count(s.emptyFiles, "empty file")}`;
+  const base = `Ingestion: ${count(s.discoveredFiles, "documentation file")} discovered, ${s.selectedFiles} selected, ${s.indexedDocuments} indexed, ${count(s.indexedSections, "section")}`;
+  const problems: string[] = [];
+  if (s.excludedFiles + s.excludedDirectories > 0) {
+    problems.push(
+      `excluded ${count(s.excludedFiles, "file")}/${count(s.excludedDirectories, "directory", "directories")}`,
+    );
+  }
+  if (s.duplicateFiles > 0) {
+    problems.push(`${count(s.duplicateFiles, "duplicate")}`);
+  }
+  if (s.unreadableFiles + s.unreadableDirectories > 0) {
+    problems.push(
+      `unreadable ${count(s.unreadableFiles, "file")}/${count(s.unreadableDirectories, "directory", "directories")}`,
+    );
+  }
+  if (s.parseFailures > 0) {
+    problems.push(`${count(s.parseFailures, "parse failure")}`);
+  }
+  if (s.emptyFiles > 0) {
+    problems.push(`${count(s.emptyFiles, "empty file")}`);
+  }
+  return problems.length > 0 ? `${base}; ${problems.join(", ")}` : base;
 }
 
 export class IngestionError extends Error {

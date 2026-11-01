@@ -1,4 +1,5 @@
-import { type BuildResult, formatIngestionSummary } from "@neuledge/context";
+import type { BuildResult } from "@neuledge/context";
+import { formatIngestionSummary } from "./ingestion.js";
 
 /** Include skipped files so malformed documents are visible to operators. */
 export function formatBuilt(result: BuildResult): string {

@@ -7,12 +7,9 @@
  */
 
 import { inflateRawSync } from "node:zlib";
-import {
-  type IngestionDiagnostic,
-  IngestionError,
-  ingestionErrorReason,
-} from "@neuledge/context";
+import { type IngestionDiagnostic, IngestionError } from "@neuledge/context";
 import { compileGlob } from "./glob.js";
+import { ingestionErrorReason } from "./ingestion.js";
 
 const DOCUMENTATION_EXTENSIONS = [
   ".md",
