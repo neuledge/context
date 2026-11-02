@@ -18,10 +18,10 @@ AI agents are trained on outdated docs. When libraries release new versions, you
 
 ```js
 // Your AI, mass-trained on AI SDK v5 docs, will suggest:
-import { Experimental_Agent as Agent, stepCountIs } from 'ai';
+import { Experimental_Agent as Agent, stepCountIs } from "ai";
 
 // But v6 changed the API entirely:
-import { ToolLoopAgent } from 'ai';
+import { ToolLoopAgent } from "ai";
 ```
 
 The fix isn't better prompting. It's giving your AI the right docs.
@@ -248,15 +248,15 @@ The registry is what makes Context plug and play. It's a growing collection of *
 
 **Popular packages available today:**
 
-| Category | Libraries |
-|----------|-----------|
-| **Frameworks** | Next.js, Nuxt, Astro, SvelteKit, Remix, Hono |
-| **React ecosystem** | React, React Router, TanStack Query, Zustand, Redux Toolkit |
-| **Databases & ORMs** | Prisma, Drizzle, Mongoose, TypeORM |
-| **Styling** | Tailwind CSS, shadcn/ui, Styled Components |
-| **Testing** | Vitest, Playwright, Jest, Testing Library |
-| **APIs & Auth** | tRPC, GraphQL, NextAuth.js, Passport |
-| **AI & LLMs** | LangChain, AI SDK, OpenAI, Anthropic SDK |
+| Category             | Libraries                                                   |
+| -------------------- | ----------------------------------------------------------- |
+| **Frameworks**       | Next.js, Nuxt, Astro, SvelteKit, Remix, Hono                |
+| **React ecosystem**  | React, React Router, TanStack Query, Zustand, Redux Toolkit |
+| **Databases & ORMs** | Prisma, Drizzle, Mongoose, TypeORM                          |
+| **Styling**          | Tailwind CSS, shadcn/ui, Styled Components                  |
+| **Testing**          | Vitest, Playwright, Jest, Testing Library                   |
+| **APIs & Auth**      | tRPC, GraphQL, NextAuth.js, Passport                        |
+| **AI & LLMs**        | LangChain, AI SDK, OpenAI, Anthropic SDK                    |
 
 [Browse the full registry →](registry/)
 
@@ -410,12 +410,12 @@ context add /path/to/repo --path docs
 context add ./my-lib --name my-library --pkg-version 1.0.0
 ```
 
-| Option | Description |
-|--------|-------------|
-| `--pkg-version <version>` | Custom version label |
-| `--path <path>` | Path to docs folder in repo/directory |
-| `--name <name>` | Custom package name |
-| `--save <path>` | Save a copy of the package to the specified path |
+| Option                    | Description                                      |
+| ------------------------- | ------------------------------------------------ |
+| `--pkg-version <version>` | Custom version label                             |
+| `--path <path>`           | Path to docs folder in repo/directory            |
+| `--name <name>`           | Custom package name                              |
+| `--save <path>`           | Save a copy of the package to the specified path |
 
 **Saving packages for sharing:**
 
@@ -555,10 +555,10 @@ context serve --http 3000 --host 0.0.0.0
 context serve --libs react next@15.0.4
 ```
 
-| Option | Description |
-|--------|-------------|
-| `--http [port]` | Start as HTTP server instead of stdio (default port: 8080) |
-| `--host <host>` | Host to bind to (default: 127.0.0.1) |
+| Option              | Description                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--http [port]`     | Start as HTTP server instead of stdio (default port: 8080)                                                                                                                                                                                                                                                                                                                       |
+| `--host <host>`     | Host to bind to (default: 127.0.0.1)                                                                                                                                                                                                                                                                                                                                             |
 | `--libs <names...>` | Restrict the session to a fixed set of installed libraries. Each entry is a name (`react`, exposing every installed version) or `name@version` (`react@18.3.1`, exposing only that version). When set, `search_packages` and `download_package` are hidden so the session is locked to that list. Useful for per-project scoping when you have many packages installed globally. |
 
 The HTTP transport uses the [MCP Streamable HTTP](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http) protocol, enabling multiple clients on the local network to connect to a single server instance. The endpoint is available at `http://<host>:<port>/mcp`.
