@@ -66,10 +66,11 @@
     "@types/mdast": "^4.0.4",
     "@types/node": "^24.9.1",
     "@types/turndown": "^5.0.5",
+    "@typescript/native": "npm:typescript@^7.0.2",
     "rimraf": "^6.0.1",
     "tsconfig-paths": "^4.2.0",
     "tsx": "^4.20.6",
-    "typescript": "^5.9.3",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
     "vite": "7.3.7",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^4.0.3"
