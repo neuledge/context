@@ -1,5 +1,11 @@
 # @neuledge/context
 
+## 1.4.2
+
+### Patch Changes
+
+- [#217](https://github.com/neuledge/context/pull/217) [`dec9705`](https://github.com/neuledge/context/commit/dec970582d7d4058685e8ce51e92497648274c4a) Thanks [@human0-bot](https://github.com/apps/human0-bot)! - Refresh compatible runtime dependencies: @inquirer/prompts, defuddle, and ignore.
+
 ## 1.4.1
 
 ### Patch Changes
