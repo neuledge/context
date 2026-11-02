@@ -3,10 +3,10 @@
   "extends": "@total-typescript/tsconfig/tsc/no-dom/library",
   "compilerOptions": {
     "module": "NodeNext",
-    "baseUrl": ".",
+    "types": ["node"],
     "paths": {
-      "@neuledge/context": ["src/index.js"],
-      "@neuledge/context/*": ["src/*"]
+      "@neuledge/context": ["./src/index.js"],
+      "@neuledge/context/*": ["./src/*"]
     },
     "noEmit": true
   },
