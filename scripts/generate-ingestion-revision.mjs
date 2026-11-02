@@ -26,7 +26,12 @@ function canonical(value) {
 }
 
 function lockedDependency(state, name, version) {
-  const key = `${name}@${version}`;
+  // pnpm records aliased dependencies (`foo: npm:bar@^1`) with the resolved
+  // `name@version` as the version, while ordinary dependencies record only the
+  // version; peer suffixes live inside parentheses, so an `@` outside them marks
+  // an alias whose version field is already the lock key.
+  const bare = version.replace(/\(.*\)$/, "");
+  const key = bare.includes("@") ? version : `${name}@${version}`;
   if (state.dependencies.has(key)) return;
   const snapshot = state.lock.snapshots[key];
   // pnpm snapshots retain peer suffixes; package records normally omit them.
