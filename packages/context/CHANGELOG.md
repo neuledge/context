@@ -1,5 +1,11 @@
 # @neuledge/context
 
+## 1.4.2
+
+### Patch Changes
+
+- [#217](https://github.com/neuledge/context/pull/217) [`dec9705`](https://github.com/neuledge/context/commit/dec970582d7d4058685e8ce51e92497648274c4a) Thanks [@human0-bot](https://github.com/apps/human0-bot)! - Refresh compatible runtime dependencies: @inquirer/prompts, defuddle, and ignore.
+
 ## 1.4.1
 
 ### Patch Changes
@@ -19,7 +25,7 @@
 ### Minor Changes
 
 - [#210](https://github.com/neuledge/context/pull/210) [`628ef9b`](https://github.com/neuledge/context/commit/628ef9b222d29951e242af926633aa8b58b72f7a) Thanks [@TheRealBecks](https://github.com/TheRealBecks)! - Report documentation ingestion outcomes with relative paths and reasons, distinguishing exclusions, duplicate content, read/parse failures, empty documents, and indexed documents. Add JSON reports and strict validation to documentation builds, preserving installed packages when validation rejects unexpected document loss.
-  
+
   Keep diagnostics optional on the existing `BuildResult` type for compatibility with result objects and builder mocks; actual builds always include the report.
 
 ## 1.3.7
@@ -201,7 +207,6 @@
 ### Minor Changes
 
 - [#73](https://github.com/neuledge/context/pull/73) [`92f0a7d`](https://github.com/neuledge/context/commit/92f0a7d121cd92b8802aeaf5488f811c9e8f140d) Thanks [@shivaram19](https://github.com/shivaram19)! - Add support for ingesting arbitrary URLs when `llms.txt` is not found
-
   - `context add <url>` now falls back to fetching the page directly if `llms.txt` is unavailable, enabling ingestion of blog posts, articles, documentation pages, and raw markdown files
   - Added `suggestPackageNameFromUrl()` to derive meaningful package names from URL paths
   - Added `fetchWebPage()` helper with content-type detection and binary rejection
