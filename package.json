@@ -5,7 +5,6 @@
     "test": "turbo test",
     "lint": "turbo lint",
     "fix": "turbo fix",
-    "prepare": "npm run build",
     "changeset": "changeset",
     "versions": "changeset version",
     "release": "pnpm build && pnpm -r publish && pnpm tags",

@@ -18,7 +18,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "registry": "node ../../scripts/generate-ingestion-revision.mjs && tsx src/cli.ts",
-    "test-registry": "tsx src/test-registry.ts",
+    "test-registry": "node ../../scripts/generate-ingestion-revision.mjs && tsx src/test-registry.ts",
     "lint": "npx biome ci --error-on-warnings",
     "fix": "npx biome check --write"
   },
