@@ -4,8 +4,15 @@ repository: https://github.com/trpc/trpc
 
 versions:
   - min_version: "10.0.0"
+    max_version: "11.23.0"
     source:
       type: git
       url: https://github.com/trpc/trpc
       docs_path: www/docs
+    tag_pattern: "v{version}"
+  - min_version: "11.23.0"
+    source:
+      type: git
+      url: https://github.com/trpc/trpc
+      docs_path: www/v11/docs
     tag_pattern: "v{version}"
