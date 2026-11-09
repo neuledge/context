@@ -1,5 +1,11 @@
 # @neuledge/registry
 
+## 0.0.37
+
+### Patch Changes
+
+- [#224](https://github.com/neuledge/context/pull/224) [`db21653`](https://github.com/neuledge/context/commit/db216536dda3f0e431a76e447968f759e6700337) Thanks [@human0-bot](https://github.com/apps/human0-bot)! - Updates the p-retry dependency to v9.
+
 ## 0.0.36
 
 ### Patch Changes
