@@ -1,5 +1,11 @@
 # @neuledge/context
 
+## 1.4.3
+
+### Patch Changes
+
+- [#222](https://github.com/neuledge/context/pull/222) [`d2c7500`](https://github.com/neuledge/context/commit/d2c7500ab70d4d5fa99708aabdea36a0985972b3) Thanks [@human0-bot](https://github.com/apps/human0-bot)! - Updates the HTML parsing and Markdown conversion dependencies.
+
 ## 1.4.2
 
 ### Patch Changes
