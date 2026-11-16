@@ -19,8 +19,10 @@
   "packageManager": "pnpm@10.27.0",
   "pnpm": {
     "overrides": {
+      "@hono/node-server": "2.1.6",
       "esbuild": "0.28.2",
       "glob": "14.0.3",
+      "hono": "4.13.16",
       "minimatch": "11.0.2",
       "qs": "6.16.1"
     },
