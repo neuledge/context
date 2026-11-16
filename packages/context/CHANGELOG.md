@@ -1,5 +1,11 @@
 # @neuledge/context
 
+## 1.4.4
+
+### Patch Changes
+
+- [#226](https://github.com/neuledge/context/pull/226) [`e1b5cf5`](https://github.com/neuledge/context/commit/e1b5cf5763cf2b59867f7bb47fe3a0b45abe74dd) Thanks [@human0-bot](https://github.com/apps/human0-bot)! - Refresh the resolved runtime dependency versions of `hono` and `@hono/node-server` (both pulled in transitively through `@modelcontextprotocol/sdk`) to their patched releases to address security advisories.
+
 ## 1.4.3
 
 ### Patch Changes
