@@ -40,7 +40,7 @@
     "tsconfig-paths": "^4.2.0",
     "tsx": "^4.20.6",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "vite": "7.3.7",
+    "vite": "8.3.8",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^4.0.3"
   },
