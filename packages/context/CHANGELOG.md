@@ -1,5 +1,11 @@
 # @neuledge/context
 
+## 2.0.0
+
+### Major Changes
+
+- [#228](https://github.com/neuledge/context/pull/228) [`22690a7`](https://github.com/neuledge/context/commit/22690a74a8f1c9ac9629f949f4d7351942239a25) Thanks [@human0-bot](https://github.com/apps/human0-bot)! - Update `@inquirer/prompts` from 8.7.5 to 8.8.0. The new supported Node.js ranges are `^22.22.2`, `^24.15.0`, and `>=26.0.0`. This drops the previously supported Node 20 range (`^20.17.0`), Node 22 versions before 22.22.2, Node 23 from 23.5.0, Node 24 before 24.15.0, and Node 25.
+
 ## 1.4.4
 
 ### Patch Changes
