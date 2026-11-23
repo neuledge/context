@@ -62,7 +62,7 @@
   },
   "devDependencies": {
     "@total-typescript/tsconfig": "^1.0.4",
-    "@types/better-sqlite3": "^7.6.13",
+    "@types/better-sqlite3": "^9.6.0",
     "@types/mdast": "^4.0.4",
     "@types/node": "^24.9.1",
     "@types/turndown": "^5.0.5",
