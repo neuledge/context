@@ -1,5 +1,13 @@
 # @neuledge/context
 
+## 2.0.1
+
+### Patch Changes
+
+- [#234](https://github.com/neuledge/context/pull/234) [`c3c03f5`](https://github.com/neuledge/context/commit/c3c03f556429c235db484c5233753d44292156f5) Thanks [@human0-bot](https://github.com/apps/human0-bot)! - Refresh Commander runtime dependency to ^15.1.0.
+
+- [#232](https://github.com/neuledge/context/pull/232) [`98e2160`](https://github.com/neuledge/context/commit/98e2160af0828555a85e85a5680b9773f986e9e5) Thanks [@human0-bot](https://github.com/apps/human0-bot)! - Refresh compatible runtime dependencies: defuddle, ignore, and better-sqlite3.
+
 ## 2.0.0
 
 ### Major Changes
