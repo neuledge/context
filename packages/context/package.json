@@ -45,7 +45,7 @@
   "dependencies": {
     "@inquirer/prompts": "^8.2.0",
     "@modelcontextprotocol/sdk": "^1.11.4",
-    "commander": "^14.0.0",
+    "commander": "^15.1.0",
     "defuddle": "^0.19.7",
     "ignore": "^7.0.16",
     "linkedom": "^0.18.12",

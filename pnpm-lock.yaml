@@ -39,8 +39,8 @@ importers:
         specifier: ^1.11.4
         version: 1.32.2(zod@4.6.7)
       commander:
-        specifier: ^14.0.0
-        version: 14.0.3
+        specifier: ^15.1.0
+        version: 15.1.0
       defuddle:
         specifier: 0.19.7
         version: 0.19.7
@@ -122,8 +122,8 @@ importers:
         specifier: workspace:*
         version: link:../context
       commander:
-        specifier: ^14.0.0
-        version: 14.0.3
+        specifier: ^15.1.0
+        version: 15.1.0
       linkedom:
         specifier: ^0.18.12
         version: 0.18.15
@@ -1052,9 +1052,9 @@ packages:
     resolution: {integrity: sha512-Vw8qHK3bZM9y/P10u3Vib8o/DdkvA2OtPtZvD871QKjy74Wj1WSKFILMPRPSdUSx5RFK1arlJzEtA4PkFgnbuA==}
     engines: {node: '>=18'}
 
-  commander@14.0.3:
-    resolution: {integrity: sha512-H+y0Jo/T1RZ9qPP4Eh1pkcQcLRglraJaSLoyOtHxu6AapkjWVCy2Sit1QQ4x3Dng8qDlSsZEet7g5Pq06MvTgw==}
-    engines: {node: '>=20'}
+  commander@15.1.0:
+    resolution: {integrity: sha512-cgnQ88TRrWcC7pVq46RzJVRMktu3W2RcbnoidnfBsl1bmDCBwJS/udcIZpKoCrbAYYaCqsz1yZCVIgbIaU3ddQ==}
+    engines: {node: '>=22.12.0'}
 
   content-disposition@2.0.1:
     resolution: {integrity: sha512-e+H0ZXHSWYrENhQzw1LPuP4oF5MzVKmDU6d3hxlvaPEYLLg62MxtQNPRx4SYSuYJSBUgnQIG4HIN2tEtNv7Dog==}
@@ -2755,7 +2755,7 @@ snapshots:
 
   commander@12.1.0: {}
 
-  commander@14.0.3: {}
+  commander@15.1.0: {}
 
   content-disposition@2.0.1: {}
 
