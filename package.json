@@ -11,15 +11,16 @@
     "tags": "pnpm -r exec -- bash -c 'pkg=$(jq -r .name package.json); ver=$(jq -r .version package.json); tag=\"$pkg@$ver\"; if ! git rev-parse \"$tag\" >/dev/null 2>&1; then git tag \"$tag\" && echo \"Tagged $tag\"; fi' && git push --tags"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.6.4",
+    "@biomejs/biome": "2.6.8",
     "@changesets/changelog-github": "^0.6.0",
     "@changesets/cli": "^3.0.3",
-    "turbo": "^2.6.3"
+    "turbo": "^2.11.13"
   },
   "packageManager": "pnpm@10.27.0",
   "pnpm": {
     "overrides": {
       "@hono/node-server": "2.1.6",
+      "defuddle": "0.19.7",
       "esbuild": "0.28.2",
       "glob": "14.0.3",
       "hono": "4.13.16",
