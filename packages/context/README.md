@@ -69,6 +69,7 @@ claude mcp add context -- context serve
 <summary><strong>Claude Desktop</strong></summary>
 
 Add to your config file:
+
 - **Linux**: `~/.config/claude/claude_desktop_config.json`
 - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
@@ -156,6 +157,7 @@ Click the **Start** button that appears in the file, then use Agent mode in Copi
 <summary><strong>Windsurf</strong></summary>
 
 Add to `~/.codeium/windsurf/mcp_config.json`:
+
 - **Windows**: `%USERPROFILE%\.codeium\windsurf\mcp_config.json`
 
 ```json
@@ -211,7 +213,6 @@ extensions:
 ```
 
 </details>
-
 
 <details>
 <summary><strong>OpenCode</strong></summary>
@@ -484,6 +485,7 @@ context add https://github.com/reactjs/react.dev
 ```
 
 Common patterns for documentation repositories:
+
 - `project-docs` (e.g., `prisma/docs`)
 - `project.dev` or `project.io` (e.g., `reactjs/react.dev`)
 - `project-website` (e.g., `expressjs/expressjs.com`)
@@ -618,11 +620,13 @@ punctuation-only topics return no results. These rules also apply to MCP `get_do
 ```
 
 **First time you ask about a library:**
+
 1. The MCP server searches the community registry
 2. Downloads the pre-built documentation package (a SQLite `.db` file)
 3. Stores it locally in `~/.context/packages/`
 
 **Every time after:**
+
 1. FTS5 full-text search finds relevant sections locally
 2. Smart filtering keeps results within token budget
 3. Your AI gets focused, accurate documentation in under 10ms

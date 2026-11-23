@@ -46,8 +46,8 @@
     "@inquirer/prompts": "^8.2.0",
     "@modelcontextprotocol/sdk": "^1.11.4",
     "commander": "^14.0.0",
-    "defuddle": "^0.19.3",
-    "ignore": "^7.0.5",
+    "defuddle": "^0.19.7",
+    "ignore": "^7.0.16",
     "linkedom": "^0.18.12",
     "remark-frontmatter": "^5.0.0",
     "remark-parse": "^11.0.0",
@@ -58,7 +58,7 @@
     "zod": "^4.3.6"
   },
   "optionalDependencies": {
-    "better-sqlite3": "^13.0.3"
+    "better-sqlite3": "^13.2.0"
   },
   "devDependencies": {
     "@total-typescript/tsconfig": "^1.0.4",
@@ -73,7 +73,7 @@
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "vite": "8.3.8",
     "vite-tsconfig-paths": "^5.1.4",
-    "vitest": "^5.1.0"
+    "vitest": "^5.1.1"
   },
   "tsx": {
     "require": [
